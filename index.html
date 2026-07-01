@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coreografías Operativas — Instacredit</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  .pin-bar{background:#FFF6E0;border:1px solid #E8D48A;border-radius:6px;padding:10px 16px;margin:16px 0 0 0;display:flex;align-items:center;gap:10px;font-size:13px;}
+  .pin-bar.unlocked{background:var(--verde-claro);border-color:var(--verde);}
+  .pin-bar input[type="password"]{font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:6px 9px;font-size:13px;width:110px;}
+  .pin-bar button{font-family:'Inter Tight',sans-serif;background:var(--azul);color:#fff;border:none;border-radius:5px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  .kpi-block.locked textarea, .kpi-block.locked input, .kpi-block.locked select, .kpi-block.locked button.add-row-btn, .kpi-block.locked button[data-remove]{
+    pointer-events:none;opacity:.55;background:#F0F0F0 !important;
+  }
+  :root{
+    --verde:#4C9C2E;
+    --azul:#002554;
+    --rojo:#EE212E;
+    --verde-claro:#CEF0C4;
+    --azul-claro:#677C98;
+    --gris-texto:#333333;
+    --gris-borde:#D2D2D2;
+    --fondo:#F5FCF3;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:'Inter Tight',sans-serif;color:var(--gris-texto);background:var(--fondo);margin:0;padding:0 0 60px 0;}
+  .page{max-width:1150px;margin:0 auto;padding:0 32px;}
+
+  header.cover{background:var(--azul);color:#fff;padding:28px 32px 40px 32px;margin-bottom:0;position:relative;overflow:hidden;}
+  header.cover .logo-row{margin-bottom:26px;}
+  header.cover .logo-row img{height:32px;}
+  header.cover .eyebrow{color:var(--verde-claro);font-weight:600;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+  header.cover h1{font-size:28px;font-weight:800;margin:0 0 8px 0;line-height:1.15;max-width:640px;}
+  header.cover p{color:var(--azul-claro);font-size:14px;margin:0;max-width:640px;}
+  header.cover .prestamito{position:absolute;right:26px;bottom:0;height:120px;}
+
+  /* Barra de acciones */
+  .toolbar{
+    background:#fff;
+    border-bottom:1px solid var(--gris-borde);
+    position:sticky;
+    top:0;
+    z-index:20;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 32px;
+    flex-wrap:wrap;
+  }
+  .toolbar .status{font-size:12.5px;color:var(--azul-claro);margin-right:auto;}
+  .toolbar .status b{color:var(--verde);}
+  button.btn{
+    font-family:'Inter Tight',sans-serif;
+    border:none;
+    border-radius:6px;
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .btn-primary{background:var(--verde);color:#fff;}
+  .btn-primary:hover{background:#3f8626;}
+  .btn-secondary{background:#fff;color:var(--azul);border:1px solid var(--gris-borde) !important;}
+  .btn-secondary:hover{background:#F0F7EE;}
+  input[type="file"]{display:none;}
+
+  /* Tabs */
+  .tabs{
+    display:flex;
+    gap:4px;
+    background:#fff;
+    border-bottom:2px solid var(--gris-borde);
+    padding:0 32px;
+    position:sticky;
+    top:53px;
+    z-index:19;
+    overflow-x:auto;
+  }
+  .tab-btn{
+    font-family:'Inter Tight',sans-serif;
+    background:none;
+    border:none;
+    padding:14px 20px;
+    font-size:14px;
+    font-weight:700;
+    color:var(--azul-claro);
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    white-space:nowrap;
+  }
+  .tab-btn.active{color:var(--azul);border-bottom-color:var(--verde);}
+  .tab-panel{display:none;padding-top:28px;}
+  .tab-panel.active{display:block;}
+
+  .area-block{margin-bottom:36px;}
+  .area-header{background:var(--verde);color:#fff;padding:12px 20px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;}
+  .area-header h2{margin:0;font-size:17px;font-weight:800;}
+  .area-header span{font-size:11px;font-weight:600;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:12px;}
+  .area-owner{background:var(--azul);color:var(--azul-claro);padding:7px 20px;font-size:12px;}
+  .area-owner strong{color:#fff;}
+
+  .kpi-block{background:#fff;border:1px solid var(--gris-borde);border-top:none;}
+  .kpi-row-header{background:#F0F7EE;padding:10px 20px;font-weight:700;color:var(--azul);font-size:13px;border-top:1px solid var(--gris-borde);}
+  .kpi-def{padding:4px 20px 10px 20px;font-size:12px;color:var(--azul-claro);border-bottom:1px solid var(--gris-borde);}
+
+  .field-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 20px 6px 20px;}
+  .field label{display:block;font-size:10.5px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
+  .field input[type="text"], .field input[type="date"], .field textarea{
+    width:100%;
+    font-family:'Inter Tight',sans-serif;
+    font-size:13px;
+    color:var(--gris-texto);
+    border:1px solid var(--gris-borde);
+    border-radius:5px;
+    padding:7px 9px;
+    background:#FAFDF9;
+  }
+  .field textarea{resize:vertical;min-height:38px;}
+  .field input:focus, .field textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
+
+  table.coreo{width:calc(100% - 40px);margin:8px 20px 16px 20px;border-collapse:collapse;font-size:12.5px;}
+  table.coreo th{background:#fff;color:var(--azul-claro);text-align:left;padding:6px 6px;font-weight:600;border-bottom:1px solid var(--gris-borde);font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;}
+  table.coreo td{padding:5px 6px;border-bottom:1px dashed var(--gris-borde);}
+  table.coreo td input, table.coreo td select{
+    width:100%;
+    font-family:'Inter Tight',sans-serif;
+    font-size:12.5px;
+    border:1px solid transparent;
+    border-radius:4px;
+    padding:5px 6px;
+    background:#FAFDF9;
+  }
+  table.coreo td input:focus, table.coreo td select:focus{outline:none;border-color:var(--verde);background:#fff;}
+  .row-actions{width:34px;text-align:center;}
+  .row-actions button{background:none;border:none;color:var(--rojo);cursor:pointer;font-size:15px;font-weight:700;}
+  .add-row-btn{
+    margin:0 20px 18px 20px;
+    background:none;
+    border:1px dashed var(--azul-claro);
+    color:var(--azul);
+    font-family:'Inter Tight',sans-serif;
+    font-size:12px;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:5px;
+    cursor:pointer;
+  }
+  .add-row-btn:hover{background:#F0F7EE;}
+
+  select.estado{
+    background:#fff;
+  }
+
+  footer{max-width:1150px;margin:40px auto 0 auto;padding:20px 32px;border-top:1px solid var(--gris-borde);font-size:12px;color:var(--azul-claro);display:flex;justify-content:space-between;}
+
+  @media print{
+    .toolbar, .tabs{position:static;}
+    .tab-panel{display:block !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="page" style="padding:0;">
+    <div class="logo-row"><img src="assets/logo_claro.png" alt="Instacredit"></div>
+    <div class="eyebrow">Riesgo Regional — Instacredit</div>
+    <h1>Coreografías Operativas — Herramienta Editable</h1>
+    <p>Cada Gerente de País documenta aquí sus Coreografías por KPI. Los cambios se guardan en este navegador; usa "Exportar" para respaldar o enviar el archivo.</p>
+  </div>
+  <img class="prestamito" src="assets/prestamito_maletin.png" alt="Prestamito">
+</header>
+
+<div class="toolbar">
+  <span class="status" id="statusText">Cargando datos de la nube…</span>
+  <button class="btn btn-secondary" type="button" id="btnExport">Exportar JSON</button>
+  <label class="btn btn-secondary" for="fileImport">Importar JSON</label>
+  <input type="file" id="fileImport" accept="application/json">
+  <button class="btn btn-secondary" type="button" id="btnPrint">Imprimir / PDF</button>
+  <button class="btn btn-primary" type="button" id="btnSave">Guardar cambios de este país</button>
+</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="page" id="tabPanels"></div>
+
+<footer>
+  <span>¡Apoyándote siempre! — Instacredit Riesgo Regional</span>
+  <span>Coreografías Operativas · Julio 2026</span>
+</footer>
+
+<script>
+const PAISES = [
+  {code:'CR', nombre:'Costa Rica'},
+  {code:'NI', nombre:'Nicaragua'},
+  {code:'PA', nombre:'Panamá'},
+  {code:'SV', nombre:'El Salvador'}
+];
+
+const AREAS = [
+  { id:'A', nombre:'Originación y Calidad de Cartera', ejecuta:'Comercial', controla:'Riesgo',
+    kpis:[
+      {id:'1pd_4pd', nombre:'1PD / 2PD / 3PD / 4PD', def:'% de créditos que caen en mora en el primer, segundo, tercer y cuarto pago.'},
+      {id:'coincident60', nombre:'Coincident 60 (6/9/12/16 MOB)', def:'% de cosecha en mora 60+ días según meses de madurez.'},
+      {id:'coincident90', nombre:'Coincident 90 (6/9/12/16 MOB)', def:'% de cosecha en mora 90+ días según meses de madurez.'},
+      {id:'castigo', nombre:'Castigo (6/9/12/16 MOB)', def:'% de cosecha castigada según meses de madurez.'}
+    ]},
+  { id:'B', nombre:'Ejecución Comercial de Colocación', ejecuta:'Comercial', controla:'Riesgo',
+    kpis:[
+      {id:'auditaje_expedientes', nombre:'Auditaje de expedientes', def:'% de expedientes sin hallazgo sobre expedientes auditados.'},
+      {id:'compromisos_colocacion', nombre:'Compromisos en estrategia de colocación', def:'% de compromisos pactados en comité cumplidos en fecha.'},
+      {id:'aprobados_sin_formalizar', nombre:'Créditos aprobados sin formalizar', def:'Cantidad y monto de aprobados sin formalizar, con aging en días desde aprobación.'},
+      {id:'conversion_preaprobados', nombre:'Conversión de preaprobados', def:'% de colocados sobre preaprobados contactados.'},
+      {id:'prospectacion', nombre:'Prospectación', def:'Prospectos nuevos vs meta; tasa prospecto → solicitud → aprobado.'},
+      {id:'pilotos_segmentos', nombre:'Pilotos de nuevos segmentos', def:'Desempeño de KPI Dominio A del segmento piloto vs segmento control.'},
+      {id:'aprovechamiento_monto', nombre:'% aprovechamiento de monto aprobado', def:'Monto desembolsado sobre monto aprobado.'}
+    ]},
+  { id:'C', nombre:'Ejecución de Cobro', ejecuta:'Cobro', controla:'Riesgo',
+    kpis:[
+      {id:'contactos_por_cuenta', nombre:'contactos_por_cuenta', def:'Gestiones totales sobre cuentas en mora gestionadas (excluye judicial).'},
+      {id:'tasa_contacto_efectivo', nombre:'tasa_contacto_efectivo', def:'Gestiones con RPC sobre gestiones totales.'},
+      {id:'contacto_bruto', nombre:'% de contacto (bruto)', def:'Cuentas contactadas (con o sin RPC) sobre cuentas asignadas a gestión.'},
+      {id:'tasa_promesa_pago', nombre:'tasa_promesa_pago', def:'PTP generadas sobre cuentas con RPC.'},
+      {id:'tasa_cumplimiento_ptp', nombre:'tasa_cumplimiento_ptp', def:'PTP cumplidas sobre PTP generadas.'},
+      {id:'incumplimiento_promesas', nombre:'% incumplimiento de promesas', def:'1 − tasa_cumplimiento_ptp, desagregado por canal/gestor.'},
+      {id:'dias_primer_contacto', nombre:'dias_primer_contacto', def:'Días de mora promedio hasta primer RPC.'},
+      {id:'recuperacion_por_canal', nombre:'recuperacion_por_canal', def:'% de monto recuperado por canal (campo, call, digital).'},
+      {id:'visitas_cobertura', nombre:'Estrategia de visitas de campo — cobertura', def:'Cuentas visitadas sobre cuentas asignadas a ruta.'},
+      {id:'visitas_efectividad', nombre:'Estrategia de visitas de campo — efectividad', def:'PTP o recuperación generada por visita realizada.'}
+    ]}
+];
+
+const SUPABASE_URL = 'https://kouwqcmletybfrkispov.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdXdxY21sZXR5YmZya2lzcG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MjY1ODIsImV4cCI6MjA5ODUwMjU4Mn0.FF3P6lkxmPgD6NMHaBwwuM1Y0ZprRMdsQJjEm08DmiI';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const STORAGE_KEY = 'instacredit_coreografias_v1';
+const UNLOCK_KEY = 'instacredit_coreografias_unlocked';
+let state = {};
+let unlockedCountries = new Set(JSON.parse(sessionStorage.getItem(UNLOCK_KEY) || '[]'));
+
+function emptyKpiState(){
+  return { situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'',
+    acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
+}
+
+function ensureState(){
+  PAISES.forEach(p=>{
+    if(!state[p.code]) state[p.code] = {};
+    AREAS.forEach(a=>{
+      if(!state[p.code][a.id]) state[p.code][a.id] = {};
+      a.kpis.forEach(k=>{
+        if(!state[p.code][a.id][k.id]) state[p.code][a.id][k.id] = emptyKpiState();
+      });
+    });
+  });
+}
+
+function loadLocalCache(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw){
+    try{ state = JSON.parse(raw); }catch(e){ state = {}; }
+  }
+  ensureState();
+}
+
+function mergeCloudRows(rows){
+  rows.forEach(row=>{
+    const target = state[row.pais_code] && state[row.pais_code][row.area_id] && state[row.pais_code][row.area_id][row.kpi_id];
+    if(!target) return;
+    target.situacion = row.situacion || '';
+    target.objetivo = row.objetivo || '';
+    target.responsable = row.responsable || '';
+    target.puntoControl = row.punto_control || '';
+    target.fechaRevision = row.fecha_revision || '';
+    target.acciones = (row.acciones && row.acciones.length) ? row.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}];
+  });
+}
+
+async function loadFromCloud(){
+  const { data, error } = await sb.from('coreografias').select('*');
+  if(error){
+    document.getElementById('statusText').innerHTML = 'No se pudo conectar a la nube (mostrando copia local) — ' + error.message;
+    return;
+  }
+  mergeCloudRows(data || []);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderTabs();
+  const now = new Date().toLocaleString('es-CR');
+  document.getElementById('statusText').innerHTML = 'Datos consolidados cargados — <b>' + now + '</b>';
+}
+
+function markDirty(){
+  document.getElementById('statusText').innerHTML = 'Cambios sin guardar';
+}
+
+async function saveActiveCountry(){
+  const activeBtn = document.querySelector('.tab-btn.active');
+  const code = activeBtn.dataset.pais;
+  if(!unlockedCountries.has(code)){
+    alert('Este país está bloqueado. Ingresa el PIN de ' + code + ' para poder guardar.');
+    return;
+  }
+  const rows = [];
+  AREAS.forEach(area=>{
+    area.kpis.forEach(kpi=>{
+      const k = state[code][area.id][kpi.id];
+      rows.push({
+        pais_code: code,
+        area_id: area.id,
+        kpi_id: kpi.id,
+        situacion: k.situacion,
+        objetivo: k.objetivo,
+        responsable: k.responsable,
+        punto_control: k.puntoControl,
+        fecha_revision: k.fechaRevision || null,
+        acciones: k.acciones,
+        updated_at: new Date().toISOString()
+      });
+    });
+  });
+  document.getElementById('statusText').innerHTML = 'Guardando ' + code + '…';
+  const { error } = await sb.from('coreografias').upsert(rows, { onConflict: 'pais_code,area_id,kpi_id' });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const now = new Date().toLocaleString('es-CR');
+  if(error){
+    document.getElementById('statusText').innerHTML = 'Error al guardar ' + code + ': ' + error.message;
+  } else {
+    document.getElementById('statusText').innerHTML = 'Guardado en la nube (' + code + ') — <b>' + now + '</b>';
+  }
+}
+
+async function attemptUnlock(code, pin, panelEl){
+  const { data, error } = await sb.rpc('verificar_pin', { p_code: code, p_pin: pin });
+  if(error || data !== true){
+    alert('PIN incorrecto para ' + code + '.');
+    return;
+  }
+  unlockedCountries.add(code);
+  sessionStorage.setItem(UNLOCK_KEY, JSON.stringify([...unlockedCountries]));
+  renderTabs();
+  selectTab(code);
+}
+
+function renderTabs(){
+  const tabsEl = document.getElementById('tabs');
+  const panelsEl = document.getElementById('tabPanels');
+  tabsEl.innerHTML = '';
+  panelsEl.innerHTML = '';
+
+  PAISES.forEach((p, idx)=>{
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (idx===0 ? ' active' : '');
+    btn.textContent = p.nombre;
+    btn.dataset.pais = p.code;
+    btn.addEventListener('click', ()=> selectTab(p.code));
+    tabsEl.appendChild(btn);
+
+    const panel = document.createElement('div');
+    panel.className = 'tab-panel' + (idx===0 ? ' active' : '');
+    panel.id = 'panel-' + p.code;
+    panel.appendChild(renderPais(p.code));
+    panelsEl.appendChild(panel);
+  });
+}
+
+function selectTab(code){
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.pais===code));
+  document.querySelectorAll('.tab-panel').forEach(p=> p.classList.toggle('active', p.id==='panel-'+code));
+}
+
+function renderPais(paisCode){
+  const wrap = document.createElement('div');
+  const isUnlocked = unlockedCountries.has(paisCode);
+
+  const pinBar = document.createElement('div');
+  pinBar.className = 'pin-bar' + (isUnlocked ? ' unlocked' : '');
+  if(isUnlocked){
+    pinBar.innerHTML = `<span>🔓 ${paisCode} desbloqueado en esta sesión — los campos son editables.</span>`;
+  } else {
+    pinBar.innerHTML = `
+      <span>🔒 Ingresa el PIN de ${paisCode} para editar (solo lectura mientras tanto):</span>
+      <input type="password" placeholder="PIN" maxlength="6">
+      <button type="button">Desbloquear</button>
+    `;
+    pinBar.querySelector('button').addEventListener('click', ()=>{
+      const pin = pinBar.querySelector('input').value.trim();
+      if(pin) attemptUnlock(paisCode, pin);
+    });
+    pinBar.querySelector('input').addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') pinBar.querySelector('button').click();
+    });
+  }
+  wrap.appendChild(pinBar);
+
+  AREAS.forEach(area=>{
+    const block = document.createElement('div');
+    block.className = 'area-block';
+
+    block.innerHTML = `
+      <div class="area-header">
+        <h2>${area.nombre}</h2>
+        <span>Dominio ${area.id}</span>
+      </div>
+      <div class="area-owner"><strong>Ejecuta:</strong> ${area.ejecuta} &nbsp;|&nbsp; <strong>Controla:</strong> ${area.controla}</div>
+    `;
+
+    const kpiBlock = document.createElement('div');
+    kpiBlock.className = 'kpi-block' + (isUnlocked ? '' : ' locked');
+
+    area.kpis.forEach(kpi=>{
+      const kpiState = state[paisCode][area.id][kpi.id];
+
+      const header = document.createElement('div');
+      header.className = 'kpi-row-header';
+      header.textContent = kpi.nombre;
+      kpiBlock.appendChild(header);
+
+      const def = document.createElement('div');
+      def.className = 'kpi-def';
+      def.textContent = kpi.def;
+      kpiBlock.appendChild(def);
+
+      const fieldGrid = document.createElement('div');
+      fieldGrid.className = 'field-grid';
+      fieldGrid.innerHTML = `
+        <div class="field">
+          <label>Situación actual (valor vs meta)</label>
+          <textarea data-field="situacion">${kpiState.situacion}</textarea>
+        </div>
+        <div class="field">
+          <label>Objetivo de la coreografía</label>
+          <textarea data-field="objetivo">${kpiState.objetivo}</textarea>
+        </div>
+        <div class="field">
+          <label>Responsable</label>
+          <input type="text" data-field="responsable" value="${escapeAttr(kpiState.responsable)}">
+        </div>
+      `;
+      fieldGrid.querySelectorAll('[data-field]').forEach(el=>{
+        el.addEventListener('input', ()=>{
+          kpiState[el.dataset.field] = el.value;
+          markDirty();
+        });
+      });
+      kpiBlock.appendChild(fieldGrid);
+
+      const table = document.createElement('table');
+      table.className = 'coreo';
+      table.innerHTML = `
+        <tr><th style="width:5%;">#</th><th style="width:36%;">Acción</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
+      `;
+      const tbody = document.createElement('tbody');
+      table.appendChild(tbody);
+
+      function renderAcciones(){
+        tbody.innerHTML = '';
+        kpiState.acciones.forEach((accion, i)=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${i+1}</td>
+            <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
+            <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
+            <td><input type="date" data-f="fecha" value="${escapeAttr(accion.fecha)}"></td>
+            <td>
+              <select data-f="estado" class="estado">
+                <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
+                <option value="En curso" ${accion.estado==='En curso'?'selected':''}>En curso</option>
+                <option value="Cumplida" ${accion.estado==='Cumplida'?'selected':''}>Cumplida</option>
+                <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
+              </select>
+            </td>
+            <td class="row-actions"><button title="Eliminar fila" data-remove="${i}">×</button></td>
+          `;
+          tr.querySelectorAll('[data-f]').forEach(el=>{
+            el.addEventListener('input', ()=>{
+              accion[el.dataset.f] = el.value;
+              markDirty();
+            });
+            el.addEventListener('change', ()=>{
+              accion[el.dataset.f] = el.value;
+              markDirty();
+            });
+          });
+          tr.querySelector('[data-remove]').addEventListener('click', ()=>{
+            kpiState.acciones.splice(i,1);
+            if(kpiState.acciones.length===0) kpiState.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+            renderAcciones();
+            markDirty();
+          });
+          tbody.appendChild(tr);
+        });
+      }
+      renderAcciones();
+      kpiBlock.appendChild(table);
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-row-btn';
+      addBtn.textContent = '+ Agregar acción';
+      addBtn.addEventListener('click', ()=>{
+        kpiState.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+        renderAcciones();
+        markDirty();
+      });
+      kpiBlock.appendChild(addBtn);
+
+      const fieldGrid2 = document.createElement('div');
+      fieldGrid2.className = 'field-grid';
+      fieldGrid2.style.paddingTop = '0';
+      fieldGrid2.innerHTML = `
+        <div class="field">
+          <label>Punto de control</label>
+          <input type="text" data-field="puntoControl" value="${escapeAttr(kpiState.puntoControl)}">
+        </div>
+        <div class="field">
+          <label>Fecha de revisión con Riesgo Regional</label>
+          <input type="date" data-field="fechaRevision" value="${escapeAttr(kpiState.fechaRevision)}">
+        </div>
+        <div></div>
+      `;
+      fieldGrid2.querySelectorAll('[data-field]').forEach(el=>{
+        el.addEventListener('input', ()=>{
+          kpiState[el.dataset.field] = el.value;
+          markDirty();
+        });
+      });
+      kpiBlock.appendChild(fieldGrid2);
+    });
+
+    block.appendChild(kpiBlock);
+    wrap.appendChild(block);
+  });
+  return wrap;
+}
+
+function escapeAttr(v){
+  return (v||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+document.getElementById('btnSave').addEventListener('click', saveActiveCountry);
+document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fecha = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  a.href = url;
+  a.download = `coreografias_instacredit_${fecha}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('fileImport').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      state = JSON.parse(reader.result);
+      ensureState();
+      renderTabs();
+      markDirty();
+    }catch(err){
+      alert('Archivo inválido.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+loadLocalCache();
+renderTabs();
+loadFromCloud();
+</script>
+
+</body>
+</html>
