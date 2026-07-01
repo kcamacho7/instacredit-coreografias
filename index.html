@@ -33,6 +33,7 @@
     pointer-events:none;opacity:.55;background:#F0F0F0 !important;
   }
   .sin-proyectos{padding:20px;font-size:13px;color:var(--azul-claro);font-style:italic;}
+  input.fecha-definitiva{background:#F0F0F0 !important;color:var(--azul-claro);cursor:not-allowed;border-color:var(--gris-borde) !important;}
   :root{
     --verde:#4C9C2E;
     --azul:#002554;
@@ -592,11 +593,26 @@ function renderPais(paisCode){
         </div>
         <div></div>
       `;
-      fieldGrid2.querySelectorAll('[data-field]').forEach(el=>{
+      fieldGrid2.querySelectorAll('[data-field="puntoControl"]').forEach(el=>{
         el.addEventListener('input', ()=>{
           kpiState[el.dataset.field] = el.value;
           markDirty();
         });
+      });
+
+      const fechaInput = fieldGrid2.querySelector('[data-field="fechaRevision"]');
+      let fechaComprometida = kpiState.fechaRevision;
+      if(fechaComprometida) fechaInput.classList.add('fecha-definitiva');
+      fechaInput.addEventListener('change', ()=>{
+        if(fechaComprometida){
+          fechaInput.value = fechaComprometida;
+          alert('La fecha de revisión de "' + kpi.nombre + '" ya fue definida (' + fechaComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+          return;
+        }
+        fechaComprometida = fechaInput.value;
+        kpiState.fechaRevision = fechaInput.value;
+        fechaInput.classList.add('fecha-definitiva');
+        markDirty();
       });
       kpiBlock.appendChild(fieldGrid2);
     });
