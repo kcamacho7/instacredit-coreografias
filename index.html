@@ -767,11 +767,19 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         <div></div>
         <div></div>
       `;
-      fieldGrid2.querySelectorAll('[data-field]').forEach(el=>{
-        el.addEventListener('input', ()=>{
-          proy[el.dataset.field] = el.value;
-          markDirty();
-        });
+      const fechaSeguimientoInput = fieldGrid2.querySelector('[data-field="fechaSeguimiento"]');
+      let fechaSeguimientoComprometida = proy.fechaSeguimiento;
+      if(fechaSeguimientoComprometida) fechaSeguimientoInput.classList.add('fecha-definitiva');
+      fechaSeguimientoInput.addEventListener('change', ()=>{
+        if(fechaSeguimientoComprometida){
+          fechaSeguimientoInput.value = fechaSeguimientoComprometida;
+          alert('La fecha de seguimiento de "' + (proy.nombre || 'este proyecto especial') + '" ya fue definida (' + fechaSeguimientoComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+          return;
+        }
+        fechaSeguimientoComprometida = fechaSeguimientoInput.value;
+        proy.fechaSeguimiento = fechaSeguimientoInput.value;
+        fechaSeguimientoInput.classList.add('fecha-definitiva');
+        markDirty();
       });
       card.appendChild(fieldGrid2);
 
