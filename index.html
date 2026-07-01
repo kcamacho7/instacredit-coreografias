@@ -272,9 +272,15 @@ function ensureState(){
       a.kpis.forEach(k=>{
         if(!state[p.code][a.id][k.id]) state[p.code][a.id][k.id] = emptyKpiState();
       });
+      if(!state[p.code][a.id].customKpis) state[p.code][a.id].customKpis = [];
     });
     if(!state[p.code].proyectosEspeciales) state[p.code].proyectosEspeciales = [];
   });
+}
+
+function emptyCustomKpi(){
+  return { id: uuid(), nombre:'', definicion:'', situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'',
+    acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
 }
 
 function uuid(){
@@ -329,17 +335,43 @@ function mergeProyectosRows(rows){
   });
 }
 
+function mergeCustomKpisRows(rows){
+  const byPaisArea = {};
+  rows.forEach(r=>{
+    const key = r.pais_code + '|' + r.area_id;
+    if(!byPaisArea[key]) byPaisArea[key] = [];
+    byPaisArea[key].push({
+      id: r.id,
+      nombre: r.nombre || '',
+      definicion: r.definicion || '',
+      situacion: r.situacion || '',
+      objetivo: r.objetivo || '',
+      responsable: r.responsable || '',
+      puntoControl: r.punto_control || '',
+      fechaRevision: r.fecha_revision || '',
+      acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}]
+    });
+  });
+  PAISES.forEach(p=>{
+    AREAS.forEach(a=>{
+      state[p.code][a.id].customKpis = byPaisArea[p.code + '|' + a.id] || [];
+    });
+  });
+}
+
 async function loadFromCloud(){
-  const [{ data: coreoData, error: coreoErr }, { data: proyData, error: proyErr }] = await Promise.all([
+  const [{ data: coreoData, error: coreoErr }, { data: proyData, error: proyErr }, { data: customData, error: customErr }] = await Promise.all([
     sb.from('coreografias').select('*'),
-    sb.from('proyectos_especiales').select('*').order('updated_at', { ascending: true })
+    sb.from('proyectos_especiales').select('*').order('updated_at', { ascending: true }),
+    sb.from('kpis_adicionales').select('*').order('orden', { ascending: true })
   ]);
-  if(coreoErr || proyErr){
-    document.getElementById('statusText').innerHTML = 'No se pudo conectar a la nube (mostrando copia local) — ' + (coreoErr||proyErr).message;
+  if(coreoErr || proyErr || customErr){
+    document.getElementById('statusText').innerHTML = 'No se pudo conectar a la nube (mostrando copia local) — ' + (coreoErr||proyErr||customErr).message;
     return;
   }
   mergeCloudRows(coreoData || []);
   mergeProyectosRows(proyData || []);
+  mergeCustomKpisRows(customData || []);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   renderTabs();
   const now = new Date().toLocaleString('es-CR');
@@ -388,6 +420,27 @@ async function saveActiveCountry(){
     updated_at: new Date().toISOString()
   }));
 
+  const customKpiRows = [];
+  AREAS.forEach(area=>{
+    state[code][area.id].customKpis.forEach((c, i)=>{
+      customKpiRows.push({
+        id: c.id,
+        pais_code: code,
+        area_id: area.id,
+        nombre: c.nombre,
+        definicion: c.definicion,
+        situacion: c.situacion,
+        objetivo: c.objetivo,
+        responsable: c.responsable,
+        punto_control: c.puntoControl,
+        fecha_revision: c.fechaRevision || null,
+        acciones: c.acciones,
+        orden: i,
+        updated_at: new Date().toISOString()
+      });
+    });
+  });
+
   document.getElementById('statusText').innerHTML = 'Guardando ' + code + '…';
   const { error } = await sb.from('coreografias').upsert(rows, { onConflict: 'pais_code,area_id,kpi_id' });
   const { error: delErr } = await sb.from('proyectos_especiales').delete().eq('pais_code', code);
@@ -396,10 +449,16 @@ async function saveActiveCountry(){
     const res = await sb.from('proyectos_especiales').insert(proyectoRows);
     proyErr = res.error;
   }
+  const { error: delCustomErr } = await sb.from('kpis_adicionales').delete().eq('pais_code', code);
+  let customErr = null;
+  if(!delCustomErr && customKpiRows.length){
+    const res = await sb.from('kpis_adicionales').insert(customKpiRows);
+    customErr = res.error;
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   const now = new Date().toLocaleString('es-CR');
-  if(error || delErr || proyErr){
-    document.getElementById('statusText').innerHTML = 'Error al guardar ' + code + ': ' + (error||delErr||proyErr).message;
+  if(error || delErr || proyErr || delCustomErr || customErr){
+    document.getElementById('statusText').innerHTML = 'Error al guardar ' + code + ': ' + (error||delErr||proyErr||delCustomErr||customErr).message;
   } else {
     document.getElementById('statusText').innerHTML = 'Guardado en la nube (' + code + ') — <b>' + now + '</b>';
   }
@@ -617,6 +676,8 @@ function renderPais(paisCode){
       kpiBlock.appendChild(fieldGrid2);
     });
 
+    renderCustomKpis(paisCode, area, isUnlocked, kpiBlock);
+
     block.appendChild(kpiBlock);
     wrap.appendChild(block);
   });
@@ -624,6 +685,188 @@ function renderPais(paisCode){
   wrap.appendChild(renderProyectosEspeciales(paisCode, isUnlocked));
 
   return wrap;
+}
+
+function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
+  const customList = state[paisCode][area.id].customKpis;
+
+  function renderOne(c){
+    const card = document.createElement('div');
+    card.className = 'proyecto-card' + (isUnlocked ? '' : ' locked');
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'proyecto-card-header';
+    headerRow.innerHTML = `
+      <input type="text" class="nombre-input" placeholder="Nombre del KPI adicional" value="${escapeAttr(c.nombre)}">
+      <button type="button" class="btn-eliminar-proyecto">Eliminar KPI</button>
+    `;
+    headerRow.querySelector('.nombre-input').addEventListener('input', (e)=>{
+      c.nombre = e.target.value;
+      markDirty();
+    });
+    headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', ()=>{
+      const idx = customList.indexOf(c);
+      if(idx > -1) customList.splice(idx,1);
+      const oldSection = kpiBlock.querySelector('.custom-kpis-section');
+      if(oldSection) oldSection.remove();
+      renderCustomKpis(paisCode, area, isUnlocked, kpiBlock);
+      markDirty();
+    });
+    card.appendChild(headerRow);
+
+    const defField = document.createElement('div');
+    defField.className = 'field';
+    defField.style.padding = '10px 20px 0 20px';
+    defField.innerHTML = `
+      <label>Definición del KPI</label>
+      <input type="text" data-field="definicion" value="${escapeAttr(c.definicion)}">
+    `;
+    defField.querySelector('[data-field]').addEventListener('input', (e)=>{
+      c.definicion = e.target.value;
+      markDirty();
+    });
+    card.appendChild(defField);
+
+    const fieldGrid = document.createElement('div');
+    fieldGrid.className = 'field-grid';
+    fieldGrid.innerHTML = `
+      <div class="field">
+        <label>Situación actual (valor vs meta)</label>
+        <textarea data-field="situacion">${c.situacion}</textarea>
+      </div>
+      <div class="field">
+        <label>Objetivo de la coreografía</label>
+        <textarea data-field="objetivo">${c.objetivo}</textarea>
+      </div>
+      <div class="field">
+        <label>Responsable</label>
+        <input type="text" data-field="responsable" value="${escapeAttr(c.responsable)}">
+      </div>
+    `;
+    fieldGrid.querySelectorAll('[data-field]').forEach(el=>{
+      el.addEventListener('input', ()=>{
+        c[el.dataset.field] = el.value;
+        markDirty();
+      });
+    });
+    card.appendChild(fieldGrid);
+
+    const table = document.createElement('table');
+    table.className = 'coreo';
+    table.innerHTML = `
+      <tr><th style="width:5%;">#</th><th style="width:36%;">Acción</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
+    `;
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    function renderAcciones(){
+      tbody.innerHTML = '';
+      c.acciones.forEach((accion, i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
+          <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
+          <td><input type="date" data-f="fecha" value="${escapeAttr(accion.fecha)}"></td>
+          <td>
+            <select data-f="estado" class="estado">
+              <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
+              <option value="En curso" ${accion.estado==='En curso'?'selected':''}>En curso</option>
+              <option value="Cumplida" ${accion.estado==='Cumplida'?'selected':''}>Cumplida</option>
+              <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
+            </select>
+          </td>
+          <td class="row-actions"><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+        `;
+        tr.querySelectorAll('[data-f]').forEach(el=>{
+          const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+          el.addEventListener(ev, ()=>{
+            accion[el.dataset.f] = el.value;
+            markDirty();
+          });
+        });
+        tr.querySelector('[data-remove]').addEventListener('click', ()=>{
+          c.acciones.splice(i,1);
+          if(c.acciones.length===0) c.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+          renderAcciones();
+          markDirty();
+        });
+        tbody.appendChild(tr);
+      });
+    }
+    renderAcciones();
+    card.appendChild(table);
+
+    const addRowBtn = document.createElement('button');
+    addRowBtn.type = 'button';
+    addRowBtn.className = 'add-row-btn';
+    addRowBtn.textContent = '+ Agregar acción';
+    addRowBtn.addEventListener('click', ()=>{
+      c.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+      renderAcciones();
+      markDirty();
+    });
+    card.appendChild(addRowBtn);
+
+    const fieldGrid2 = document.createElement('div');
+    fieldGrid2.className = 'field-grid';
+    fieldGrid2.style.paddingTop = '0';
+    fieldGrid2.innerHTML = `
+      <div class="field">
+        <label>Punto de control</label>
+        <input type="text" data-field="puntoControl" value="${escapeAttr(c.puntoControl)}">
+      </div>
+      <div class="field">
+        <label>Fecha de revisión con Riesgo Regional</label>
+        <input type="date" data-field="fechaRevision" value="${escapeAttr(c.fechaRevision)}">
+      </div>
+      <div></div>
+    `;
+    fieldGrid2.querySelector('[data-field="puntoControl"]').addEventListener('input', (e)=>{
+      c.puntoControl = e.target.value;
+      markDirty();
+    });
+    const fechaInput = fieldGrid2.querySelector('[data-field="fechaRevision"]');
+    let fechaComprometida = c.fechaRevision;
+    if(fechaComprometida) fechaInput.classList.add('fecha-definitiva');
+    fechaInput.addEventListener('change', ()=>{
+      if(fechaComprometida){
+        fechaInput.value = fechaComprometida;
+        alert('La fecha de revisión de "' + (c.nombre || 'este KPI adicional') + '" ya fue definida (' + fechaComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+        return;
+      }
+      fechaComprometida = fechaInput.value;
+      c.fechaRevision = fechaInput.value;
+      fechaInput.classList.add('fecha-definitiva');
+      markDirty();
+    });
+    card.appendChild(fieldGrid2);
+
+    return card;
+  }
+
+  const section = document.createElement('div');
+  section.className = 'custom-kpis-section';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'custom-kpis-wrap';
+  customList.forEach(c=> wrap.appendChild(renderOne(c)));
+  section.appendChild(wrap);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'add-proyecto-btn';
+  addBtn.textContent = '+ Agregar KPI adicional';
+  addBtn.disabled = !isUnlocked;
+  if(!isUnlocked) addBtn.style.opacity = '.55';
+  addBtn.addEventListener('click', ()=>{
+    customList.push(emptyCustomKpi());
+    wrap.appendChild(renderOne(customList[customList.length-1]));
+    markDirty();
+  });
+  section.appendChild(addBtn);
+
+  kpiBlock.appendChild(section);
 }
 
 function renderProyectosEspeciales(paisCode, isUnlocked){
