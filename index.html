@@ -85,7 +85,6 @@
   .btn-primary:hover{background:#3f8626;}
   .btn-secondary{background:#fff;color:var(--azul);border:1px solid var(--gris-borde) !important;}
   .btn-secondary:hover{background:#F0F7EE;}
-  input[type="file"]{display:none;}
 
   /* Tabs */
   .tabs{
@@ -196,9 +195,6 @@
 
 <div class="toolbar">
   <span class="status" id="statusText">Cargando datos de la nube…</span>
-  <button class="btn btn-secondary" type="button" id="btnExport">Exportar JSON</button>
-  <label class="btn btn-secondary" for="fileImport">Importar JSON</label>
-  <input type="file" id="fileImport" accept="application/json">
   <button class="btn btn-secondary" type="button" id="btnPrint">Imprimir / PDF</button>
   <button class="btn btn-primary" type="button" id="btnSave">Guardar cambios de este país</button>
 </div>
@@ -791,33 +787,6 @@ function escapeAttr(v){
 
 document.getElementById('btnSave').addEventListener('click', saveActiveCountry);
 document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
-document.getElementById('btnExport').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const fecha = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  a.href = url;
-  a.download = `coreografias_instacredit_${fecha}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
-document.getElementById('fileImport').addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    try{
-      state = JSON.parse(reader.result);
-      ensureState();
-      renderTabs();
-      markDirty();
-    }catch(err){
-      alert('Archivo inválido.');
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
 
 loadLocalCache();
 renderTabs();
