@@ -112,6 +112,8 @@
     white-space:nowrap;
   }
   .tab-btn.active{color:var(--azul);border-bottom-color:var(--verde);}
+  .tab-btn-regional{margin-left:auto;color:var(--rojo);}
+  .tab-btn-regional.active{border-bottom-color:var(--rojo);}
   .tab-panel{display:none;padding-top:28px;}
   .tab-panel.active{display:block;}
 
@@ -476,6 +478,21 @@ async function attemptUnlock(code, pin, panelEl){
   selectTab(code);
 }
 
+const REGIONAL_UNLOCK_KEY = 'instacredit_coreografias_regional_unlocked';
+let regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+
+async function attemptUnlockRegional(pin){
+  const { data, error } = await sb.rpc('verificar_pin_regional', { p_pin: pin });
+  if(error || data !== true){
+    alert('PIN incorrecto para Riesgo Regional.');
+    return;
+  }
+  regionalUnlocked = true;
+  sessionStorage.setItem(REGIONAL_UNLOCK_KEY, '1');
+  renderTabs();
+  selectTab('REGIONAL');
+}
+
 function renderTabs(){
   const tabsEl = document.getElementById('tabs');
   const panelsEl = document.getElementById('tabPanels');
@@ -496,11 +513,129 @@ function renderTabs(){
     panel.appendChild(renderPais(p.code));
     panelsEl.appendChild(panel);
   });
+
+  const regionalBtn = document.createElement('button');
+  regionalBtn.className = 'tab-btn tab-btn-regional';
+  regionalBtn.textContent = '🔒 Riesgo Regional';
+  regionalBtn.dataset.pais = 'REGIONAL';
+  regionalBtn.addEventListener('click', ()=> selectTab('REGIONAL'));
+  tabsEl.appendChild(regionalBtn);
+
+  const regionalPanel = document.createElement('div');
+  regionalPanel.className = 'tab-panel';
+  regionalPanel.id = 'panel-REGIONAL';
+  regionalPanel.appendChild(renderRegional());
+  panelsEl.appendChild(regionalPanel);
 }
 
 function selectTab(code){
   document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.pais===code));
   document.querySelectorAll('.tab-panel').forEach(p=> p.classList.toggle('active', p.id==='panel-'+code));
+}
+
+function renderRegional(){
+  const wrap = document.createElement('div');
+  wrap.style.paddingTop = '20px';
+
+  if(!regionalUnlocked){
+    const pinBar = document.createElement('div');
+    pinBar.className = 'pin-bar';
+    pinBar.innerHTML = `
+      <span>🔒 Esta pestaña es solo para Riesgo Regional. Ingresa el PIN regional:</span>
+      <input type="password" placeholder="PIN" maxlength="6">
+      <button type="button">Desbloquear</button>
+    `;
+    pinBar.querySelector('button').addEventListener('click', ()=>{
+      const pin = pinBar.querySelector('input').value.trim();
+      if(pin) attemptUnlockRegional(pin);
+    });
+    pinBar.querySelector('input').addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') pinBar.querySelector('button').click();
+    });
+    wrap.appendChild(pinBar);
+    return wrap;
+  }
+
+  const block = document.createElement('div');
+  block.className = 'area-block proyecto-area';
+  block.innerHTML = `
+    <div class="area-header">
+      <h2>Bitácora de KPI adicionales eliminados</h2>
+      <span>Solo Riesgo Regional</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> cada vez que un gerente elimina un KPI adicional que había creado, queda registrado aquí con los últimos datos que tenía antes de borrarlo. Riesgo Regional puede eliminar estos registros cuando ya no los necesite.</div>
+  `;
+  const listWrap = document.createElement('div');
+  listWrap.id = 'bitacora-list';
+  listWrap.innerHTML = '<div class="sin-proyectos">Cargando bitácora…</div>';
+  block.appendChild(listWrap);
+  wrap.appendChild(block);
+
+  loadBitacora(listWrap);
+  return wrap;
+}
+
+async function loadBitacora(listWrap){
+  const { data, error } = await sb.from('kpis_adicionales_log').select('*').order('deleted_at', { ascending: false });
+  if(error){
+    listWrap.innerHTML = '<div class="sin-proyectos">Error al cargar la bitácora: ' + error.message + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    listWrap.innerHTML = '<div class="sin-proyectos">Sin KPI eliminados registrados todavía.</div>';
+    return;
+  }
+  listWrap.innerHTML = '';
+
+  const clearAllBtn = document.createElement('button');
+  clearAllBtn.type = 'button';
+  clearAllBtn.className = 'add-proyecto-btn';
+  clearAllBtn.style.background = 'var(--rojo)';
+  clearAllBtn.textContent = 'Vaciar toda la bitácora (' + data.length + ')';
+  clearAllBtn.addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
+    const { error: delAllErr } = await sb.from('kpis_adicionales_log').delete().not('id', 'is', null);
+    if(delAllErr){ alert('Error: ' + delAllErr.message); return; }
+    loadBitacora(listWrap);
+  });
+  listWrap.appendChild(clearAllBtn);
+
+  data.forEach(row=>{
+    const paisNombre = (PAISES.find(p=>p.code===row.pais_code) || {}).nombre || row.pais_code;
+    const areaNombre = (AREAS.find(a=>a.id===row.area_id) || {}).nombre || row.area_id;
+    const card = document.createElement('div');
+    card.className = 'proyecto-card';
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'proyecto-card-header';
+    headerRow.innerHTML = `
+      <span style="font-weight:800;color:var(--azul);">${escapeAttr(row.nombre || '(sin nombre)')} — ${paisNombre} · ${areaNombre}</span>
+      <button type="button" class="btn-eliminar-proyecto">Eliminar registro</button>
+    `;
+    headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+      const { error: delErr } = await sb.from('kpis_adicionales_log').delete().eq('id', row.id);
+      if(delErr){ alert('Error: ' + delErr.message); return; }
+      loadBitacora(listWrap);
+    });
+    card.appendChild(headerRow);
+
+    const info = document.createElement('div');
+    info.style.padding = '12px 20px';
+    info.style.fontSize = '13px';
+    const accionesTexto = (row.acciones || []).map((a,i)=> (i+1) + '. ' + (a.accion||'(sin descripción)') + ' — ' + (a.responsable||'—') + ' — ' + (a.fecha||'sin fecha') + ' — ' + (a.estado||'')).join('<br>');
+    info.innerHTML = `
+      <div style="margin-bottom:6px;"><strong>Eliminado:</strong> ${new Date(row.deleted_at).toLocaleString('es-CR')}</div>
+      <div style="margin-bottom:6px;"><strong>Definición:</strong> ${escapeAttr(row.definicion) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Situación (último dato):</strong> ${escapeAttr(row.situacion) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Objetivo:</strong> ${escapeAttr(row.objetivo) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Responsable:</strong> ${escapeAttr(row.responsable) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Punto de control:</strong> ${escapeAttr(row.punto_control) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Fecha de revisión:</strong> ${row.fecha_revision || '—'}</div>
+      <div><strong>Acciones registradas:</strong><br>${accionesTexto || '—'}</div>
+    `;
+    card.appendChild(info);
+    listWrap.appendChild(card);
+  });
 }
 
 function renderPais(paisCode){
@@ -715,7 +850,22 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       c.nombre = e.target.value;
       markDirty();
     });
-    headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', ()=>{
+    headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+      if(!confirm('¿Eliminar el KPI adicional "' + (c.nombre || '(sin nombre)') + '"? Quedará registrado en la bitácora de Riesgo Regional con los últimos datos.')) return;
+      await sb.from('kpis_adicionales_log').insert([{
+        original_id: c.id,
+        pais_code: paisCode,
+        area_id: area.id,
+        nombre: c.nombre,
+        definicion: c.definicion,
+        situacion: c.situacion,
+        objetivo: c.objetivo,
+        responsable: c.responsable,
+        punto_control: c.puntoControl,
+        fecha_revision: c.fechaRevision || null,
+        acciones: c.acciones
+      }]);
+      await sb.from('kpis_adicionales').delete().eq('id', c.id);
       const idx = customList.indexOf(c);
       if(idx > -1) customList.splice(idx,1);
       const oldSection = kpiBlock.querySelector('.custom-kpis-section');
