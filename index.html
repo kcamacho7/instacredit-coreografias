@@ -604,17 +604,28 @@ function renderPais(paisCode){
                 <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
               </select>
             </td>
-            <td class="row-actions"><button title="Eliminar fila" data-remove="${i}">×</button></td>
+            <td class="row-actions"><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
           `;
-          tr.querySelectorAll('[data-f]').forEach(el=>{
-            el.addEventListener('input', ()=>{
+          tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
+            const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+            el.addEventListener(ev, ()=>{
               accion[el.dataset.f] = el.value;
               markDirty();
             });
-            el.addEventListener('change', ()=>{
-              accion[el.dataset.f] = el.value;
-              markDirty();
-            });
+          });
+          const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
+          let fechaAccionComprometida = accion.fecha;
+          if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
+          fechaAccionInput.addEventListener('change', ()=>{
+            if(fechaAccionComprometida){
+              fechaAccionInput.value = fechaAccionComprometida;
+              alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+              return;
+            }
+            fechaAccionComprometida = fechaAccionInput.value;
+            accion.fecha = fechaAccionInput.value;
+            fechaAccionInput.classList.add('fecha-definitiva');
+            markDirty();
           });
           tr.querySelector('[data-remove]').addEventListener('click', ()=>{
             kpiState.acciones.splice(i,1);
@@ -778,12 +789,26 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           </td>
           <td class="row-actions"><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
         `;
-        tr.querySelectorAll('[data-f]').forEach(el=>{
+        tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
           const ev = el.tagName === 'SELECT' ? 'change' : 'input';
           el.addEventListener(ev, ()=>{
             accion[el.dataset.f] = el.value;
             markDirty();
           });
+        });
+        const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
+        let fechaAccionComprometida = accion.fecha;
+        if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
+        fechaAccionInput.addEventListener('change', ()=>{
+          if(fechaAccionComprometida){
+            fechaAccionInput.value = fechaAccionComprometida;
+            alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+            return;
+          }
+          fechaAccionComprometida = fechaAccionInput.value;
+          accion.fecha = fechaAccionInput.value;
+          fechaAccionInput.classList.add('fecha-definitiva');
+          markDirty();
         });
         tr.querySelector('[data-remove]').addEventListener('click', ()=>{
           c.acciones.splice(i,1);
@@ -969,12 +994,26 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             </td>
             <td class="row-actions"><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
           `;
-          tr.querySelectorAll('[data-f]').forEach(el=>{
+          tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
               accion[el.dataset.f] = el.value;
               markDirty();
             });
+          });
+          const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
+          let fechaAccionComprometida = accion.fecha;
+          if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
+          fechaAccionInput.addEventListener('change', ()=>{
+            if(fechaAccionComprometida){
+              fechaAccionInput.value = fechaAccionComprometida;
+              alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+              return;
+            }
+            fechaAccionComprometida = fechaAccionInput.value;
+            accion.fecha = fechaAccionInput.value;
+            fechaAccionInput.classList.add('fecha-definitiva');
+            markDirty();
           });
           tr.querySelector('[data-remove]').addEventListener('click', ()=>{
             proy.acciones.splice(i,1);
