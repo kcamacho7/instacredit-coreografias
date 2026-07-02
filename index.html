@@ -394,10 +394,28 @@ async function saveActiveCountry(){
     alert('Este país está bloqueado. Ingresa el PIN de ' + code + ' para poder guardar.');
     return;
   }
+  // Refresca desde la nube los campos de fecha/hora ya bloqueados, para no
+  // pisar un ajuste que Riesgo Regional haya hecho mientras este navegador
+  // tenía un valor viejo en memoria.
+  document.getElementById('statusText').innerHTML = 'Verificando fechas con la nube…';
+  const [{ data: freshCoreo }, { data: freshProy }, { data: freshCustom }] = await Promise.all([
+    sb.from('coreografias').select('area_id,kpi_id,fecha_revision,hora_revision').eq('pais_code', code),
+    sb.from('proyectos_especiales').select('id,fecha_seguimiento,hora_seguimiento').eq('pais_code', code),
+    sb.from('kpis_adicionales').select('id,fecha_revision,hora_revision').eq('pais_code', code)
+  ]);
+  const freshCoreoMap = {};
+  (freshCoreo||[]).forEach(r=> freshCoreoMap[r.area_id+'|'+r.kpi_id] = r);
+  const freshProyMap = {};
+  (freshProy||[]).forEach(r=> freshProyMap[r.id] = r);
+  const freshCustomMap = {};
+  (freshCustom||[]).forEach(r=> freshCustomMap[r.id] = r);
+
   const rows = [];
   AREAS.forEach(area=>{
     area.kpis.forEach(kpi=>{
       const k = state[code][area.id][kpi.id];
+      const fresh = freshCoreoMap[area.id+'|'+kpi.id];
+      const usarFresh = k._locked_fechaRevision && fresh;
       rows.push({
         pais_code: code,
         area_id: area.id,
@@ -406,30 +424,36 @@ async function saveActiveCountry(){
         objetivo: k.objetivo,
         responsable: k.responsable,
         punto_control: k.puntoControl,
-        fecha_revision: k.fechaRevision || null,
-        hora_revision: k.horaRevision || null,
+        fecha_revision: usarFresh ? fresh.fecha_revision : (k.fechaRevision || null),
+        hora_revision: usarFresh ? fresh.hora_revision : (k.horaRevision || null),
         acciones: k.acciones,
         updated_at: new Date().toISOString()
       });
     });
   });
-  const proyectoRows = state[code].proyectosEspeciales.map((p, i)=> ({
-    id: p.id,
-    pais_code: code,
-    nombre: p.nombre,
-    descripcion: p.descripcion,
-    responsable: p.responsable,
-    estado: p.estado,
-    fecha_seguimiento: p.fechaSeguimiento || null,
-    hora_seguimiento: p.horaSeguimiento || null,
-    acciones: p.acciones,
-    orden: i,
-    updated_at: new Date().toISOString()
-  }));
+  const proyectoRows = state[code].proyectosEspeciales.map((p, i)=>{
+    const fresh = freshProyMap[p.id];
+    const usarFresh = p._locked_fechaSeguimiento && fresh;
+    return {
+      id: p.id,
+      pais_code: code,
+      nombre: p.nombre,
+      descripcion: p.descripcion,
+      responsable: p.responsable,
+      estado: p.estado,
+      fecha_seguimiento: usarFresh ? fresh.fecha_seguimiento : (p.fechaSeguimiento || null),
+      hora_seguimiento: usarFresh ? fresh.hora_seguimiento : (p.horaSeguimiento || null),
+      acciones: p.acciones,
+      orden: i,
+      updated_at: new Date().toISOString()
+    };
+  });
 
   const customKpiRows = [];
   AREAS.forEach(area=>{
     state[code][area.id].customKpis.forEach((c, i)=>{
+      const fresh = freshCustomMap[c.id];
+      const usarFresh = c._locked_fechaRevision && fresh;
       customKpiRows.push({
         id: c.id,
         pais_code: code,
@@ -440,8 +464,8 @@ async function saveActiveCountry(){
         objetivo: c.objetivo,
         responsable: c.responsable,
         punto_control: c.puntoControl,
-        fecha_revision: c.fechaRevision || null,
-        hora_revision: c.horaRevision || null,
+        fecha_revision: usarFresh ? fresh.fecha_revision : (c.fechaRevision || null),
+        hora_revision: usarFresh ? fresh.hora_revision : (c.horaRevision || null),
         acciones: c.acciones,
         orden: i,
         updated_at: new Date().toISOString()
@@ -463,11 +487,33 @@ async function saveActiveCountry(){
     const res = await sb.from('kpis_adicionales').insert(customKpiRows);
     customErr = res.error;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   const now = new Date().toLocaleString('es-CR');
   if(error || delErr || proyErr || delCustomErr || customErr){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     document.getElementById('statusText').innerHTML = 'Error al guardar ' + code + ': ' + (error||delErr||proyErr||delCustomErr||customErr).message;
   } else {
+    // Refleja en pantalla, solo para este país, cualquier fecha/hora tomada fresca de la nube
+    rows.forEach(r=>{
+      const k = state[code][r.area_id][r.kpi_id];
+      k.fechaRevision = r.fecha_revision || '';
+      k.horaRevision = r.hora_revision || '';
+    });
+    state[code].proyectosEspeciales = proyectoRows.map(r=> ({
+      id: r.id, nombre: r.nombre, descripcion: r.descripcion, responsable: r.responsable, estado: r.estado,
+      fechaSeguimiento: r.fecha_seguimiento || '', horaSeguimiento: r.hora_seguimiento || '', acciones: r.acciones
+    }));
+    AREAS.forEach(area=>{
+      state[code][area.id].customKpis = customKpiRows
+        .filter(r=> r.area_id === area.id)
+        .map(r=> ({
+          id: r.id, nombre: r.nombre, definicion: r.definicion, situacion: r.situacion, objetivo: r.objetivo,
+          responsable: r.responsable, puntoControl: r.punto_control,
+          fechaRevision: r.fecha_revision || '', horaRevision: r.hora_revision || '', acciones: r.acciones
+        }));
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    renderTabs();
+    selectTab(code);
     document.getElementById('statusText').innerHTML = 'Guardado en la nube (' + code + ') — <b>' + now + '</b>';
   }
 }
@@ -1376,6 +1422,7 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
   const fechaInput = container.querySelector('[data-field="' + fechaField + '"]');
   const horaInput = container.querySelector('[data-field="' + horaField + '"]');
   let comprometida = !!obj[fechaField];
+  obj['_locked_' + fechaField] = comprometida;
   if(comprometida){
     fechaInput.classList.add('fecha-definitiva');
     horaInput.classList.add('fecha-definitiva');
@@ -1389,6 +1436,7 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
     if(comprometida){ bloquear(); return; }
     obj[fechaField] = fechaInput.value;
     comprometida = !!obj[fechaField];
+    obj['_locked_' + fechaField] = comprometida;
     if(comprometida){
       fechaInput.classList.add('fecha-definitiva');
       horaInput.classList.add('fecha-definitiva');
