@@ -6,6 +6,7 @@
 <title>Coreografías Operativas — Instacredit</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   .pin-bar{background:#FFF6E0;border:1px solid #E8D48A;border-radius:6px;padding:10px 16px;margin:16px 0 0 0;display:flex;align-items:center;gap:10px;font-size:13px;}
   .pin-bar.unlocked{background:var(--verde-claro);border-color:var(--verde);}
@@ -33,6 +34,16 @@
     pointer-events:none;opacity:.55;background:#F0F0F0 !important;
   }
   .sin-proyectos{padding:20px;font-size:13px;color:var(--azul-claro);font-style:italic;}
+  .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 20px;}
+  .dashboard-card{background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:16px;}
+  .dashboard-card.full{grid-column:1 / -1;}
+  .dashboard-card h4{margin:0 0 4px 0;color:var(--azul);font-size:13.5px;}
+  .dashboard-card .subtitulo{font-size:11.5px;color:var(--azul-claro);margin-bottom:10px;}
+  .dashboard-card canvas{max-height:260px;}
+  .dashboard-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 20px 18px 20px;}
+  .kpi-stat{background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:14px;text-align:center;}
+  .kpi-stat .valor{font-size:26px;font-weight:800;color:var(--azul);}
+  .kpi-stat .etiqueta{font-size:11px;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}
   input.fecha-definitiva{background:#F0F0F0 !important;color:var(--azul-claro);cursor:not-allowed;border-color:var(--gris-borde) !important;}
   button.btn-regional-check{background:var(--verde);color:#fff;border:none;border-radius:4px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px;}
   button.btn-regional-check:disabled{background:var(--gris-borde);color:var(--azul-claro);cursor:default;}
@@ -618,6 +629,22 @@ function renderRegional(){
     return wrap;
   }
 
+  const dashBlock = document.createElement('div');
+  dashBlock.className = 'area-block proyecto-area';
+  dashBlock.innerHTML = `
+    <div class="area-header">
+      <h2>Dashboard de avance</h2>
+      <span>Solo Riesgo Regional</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> avance de las acciones registradas por los 4 países, agrupado por dominio y por KPI. Se calcula sobre todas las acciones con contenido (no cuenta filas vacías).</div>
+  `;
+  const dashWrap = document.createElement('div');
+  dashWrap.id = 'dashboard-wrap';
+  dashWrap.innerHTML = '<div class="sin-proyectos">Cargando dashboard…</div>';
+  dashBlock.appendChild(dashWrap);
+  wrap.appendChild(dashBlock);
+  loadDashboard(dashWrap);
+
   const block = document.createElement('div');
   block.className = 'area-block proyecto-area';
   block.innerHTML = `
@@ -790,6 +817,131 @@ async function loadGestionAcciones(listWrap){
     tbody.appendChild(tr);
   });
   listWrap.appendChild(table);
+}
+
+const CHART_COLORS = { Pendiente:'#677C98', 'En curso':'#4C9C2E', Cumplida:'#002554', Vencida:'#EE212E' };
+
+async function loadDashboard(dashWrap){
+  const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
+    sb.from('coreografias').select('*'),
+    sb.from('proyectos_especiales').select('*'),
+    sb.from('kpis_adicionales').select('*')
+  ]);
+
+  const acciones = [];
+  function collect(rows, dominioFn, paisFn, kpiFn){
+    (rows||[]).forEach(r=>{
+      (r.acciones||[]).forEach(a=>{
+        if(!a.accion && !a.responsable) return;
+        acciones.push({ dominio: dominioFn(r), pais: paisFn(r), kpi: kpiFn(r), estado: a.estado || 'Pendiente' });
+      });
+    });
+  }
+  const AREA_NOMBRE = { A:'Dominio A — Originación', B:'Dominio B — Comercial', C:'Dominio C — Cobro' };
+  collect(coreoData, r=> AREA_NOMBRE[r.area_id] || r.area_id, r=> r.pais_code, r=>{
+    const k = AREAS.flatMap(a=>a.kpis).find(k=>k.id===r.kpi_id); return k ? k.nombre : r.kpi_id;
+  });
+  collect(customData, r=> (AREA_NOMBRE[r.area_id] || r.area_id) + ' (adicional)', r=> r.pais_code, r=> r.nombre || 'KPI adicional');
+  collect(proyData, ()=> 'Proyectos especiales', r=> r.pais_code, r=> r.nombre || 'Proyecto especial');
+
+  if(acciones.length === 0){
+    dashWrap.innerHTML = '<div class="sin-proyectos">No hay acciones registradas todavía para graficar.</div>';
+    return;
+  }
+
+  const total = acciones.length;
+  const cumplidas = acciones.filter(a=> a.estado==='Cumplida').length;
+  const vencidas = acciones.filter(a=> a.estado==='Vencida').length;
+  const enCurso = acciones.filter(a=> a.estado==='En curso').length;
+  const avancePct = Math.round((cumplidas/total)*100);
+
+  dashWrap.innerHTML = `
+    <div class="dashboard-kpis">
+      <div class="kpi-stat"><div class="valor">${total}</div><div class="etiqueta">Acciones totales</div></div>
+      <div class="kpi-stat"><div class="valor" style="color:var(--verde);">${avancePct}%</div><div class="etiqueta">Avance (cumplidas)</div></div>
+      <div class="kpi-stat"><div class="valor" style="color:var(--azul-claro);">${enCurso}</div><div class="etiqueta">En curso</div></div>
+      <div class="kpi-stat"><div class="valor" style="color:var(--rojo);">${vencidas}</div><div class="etiqueta">Vencidas</div></div>
+    </div>
+    <div class="dashboard-grid">
+      <div class="dashboard-card">
+        <h4>Estado general</h4>
+        <div class="subtitulo">Distribución de todas las acciones</div>
+        <canvas id="chart-estado-general"></canvas>
+      </div>
+      <div class="dashboard-card">
+        <h4>Avance por país</h4>
+        <div class="subtitulo">% de acciones cumplidas por país</div>
+        <canvas id="chart-por-pais"></canvas>
+      </div>
+      <div class="dashboard-card full">
+        <h4>Avance por dominio</h4>
+        <div class="subtitulo">Cantidad de acciones por estado, en cada dominio y en proyectos especiales</div>
+        <canvas id="chart-por-dominio"></canvas>
+      </div>
+      <div class="dashboard-card full">
+        <h4>Avance por KPI</h4>
+        <div class="subtitulo">Los 10 KPI/proyectos con más acciones registradas</div>
+        <canvas id="chart-por-kpi"></canvas>
+      </div>
+    </div>
+  `;
+
+  const ESTADOS = ['Pendiente','En curso','Cumplida','Vencida'];
+
+  // Estado general (dona)
+  const conteoGeneral = ESTADOS.map(e=> acciones.filter(a=>a.estado===e).length);
+  new Chart(document.getElementById('chart-estado-general'), {
+    type: 'doughnut',
+    data: { labels: ESTADOS, datasets: [{ data: conteoGeneral, backgroundColor: ESTADOS.map(e=>CHART_COLORS[e]) }] },
+    options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+  });
+
+  // Avance por país
+  const paisesConDatos = PAISES.map(p=>{
+    const deEstePais = acciones.filter(a=> a.pais === p.code);
+    const pct = deEstePais.length ? Math.round((deEstePais.filter(a=>a.estado==='Cumplida').length / deEstePais.length) * 100) : 0;
+    return { nombre: p.nombre, pct };
+  });
+  new Chart(document.getElementById('chart-por-pais'), {
+    type: 'bar',
+    data: { labels: paisesConDatos.map(p=>p.nombre), datasets: [{ label:'% cumplidas', data: paisesConDatos.map(p=>p.pct), backgroundColor: '#4C9C2E', borderRadius: 4 }] },
+    options: { scales: { y: { beginAtZero:true, max:100, ticks:{ callback:v=>v+'%' } } }, plugins: { legend: { display:false } } }
+  });
+
+  // Avance por dominio (barras apiladas)
+  const dominios = [...new Set(acciones.map(a=>a.dominio))].sort();
+  new Chart(document.getElementById('chart-por-dominio'), {
+    type: 'bar',
+    data: {
+      labels: dominios,
+      datasets: ESTADOS.map(e=> ({
+        label: e,
+        data: dominios.map(d=> acciones.filter(a=> a.dominio===d && a.estado===e).length),
+        backgroundColor: CHART_COLORS[e]
+      }))
+    },
+    options: { scales: { x: { stacked:true }, y: { stacked:true, beginAtZero:true, ticks:{ precision:0 } } }, plugins: { legend: { position:'bottom', labels:{ boxWidth:12, font:{ size:11 } } } } }
+  });
+
+  // Avance por KPI (top 10 por volumen de acciones)
+  const porKpi = {};
+  acciones.forEach(a=>{
+    if(!porKpi[a.kpi]) porKpi[a.kpi] = { total:0, cumplidas:0 };
+    porKpi[a.kpi].total++;
+    if(a.estado==='Cumplida') porKpi[a.kpi].cumplidas++;
+  });
+  const topKpis = Object.entries(porKpi).sort((a,b)=> b[1].total - a[1].total).slice(0,10);
+  new Chart(document.getElementById('chart-por-kpi'), {
+    type: 'bar',
+    data: {
+      labels: topKpis.map(([nombre])=> nombre),
+      datasets: [
+        { label:'Cumplidas', data: topKpis.map(([,v])=> v.cumplidas), backgroundColor:'#4C9C2E', borderRadius:4 },
+        { label:'Pendientes/otras', data: topKpis.map(([,v])=> v.total - v.cumplidas), backgroundColor:'#D2D2D2', borderRadius:4 }
+      ]
+    },
+    options: { indexAxis:'y', scales: { x: { stacked:true, beginAtZero:true, ticks:{ precision:0 } }, y: { stacked:true, ticks:{ font:{ size:10.5 } } } }, plugins: { legend: { position:'bottom', labels:{ boxWidth:12, font:{ size:11 } } } } }
+  });
 }
 
 async function loadBitacora(listWrap){
