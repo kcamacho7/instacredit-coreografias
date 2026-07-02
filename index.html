@@ -262,7 +262,7 @@ let state = {};
 let unlockedCountries = new Set(JSON.parse(sessionStorage.getItem(UNLOCK_KEY) || '[]'));
 
 function emptyKpiState(){
-  return { situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'',
+  return { situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'', horaRevision:'',
     acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
 }
 
@@ -281,7 +281,7 @@ function ensureState(){
 }
 
 function emptyCustomKpi(){
-  return { id: uuid(), nombre:'', definicion:'', situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'',
+  return { id: uuid(), nombre:'', definicion:'', situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'', horaRevision:'',
     acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
 }
 
@@ -293,7 +293,7 @@ function uuid(){
 }
 
 function emptyProyecto(){
-  return { id: uuid(), nombre:'', descripcion:'', responsable:'', estado:'Pendiente', fechaSeguimiento:'',
+  return { id: uuid(), nombre:'', descripcion:'', responsable:'', estado:'Pendiente', fechaSeguimiento:'', horaSeguimiento:'',
     acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
 }
 
@@ -314,6 +314,7 @@ function mergeCloudRows(rows){
     target.responsable = row.responsable || '';
     target.puntoControl = row.punto_control || '';
     target.fechaRevision = row.fecha_revision || '';
+    target.horaRevision = row.hora_revision || '';
     target.acciones = (row.acciones && row.acciones.length) ? row.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}];
   });
 }
@@ -329,6 +330,7 @@ function mergeProyectosRows(rows){
       responsable: r.responsable || '',
       estado: r.estado || 'Pendiente',
       fechaSeguimiento: r.fecha_seguimiento || '',
+      horaSeguimiento: r.hora_seguimiento || '',
       acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}]
     });
   });
@@ -351,6 +353,7 @@ function mergeCustomKpisRows(rows){
       responsable: r.responsable || '',
       puntoControl: r.punto_control || '',
       fechaRevision: r.fecha_revision || '',
+      horaRevision: r.hora_revision || '',
       acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}]
     });
   });
@@ -404,6 +407,7 @@ async function saveActiveCountry(){
         responsable: k.responsable,
         punto_control: k.puntoControl,
         fecha_revision: k.fechaRevision || null,
+        hora_revision: k.horaRevision || null,
         acciones: k.acciones,
         updated_at: new Date().toISOString()
       });
@@ -417,6 +421,7 @@ async function saveActiveCountry(){
     responsable: p.responsable,
     estado: p.estado,
     fecha_seguimiento: p.fechaSeguimiento || null,
+    hora_seguimiento: p.horaSeguimiento || null,
     acciones: p.acciones,
     orden: i,
     updated_at: new Date().toISOString()
@@ -436,6 +441,7 @@ async function saveActiveCountry(){
         responsable: c.responsable,
         punto_control: c.puntoControl,
         fecha_revision: c.fechaRevision || null,
+        hora_revision: c.horaRevision || null,
         acciones: c.acciones,
         orden: i,
         updated_at: new Date().toISOString()
@@ -570,9 +576,164 @@ function renderRegional(){
   listWrap.innerHTML = '<div class="sin-proyectos">Cargando bitácora…</div>';
   block.appendChild(listWrap);
   wrap.appendChild(block);
-
   loadBitacora(listWrap);
+
+  const fechasBlock = document.createElement('div');
+  fechasBlock.className = 'area-block proyecto-area';
+  fechasBlock.innerHTML = `
+    <div class="area-header">
+      <h2>Gestión de fechas y horas de reunión</h2>
+      <span>Solo Riesgo Regional</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> aquí puedes ajustar la fecha/hora de cualquier reunión ya definida por un gerente (por ejemplo, si pide un cambio o si choca con otra sesión tuya). Estos campos no tienen candado para ti — se guardan al instante al presionar "Guardar".</div>
+  `;
+  const fechasWrap = document.createElement('div');
+  fechasWrap.id = 'fechas-list';
+  fechasWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+  fechasBlock.appendChild(fechasWrap);
+  wrap.appendChild(fechasBlock);
+  loadFechasReunion(fechasWrap);
+
+  const accionesBlock = document.createElement('div');
+  accionesBlock.className = 'area-block proyecto-area';
+  accionesBlock.innerHTML = `
+    <div class="area-header">
+      <h2>Gestión de acciones</h2>
+      <span>Solo Riesgo Regional</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> todas las acciones registradas por los 4 países (coreografías, KPI adicionales y proyectos especiales). Puedes marcar cualquiera como cumplida o eliminarla directamente, sin esperar a que el gerente lo haga.</div>
+  `;
+  const accionesWrap = document.createElement('div');
+  accionesWrap.id = 'acciones-list';
+  accionesWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+  accionesBlock.appendChild(accionesWrap);
+  wrap.appendChild(accionesBlock);
+  loadGestionAcciones(accionesWrap);
+
   return wrap;
+}
+
+async function loadFechasReunion(listWrap){
+  const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
+    sb.from('coreografias').select('*'),
+    sb.from('proyectos_especiales').select('*'),
+    sb.from('kpis_adicionales').select('*')
+  ]);
+  const items = [];
+  (coreoData||[]).forEach(r=>{
+    if(!r.fecha_revision) return;
+    const kpiDef = AREAS.flatMap(a=>a.kpis).find(k=>k.id===r.kpi_id);
+    items.push({ tabla:'coreografias', id:r.id, pais:r.pais_code, origen:(kpiDef?kpiDef.nombre:r.kpi_id), fecha:r.fecha_revision, hora:r.hora_revision||'', campoFecha:'fecha_revision', campoHora:'hora_revision' });
+  });
+  (customData||[]).forEach(r=>{
+    if(!r.fecha_revision) return;
+    items.push({ tabla:'kpis_adicionales', id:r.id, pais:r.pais_code, origen:(r.nombre||'KPI adicional'), fecha:r.fecha_revision, hora:r.hora_revision||'', campoFecha:'fecha_revision', campoHora:'hora_revision' });
+  });
+  (proyData||[]).forEach(r=>{
+    if(!r.fecha_seguimiento) return;
+    items.push({ tabla:'proyectos_especiales', id:r.id, pais:r.pais_code, origen:(r.nombre||'Proyecto especial'), fecha:r.fecha_seguimiento, hora:r.hora_seguimiento||'', campoFecha:'fecha_seguimiento', campoHora:'hora_seguimiento' });
+  });
+  items.sort((a,b)=> (a.fecha+(a.hora||'')).localeCompare(b.fecha+(b.hora||'')));
+
+  if(items.length === 0){
+    listWrap.innerHTML = '<div class="sin-proyectos">No hay fechas de reunión definidas todavía.</div>';
+    return;
+  }
+  listWrap.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'coreo';
+  table.innerHTML = '<tr><th style="width:12%;">País</th><th style="width:33%;">Origen</th><th style="width:20%;">Fecha</th><th style="width:15%;">Hora</th><th style="width:20%;">&nbsp;</th></tr>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  items.forEach(item=>{
+    const paisNombre = (PAISES.find(p=>p.code===item.pais) || {}).nombre || item.pais;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${paisNombre}</td>
+      <td>${escapeAttr(item.origen)}</td>
+      <td><input type="date" value="${escapeAttr(item.fecha)}"></td>
+      <td><input type="time" value="${escapeAttr(item.hora)}"></td>
+      <td><button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);">Guardar</button></td>
+    `;
+    const [fechaEl, horaEl] = tr.querySelectorAll('input');
+    tr.querySelector('button').addEventListener('click', async ()=>{
+      const { error } = await sb.from(item.tabla).update({
+        [item.campoFecha]: fechaEl.value || null,
+        [item.campoHora]: horaEl.value || null
+      }).eq('id', item.id);
+      if(error){ alert('Error: ' + error.message); return; }
+      alert('Fecha/hora actualizada. El calendario se sincroniza automáticamente en la próxima corrida diaria.');
+      loadFechasReunion(listWrap);
+    });
+    tbody.appendChild(tr);
+  });
+  listWrap.appendChild(table);
+}
+
+async function loadGestionAcciones(listWrap){
+  const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
+    sb.from('coreografias').select('*'),
+    sb.from('proyectos_especiales').select('*'),
+    sb.from('kpis_adicionales').select('*')
+  ]);
+  const items = [];
+  function pushAcciones(rows, tabla, origenFn){
+    (rows||[]).forEach(r=>{
+      (r.acciones||[]).forEach((accion, idx)=>{
+        if(!accion.accion && !accion.responsable) return;
+        items.push({ tabla, id:r.id, idx, pais:r.pais_code, origen: origenFn(r), acciones: r.acciones });
+      });
+    });
+  }
+  pushAcciones(coreoData, 'coreografias', r=>{ const k=AREAS.flatMap(a=>a.kpis).find(k=>k.id===r.kpi_id); return k?k.nombre:r.kpi_id; });
+  pushAcciones(customData, 'kpis_adicionales', r=> r.nombre || 'KPI adicional');
+  pushAcciones(proyData, 'proyectos_especiales', r=> r.nombre || 'Proyecto especial');
+
+  if(items.length === 0){
+    listWrap.innerHTML = '<div class="sin-proyectos">No hay acciones registradas todavía.</div>';
+    return;
+  }
+  listWrap.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'coreo';
+  table.innerHTML = '<tr><th style="width:10%;">País</th><th style="width:20%;">Origen</th><th style="width:22%;">Acción</th><th style="width:13%;">Responsable</th><th style="width:11%;">Fecha</th><th style="width:10%;">Estado</th><th style="width:14%;">&nbsp;</th></tr>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  items.forEach(item=>{
+    const accion = item.acciones[item.idx];
+    const paisNombre = (PAISES.find(p=>p.code===item.pais) || {}).nombre || item.pais;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${paisNombre}</td>
+      <td>${escapeAttr(item.origen)}</td>
+      <td>${escapeAttr(accion.accion)}</td>
+      <td>${escapeAttr(accion.responsable)}</td>
+      <td>${accion.fecha || '—'}</td>
+      <td>${escapeAttr(accion.estado)}</td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-right:6px;">Cumplida</button>
+        <button type="button" class="btn-eliminar-proyecto">Eliminar</button>
+      </td>
+    `;
+    const [btnCumplida, btnEliminar] = tr.querySelectorAll('button');
+    btnCumplida.addEventListener('click', async ()=>{
+      item.acciones[item.idx].estado = 'Cumplida';
+      const { error } = await sb.from(item.tabla).update({ acciones: item.acciones }).eq('id', item.id);
+      if(error){ alert('Error: ' + error.message); return; }
+      loadGestionAcciones(listWrap);
+    });
+    btnEliminar.addEventListener('click', async ()=>{
+      if(!confirm('¿Eliminar esta acción de forma permanente?')) return;
+      item.acciones.splice(item.idx, 1);
+      const { error } = await sb.from(item.tabla).update({ acciones: item.acciones }).eq('id', item.id);
+      if(error){ alert('Error: ' + error.message); return; }
+      loadGestionAcciones(listWrap);
+    });
+    tbody.appendChild(tr);
+  });
+  listWrap.appendChild(table);
 }
 
 async function loadBitacora(listWrap){
@@ -796,7 +957,10 @@ function renderPais(paisCode){
           <label>Fecha de revisión con Riesgo Regional</label>
           <input type="date" data-field="fechaRevision" value="${escapeAttr(kpiState.fechaRevision)}">
         </div>
-        <div></div>
+        <div class="field">
+          <label>Hora sugerida</label>
+          <input type="time" data-field="horaRevision" value="${escapeAttr(kpiState.horaRevision)}">
+        </div>
       `;
       fieldGrid2.querySelectorAll('[data-field="puntoControl"]').forEach(el=>{
         el.addEventListener('input', ()=>{
@@ -805,20 +969,7 @@ function renderPais(paisCode){
         });
       });
 
-      const fechaInput = fieldGrid2.querySelector('[data-field="fechaRevision"]');
-      let fechaComprometida = kpiState.fechaRevision;
-      if(fechaComprometida) fechaInput.classList.add('fecha-definitiva');
-      fechaInput.addEventListener('change', ()=>{
-        if(fechaComprometida){
-          fechaInput.value = fechaComprometida;
-          alert('La fecha de revisión de "' + kpi.nombre + '" ya fue definida (' + fechaComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-          return;
-        }
-        fechaComprometida = fechaInput.value;
-        kpiState.fechaRevision = fechaInput.value;
-        fechaInput.classList.add('fecha-definitiva');
-        markDirty();
-      });
+      wireFechaHoraDefinitiva(fieldGrid2, kpiState, 'fechaRevision', 'horaRevision', 'la fecha/hora de revisión de "' + kpi.nombre + '"');
       kpiBlock.appendChild(fieldGrid2);
     });
 
@@ -995,26 +1146,16 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
         <label>Fecha de revisión con Riesgo Regional</label>
         <input type="date" data-field="fechaRevision" value="${escapeAttr(c.fechaRevision)}">
       </div>
-      <div></div>
+      <div class="field">
+        <label>Hora sugerida</label>
+        <input type="time" data-field="horaRevision" value="${escapeAttr(c.horaRevision)}">
+      </div>
     `;
     fieldGrid2.querySelector('[data-field="puntoControl"]').addEventListener('input', (e)=>{
       c.puntoControl = e.target.value;
       markDirty();
     });
-    const fechaInput = fieldGrid2.querySelector('[data-field="fechaRevision"]');
-    let fechaComprometida = c.fechaRevision;
-    if(fechaComprometida) fechaInput.classList.add('fecha-definitiva');
-    fechaInput.addEventListener('change', ()=>{
-      if(fechaComprometida){
-        fechaInput.value = fechaComprometida;
-        alert('La fecha de revisión de "' + (c.nombre || 'este KPI adicional') + '" ya fue definida (' + fechaComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-        return;
-      }
-      fechaComprometida = fechaInput.value;
-      c.fechaRevision = fechaInput.value;
-      fechaInput.classList.add('fecha-definitiva');
-      markDirty();
-    });
+    wireFechaHoraDefinitiva(fieldGrid2, c, 'fechaRevision', 'horaRevision', 'fecha/hora de revisión de "' + (c.nombre || 'este KPI adicional') + '"');
     card.appendChild(fieldGrid2);
 
     return card;
@@ -1196,23 +1337,13 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
           <label>Fecha de seguimiento</label>
           <input type="date" data-field="fechaSeguimiento" value="${escapeAttr(proy.fechaSeguimiento)}">
         </div>
-        <div></div>
+        <div class="field">
+          <label>Hora sugerida</label>
+          <input type="time" data-field="horaSeguimiento" value="${escapeAttr(proy.horaSeguimiento)}">
+        </div>
         <div></div>
       `;
-      const fechaSeguimientoInput = fieldGrid2.querySelector('[data-field="fechaSeguimiento"]');
-      let fechaSeguimientoComprometida = proy.fechaSeguimiento;
-      if(fechaSeguimientoComprometida) fechaSeguimientoInput.classList.add('fecha-definitiva');
-      fechaSeguimientoInput.addEventListener('change', ()=>{
-        if(fechaSeguimientoComprometida){
-          fechaSeguimientoInput.value = fechaSeguimientoComprometida;
-          alert('La fecha de seguimiento de "' + (proy.nombre || 'este proyecto especial') + '" ya fue definida (' + fechaSeguimientoComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-          return;
-        }
-        fechaSeguimientoComprometida = fechaSeguimientoInput.value;
-        proy.fechaSeguimiento = fechaSeguimientoInput.value;
-        fechaSeguimientoInput.classList.add('fecha-definitiva');
-        markDirty();
-      });
+      wireFechaHoraDefinitiva(fieldGrid2, proy, 'fechaSeguimiento', 'horaSeguimiento', 'fecha/hora de seguimiento de "' + (proy.nombre || 'este proyecto especial') + '"');
       card.appendChild(fieldGrid2);
 
       listWrap.appendChild(card);
@@ -1239,6 +1370,36 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
 
 function escapeAttr(v){
   return (v||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
+  const fechaInput = container.querySelector('[data-field="' + fechaField + '"]');
+  const horaInput = container.querySelector('[data-field="' + horaField + '"]');
+  let comprometida = !!obj[fechaField];
+  if(comprometida){
+    fechaInput.classList.add('fecha-definitiva');
+    horaInput.classList.add('fecha-definitiva');
+  }
+  const bloquear = ()=>{
+    fechaInput.value = obj[fechaField];
+    horaInput.value = obj[horaField];
+    alert('La ' + label + ' ya fue definida (' + obj[fechaField] + (obj[horaField] ? ' ' + obj[horaField] : '') + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha/hora.');
+  };
+  fechaInput.addEventListener('change', ()=>{
+    if(comprometida){ bloquear(); return; }
+    obj[fechaField] = fechaInput.value;
+    comprometida = !!obj[fechaField];
+    if(comprometida){
+      fechaInput.classList.add('fecha-definitiva');
+      horaInput.classList.add('fecha-definitiva');
+    }
+    markDirty();
+  });
+  horaInput.addEventListener('change', ()=>{
+    if(comprometida){ bloquear(); return; }
+    obj[horaField] = horaInput.value;
+    markDirty();
+  });
 }
 
 document.getElementById('btnSave').addEventListener('click', saveActiveCountry);
