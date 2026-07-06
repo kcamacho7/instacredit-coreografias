@@ -725,7 +725,7 @@ async function loadFechasReunion(listWrap){
   listWrap.innerHTML = '';
   const table = document.createElement('table');
   table.className = 'coreo';
-  table.innerHTML = '<tr><th style="width:12%;">País</th><th style="width:33%;">Origen</th><th style="width:20%;">Fecha</th><th style="width:15%;">Hora</th><th style="width:20%;">&nbsp;</th></tr>';
+  table.innerHTML = '<tr><th style="width:11%;">País</th><th style="width:29%;">Origen</th><th style="width:18%;">Fecha</th><th style="width:13%;">Hora</th><th style="width:29%;">&nbsp;</th></tr>';
   const tbody = document.createElement('tbody');
   table.appendChild(tbody);
 
@@ -737,16 +737,29 @@ async function loadFechasReunion(listWrap){
       <td>${escapeAttr(item.origen)}</td>
       <td><input type="date" value="${escapeAttr(item.fecha)}"></td>
       <td><input type="time" value="${escapeAttr(item.hora)}"></td>
-      <td><button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);">Guardar</button></td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-right:6px;">Guardar</button>
+        <button type="button" class="btn-eliminar-proyecto">Limpiar</button>
+      </td>
     `;
     const [fechaEl, horaEl] = tr.querySelectorAll('input');
-    tr.querySelector('button').addEventListener('click', async ()=>{
+    const [btnGuardar, btnLimpiar] = tr.querySelectorAll('.btn-eliminar-proyecto');
+    btnGuardar.addEventListener('click', async ()=>{
       const { error } = await sb.from(item.tabla).update({
         [item.campoFecha]: fechaEl.value || null,
         [item.campoHora]: horaEl.value || null
       }).eq('id', item.id);
       if(error){ alert('Error: ' + error.message); return; }
       alert('Fecha/hora actualizada. El calendario se sincroniza automáticamente en la próxima corrida diaria.');
+      loadFechasReunion(listWrap);
+    });
+    btnLimpiar.addEventListener('click', async ()=>{
+      if(!confirm('¿Limpiar esta fecha/hora de reunión (' + item.origen + ', ' + paisNombre + ')? El país podrá definir una nueva fecha desde su pestaña. El evento en el calendario se elimina en la próxima corrida diaria.')) return;
+      const { error } = await sb.from(item.tabla).update({
+        [item.campoFecha]: null,
+        [item.campoHora]: null
+      }).eq('id', item.id);
+      if(error){ alert('Error: ' + error.message); return; }
       loadFechasReunion(listWrap);
     });
     tbody.appendChild(tr);
