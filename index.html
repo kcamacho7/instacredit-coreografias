@@ -161,7 +161,7 @@
     padding:7px 9px;
     background:#FAFDF9;
   }
-  .field textarea{resize:vertical;min-height:38px;}
+  .field textarea{resize:none;min-height:38px;overflow-y:hidden;}
   .field input:focus, .field textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
 
   table.coreo{width:calc(100% - 40px);margin:8px 20px 16px 20px;border-collapse:collapse;font-size:12.5px;}
@@ -599,11 +599,16 @@ function renderTabs(){
   regionalPanel.id = 'panel-REGIONAL';
   regionalPanel.appendChild(renderRegional());
   panelsEl.appendChild(regionalPanel);
+
+  const activePanel = panelsEl.querySelector('.tab-panel.active');
+  if(activePanel) activePanel.querySelectorAll('textarea').forEach(autoGrow);
 }
 
 function selectTab(code){
   document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.pais===code));
   document.querySelectorAll('.tab-panel').forEach(p=> p.classList.toggle('active', p.id==='panel-'+code));
+  const activePanel = document.getElementById('panel-' + code);
+  if(activePanel) activePanel.querySelectorAll('textarea').forEach(autoGrow);
 }
 
 function renderRegional(){
@@ -1094,6 +1099,7 @@ function renderPais(paisCode){
           markDirty();
         });
       });
+      fieldGrid.querySelectorAll('textarea').forEach(wireAutoGrow);
       kpiBlock.appendChild(fieldGrid);
 
       const table = document.createElement('table');
@@ -1112,7 +1118,7 @@ function renderPais(paisCode){
             <td>${i+1}</td>
             <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
             <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
-            <td><input type="date" data-f="fecha" value="${escapeAttr(accion.fecha)}"></td>
+            <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
             <td>
               <select data-f="estado" class="estado">
                 <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -1142,6 +1148,11 @@ function renderPais(paisCode){
             if(fechaAccionComprometida){
               fechaAccionInput.value = fechaAccionComprometida;
               alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+              return;
+            }
+            if(fechaAccionInput.value && fechaAccionInput.value < HOY){
+              fechaAccionInput.value = '';
+              alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
               return;
             }
             fechaAccionComprometida = fechaAccionInput.value;
@@ -1287,6 +1298,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
         markDirty();
       });
     });
+    fieldGrid.querySelectorAll('textarea').forEach(wireAutoGrow);
     card.appendChild(fieldGrid);
 
     const table = document.createElement('table');
@@ -1305,7 +1317,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           <td>${i+1}</td>
           <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
           <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
-          <td><input type="date" data-f="fecha" value="${escapeAttr(accion.fecha)}"></td>
+          <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
           <td>
             <select data-f="estado" class="estado">
               <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -1335,6 +1347,11 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           if(fechaAccionComprometida){
             fechaAccionInput.value = fechaAccionComprometida;
             alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+            return;
+          }
+          if(fechaAccionInput.value && fechaAccionInput.value < HOY){
+            fechaAccionInput.value = '';
+            alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
             return;
           }
           fechaAccionComprometida = fechaAccionInput.value;
@@ -1487,6 +1504,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
           markDirty();
         });
       });
+      fieldGrid.querySelectorAll('textarea').forEach(wireAutoGrow);
       card.appendChild(fieldGrid);
 
       const table = document.createElement('table');
@@ -1505,7 +1523,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             <td>${i+1}</td>
             <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
             <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
-            <td><input type="date" data-f="fecha" value="${escapeAttr(accion.fecha)}"></td>
+            <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
             <td>
               <select data-f="estado" class="estado">
                 <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -1535,6 +1553,11 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             if(fechaAccionComprometida){
               fechaAccionInput.value = fechaAccionComprometida;
               alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+              return;
+            }
+            if(fechaAccionInput.value && fechaAccionInput.value < HOY){
+              fechaAccionInput.value = '';
+              alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
               return;
             }
             fechaAccionComprometida = fechaAccionInput.value;
@@ -1602,6 +1625,18 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
   block.appendChild(addBtn);
 
   return block;
+}
+
+const HOY = new Date().toISOString().slice(0,10);
+
+function autoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function wireAutoGrow(textareaEl){
+  autoGrow(textareaEl);
+  textareaEl.addEventListener('input', ()=> autoGrow(textareaEl));
 }
 
 function escapeAttr(v){
