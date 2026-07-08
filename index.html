@@ -1190,7 +1190,7 @@ function renderPais(paisCode){
       fieldGrid2.innerHTML = `
         <div class="field">
           <label>Punto de control</label>
-          <input type="text" data-field="puntoControl" value="${escapeAttr(kpiState.puntoControl)}">
+          <textarea data-field="puntoControl">${escapeAttr(kpiState.puntoControl)}</textarea>
         </div>
         <div class="field">
           <label>Fecha de revisión con Riesgo Regional</label>
@@ -1207,6 +1207,7 @@ function renderPais(paisCode){
           markDirty();
         });
       });
+      fieldGrid2.querySelectorAll('textarea').forEach(wireAutoGrow);
 
       wireFechaHoraDefinitiva(fieldGrid2, kpiState, 'fechaRevision', 'horaRevision', 'la fecha/hora de revisión de "' + kpi.nombre + '"');
       kpiBlock.appendChild(fieldGrid2);
@@ -1391,7 +1392,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
     fieldGrid2.innerHTML = `
       <div class="field">
         <label>Punto de control</label>
-        <input type="text" data-field="puntoControl" value="${escapeAttr(c.puntoControl)}">
+        <textarea data-field="puntoControl">${escapeAttr(c.puntoControl)}</textarea>
       </div>
       <div class="field">
         <label>Fecha de revisión con Riesgo Regional</label>
@@ -1406,6 +1407,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       c.puntoControl = e.target.value;
       markDirty();
     });
+    fieldGrid2.querySelectorAll('textarea').forEach(wireAutoGrow);
     wireFechaHoraDefinitiva(fieldGrid2, c, 'fechaRevision', 'horaRevision', 'fecha/hora de revisión de "' + (c.nombre || 'este KPI adicional') + '"');
     card.appendChild(fieldGrid2);
 
