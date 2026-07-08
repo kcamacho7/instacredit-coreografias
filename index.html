@@ -167,7 +167,7 @@
   table.coreo{width:calc(100% - 40px);margin:8px 20px 16px 20px;border-collapse:collapse;font-size:12.5px;}
   table.coreo th{background:#fff;color:var(--azul-claro);text-align:left;padding:6px 6px;font-weight:600;border-bottom:1px solid var(--gris-borde);font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;}
   table.coreo td{padding:5px 6px;border-bottom:1px dashed var(--gris-borde);}
-  table.coreo td input, table.coreo td select{
+  table.coreo td input, table.coreo td select, table.coreo td textarea{
     width:100%;
     font-family:'Inter Tight',sans-serif;
     font-size:12.5px;
@@ -176,7 +176,8 @@
     padding:5px 6px;
     background:#FAFDF9;
   }
-  table.coreo td input:focus, table.coreo td select:focus{outline:none;border-color:var(--verde);background:#fff;}
+  table.coreo td textarea{resize:none;overflow-y:hidden;min-height:26px;line-height:1.35;display:block;}
+  table.coreo td input:focus, table.coreo td select:focus, table.coreo td textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
   .row-actions{width:34px;text-align:center;}
   .row-actions button{background:none;border:none;color:var(--rojo);cursor:pointer;font-size:15px;font-weight:700;}
   .add-row-btn{
@@ -1116,8 +1117,8 @@ function renderPais(paisCode){
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${i+1}</td>
-            <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
-            <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
+            <td><textarea data-f="accion" rows="1">${escapeAttr(accion.accion)}</textarea></td>
+            <td><textarea data-f="responsable" rows="1">${escapeAttr(accion.responsable)}</textarea></td>
             <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
             <td>
               <select data-f="estado" class="estado">
@@ -1141,6 +1142,7 @@ function renderPais(paisCode){
               markDirty();
             });
           });
+          tr.querySelectorAll('textarea').forEach(wireAutoGrow);
           const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
           let fechaAccionComprometida = accion.fecha;
           if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
@@ -1315,8 +1317,8 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${i+1}</td>
-          <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
-          <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
+          <td><textarea data-f="accion" rows="1">${escapeAttr(accion.accion)}</textarea></td>
+          <td><textarea data-f="responsable" rows="1">${escapeAttr(accion.responsable)}</textarea></td>
           <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
           <td>
             <select data-f="estado" class="estado">
@@ -1340,6 +1342,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
             markDirty();
           });
         });
+        tr.querySelectorAll('textarea').forEach(wireAutoGrow);
         const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
         let fechaAccionComprometida = accion.fecha;
         if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
@@ -1521,8 +1524,8 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${i+1}</td>
-            <td><input type="text" data-f="accion" value="${escapeAttr(accion.accion)}"></td>
-            <td><input type="text" data-f="responsable" value="${escapeAttr(accion.responsable)}"></td>
+            <td><textarea data-f="accion" rows="1">${escapeAttr(accion.accion)}</textarea></td>
+            <td><textarea data-f="responsable" rows="1">${escapeAttr(accion.responsable)}</textarea></td>
             <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
             <td>
               <select data-f="estado" class="estado">
@@ -1546,6 +1549,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
               markDirty();
             });
           });
+          tr.querySelectorAll('textarea').forEach(wireAutoGrow);
           const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
           let fechaAccionComprometida = accion.fecha;
           if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
