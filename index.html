@@ -1090,7 +1090,6 @@ function renderPais(paisCode){
     area.kpis.forEach(kpi=>{
       const kpiState = state[paisCode][area.id][kpi.id];
       const accKey = paisCode + '|' + area.id + '|' + kpi.id;
-      if(kpiTieneContenido(kpiState)) openAccordions.add(accKey);
       const isOpen = openAccordions.has(accKey);
 
       const itemWrap = document.createElement('div');
@@ -1274,7 +1273,6 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
 
   function renderOne(c){
     const accKey = paisCode + '|' + area.id + '|custom|' + c.id;
-    if(kpiTieneContenido(c)) openAccordions.add(accKey);
     const isOpen = openAccordions.has(accKey);
 
     const card = document.createElement('div');
@@ -1525,7 +1523,6 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
     }
     proyectos.forEach((proy, idx)=>{
       const accKey = paisCode + '|proyecto|' + proy.id;
-      if(proyectoTieneContenido(proy)) openAccordions.add(accKey);
       const isOpen = openAccordions.has(accKey);
 
       const card = document.createElement('div');
