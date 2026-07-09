@@ -45,6 +45,10 @@
   .kpi-stat{background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:14px;text-align:center;}
   .kpi-stat .valor{font-size:26px;font-weight:800;color:var(--azul);}
   .kpi-stat .etiqueta{font-size:11px;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}
+  .filtro-bar{display:flex;gap:8px;padding:0 20px 18px 20px;flex-wrap:wrap;}
+  .filtro-btn{background:#fff;border:1px solid var(--gris-borde);color:var(--azul);font-family:'Inter Tight',sans-serif;font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:20px;cursor:pointer;}
+  .filtro-btn:hover{background:#F0F7EE;}
+  .filtro-btn.active{background:var(--verde);color:#fff;border-color:var(--verde);}
   input.fecha-definitiva{background:#F0F0F0 !important;color:var(--azul-claro);cursor:not-allowed;border-color:var(--gris-borde) !important;}
   button.btn-regional-check{background:var(--verde);color:#fff;border:none;border-radius:4px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px;}
   button.btn-regional-check:disabled{background:var(--gris-borde);color:var(--azul-claro);cursor:default;}
@@ -612,6 +616,19 @@ function renderTabs(){
     panelsEl.appendChild(panel);
   });
 
+  const dashBtn = document.createElement('button');
+  dashBtn.className = 'tab-btn';
+  dashBtn.textContent = '📊 Dashboard';
+  dashBtn.dataset.pais = 'DASHBOARD';
+  dashBtn.addEventListener('click', ()=> selectTab('DASHBOARD'));
+  tabsEl.appendChild(dashBtn);
+
+  const dashPanel = document.createElement('div');
+  dashPanel.className = 'tab-panel';
+  dashPanel.id = 'panel-DASHBOARD';
+  dashPanel.appendChild(renderDashboardPublico());
+  panelsEl.appendChild(dashPanel);
+
   const regionalBtn = document.createElement('button');
   regionalBtn.className = 'tab-btn tab-btn-regional';
   regionalBtn.textContent = '🔒 Riesgo Regional';
@@ -659,21 +676,6 @@ function renderRegional(){
     return wrap;
   }
 
-  const dashBlock = document.createElement('div');
-  dashBlock.className = 'area-block proyecto-area';
-  dashBlock.innerHTML = `
-    <div class="area-header">
-      <h2>Dashboard de avance</h2>
-      <span>Solo Riesgo Regional</span>
-    </div>
-    <div class="area-owner"><strong>Qué es:</strong> avance de las acciones registradas por los 4 países, agrupado por dominio y por KPI. Se calcula sobre todas las acciones con contenido (no cuenta filas vacías).</div>
-  `;
-  const dashWrap = document.createElement('div');
-  dashWrap.id = 'dashboard-wrap';
-  dashWrap.innerHTML = '<div class="sin-proyectos">Cargando dashboard…</div>';
-  dashBlock.appendChild(dashWrap);
-  wrap.appendChild(dashBlock);
-  loadDashboard(dashWrap);
 
   const block = document.createElement('div');
   block.className = 'area-block proyecto-area';
@@ -981,19 +983,60 @@ async function loadCatalogoMantenimiento(catalogoWrap){
 
 const CHART_COLORS = { Pendiente:'#677C98', 'En curso':'#4C9C2E', Cumplida:'#002554', Vencida:'#EE212E' };
 
-async function loadDashboard(dashWrap){
+function renderDashboardPublico(){
+  const wrap = document.createElement('div');
+  wrap.style.paddingTop = '20px';
+
+  const headerBlock = document.createElement('div');
+  headerBlock.className = 'area-block proyecto-area';
+  headerBlock.innerHTML = `
+    <div class="area-header">
+      <h2>Dashboard de avance</h2>
+      <span>Visible para todos</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> avance de las acciones registradas, agrupado por dominio y por KPI. Usa los filtros para ver el consolidado regional o el detalle de un país.</div>
+  `;
+  wrap.appendChild(headerBlock);
+
+  const filtroBar = document.createElement('div');
+  filtroBar.className = 'filtro-bar';
+  const chartsWrap = document.createElement('div');
+  chartsWrap.id = 'dashboard-publico-charts';
+
+  const opciones = [{ code:'ALL', nombre:'Consolidado' }, ...PAISES];
+  opciones.forEach((o, idx)=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filtro-btn' + (idx===0 ? ' active' : '');
+    btn.textContent = o.nombre;
+    btn.addEventListener('click', ()=>{
+      filtroBar.querySelectorAll('.filtro-btn').forEach(b=> b.classList.remove('active'));
+      btn.classList.add('active');
+      renderDashboardCharts(chartsWrap, o.code);
+    });
+    filtroBar.appendChild(btn);
+  });
+  wrap.appendChild(filtroBar);
+  wrap.appendChild(chartsWrap);
+  renderDashboardCharts(chartsWrap, 'ALL');
+
+  return wrap;
+}
+
+async function renderDashboardCharts(dashWrap, paisFiltro){
+  dashWrap.innerHTML = '<div class="sin-proyectos">Cargando dashboard…</div>';
   const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
     sb.from('coreografias').select('*'),
     sb.from('proyectos_especiales').select('*'),
     sb.from('kpis_adicionales').select('*')
   ]);
 
-  const acciones = [];
+  const todas = [];
   function collect(rows, dominioFn, paisFn, kpiFn){
     (rows||[]).forEach(r=>{
       (r.acciones||[]).forEach(a=>{
         if(!a.accion && !a.responsable) return;
-        acciones.push({ dominio: dominioFn(r), pais: paisFn(r), kpi: kpiFn(r), estado: a.estado || 'Pendiente' });
+        todas.push({ dominio: dominioFn(r), pais: paisFn(r), kpi: kpiFn(r), estado: a.estado || 'Pendiente' });
       });
     });
   }
@@ -1004,8 +1047,10 @@ async function loadDashboard(dashWrap){
   collect(customData, r=> (AREA_NOMBRE[r.area_id] || r.area_id) + ' (adicional)', r=> r.pais_code, r=> r.nombre || 'KPI adicional');
   collect(proyData, ()=> 'Proyectos especiales', r=> r.pais_code, r=> r.nombre || 'Proyecto especial');
 
+  const acciones = (!paisFiltro || paisFiltro === 'ALL') ? todas : todas.filter(a=> a.pais === paisFiltro);
+
   if(acciones.length === 0){
-    dashWrap.innerHTML = '<div class="sin-proyectos">No hay acciones registradas todavía para graficar.</div>';
+    dashWrap.innerHTML = '<div class="sin-proyectos">No hay acciones registradas todavía para graficar' + (paisFiltro && paisFiltro!=='ALL' ? ' en este país' : '') + '.</div>';
     return;
   }
 
@@ -1056,15 +1101,15 @@ async function loadDashboard(dashWrap){
     options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
   });
 
-  // Avance por país
+  // Avance por país (siempre consolidado, aunque el resto del dashboard esté filtrado a un país, para dar contexto de comparación)
   const paisesConDatos = PAISES.map(p=>{
-    const deEstePais = acciones.filter(a=> a.pais === p.code);
+    const deEstePais = todas.filter(a=> a.pais === p.code);
     const pct = deEstePais.length ? Math.round((deEstePais.filter(a=>a.estado==='Cumplida').length / deEstePais.length) * 100) : 0;
-    return { nombre: p.nombre, pct };
+    return { nombre: p.nombre, pct, esFiltro: p.code === paisFiltro };
   });
   new Chart(document.getElementById('chart-por-pais'), {
     type: 'bar',
-    data: { labels: paisesConDatos.map(p=>p.nombre), datasets: [{ label:'% cumplidas', data: paisesConDatos.map(p=>p.pct), backgroundColor: '#4C9C2E', borderRadius: 4 }] },
+    data: { labels: paisesConDatos.map(p=>p.nombre), datasets: [{ label:'% cumplidas', data: paisesConDatos.map(p=>p.pct), backgroundColor: paisesConDatos.map(p=> p.esFiltro ? '#002554' : '#4C9C2E'), borderRadius: 4 }] },
     options: { scales: { y: { beginAtZero:true, max:100, ticks:{ callback:v=>v+'%' } } }, plugins: { legend: { display:false } } }
   });
 
