@@ -160,6 +160,7 @@
   .kpi-accordion-item.open .kpi-accordion-body{display:block;}
   .kpi-row-header .titulo-wrap{display:flex;align-items:center;gap:8px;min-width:0;}
   .badge-tiene-datos{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--verde);}
+  .badge-tiene-datos.completada{background:var(--azul);}
   .proyecto-toggle{background:none;border:none;color:var(--azul);cursor:pointer;font-size:12px;padding:2px 4px;transition:transform .15s;flex:0 0 auto;}
   .proyecto-card.open .proyecto-toggle{transform:rotate(90deg);}
   .proyecto-card-body{display:none;}
@@ -312,10 +313,13 @@ function proyectoTieneContenido(p){
   return !!(p.nombre || p.descripcion || p.responsable || p.fechaSeguimiento ||
     (p.acciones||[]).some(a=> a.accion || a.responsable));
 }
+function tieneAccionCumplida(obj){
+  return (obj.acciones||[]).some(a=> a.estado === 'Cumplida');
+}
 
 function emptyKpiState(){
   return { situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'', horaRevision:'',
-    acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
+    acciones:[ {accion:'', responsable:'', fecha:'', hora:'', estado:'Pendiente'} ] };
 }
 
 function ensureState(){
@@ -334,7 +338,7 @@ function ensureState(){
 
 function emptyCustomKpi(){
   return { id: uuid(), nombre:'', definicion:'', situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'', horaRevision:'',
-    acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
+    acciones:[ {accion:'', responsable:'', fecha:'', hora:'', estado:'Pendiente'} ] };
 }
 
 function uuid(){
@@ -346,7 +350,7 @@ function uuid(){
 
 function emptyProyecto(){
   return { id: uuid(), nombre:'', descripcion:'', responsable:'', estado:'Pendiente', fechaSeguimiento:'', horaSeguimiento:'',
-    acciones:[ {accion:'', responsable:'', fecha:'', estado:'Pendiente'} ] };
+    acciones:[ {accion:'', responsable:'', fecha:'', hora:'', estado:'Pendiente'} ] };
 }
 
 function loadLocalCache(){
@@ -367,7 +371,7 @@ function mergeCloudRows(rows){
     target.puntoControl = row.punto_control || '';
     target.fechaRevision = row.fecha_revision || '';
     target.horaRevision = row.hora_revision || '';
-    target.acciones = (row.acciones && row.acciones.length) ? row.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}];
+    target.acciones = (row.acciones && row.acciones.length) ? row.acciones : [{accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'}];
   });
 }
 
@@ -383,7 +387,7 @@ function mergeProyectosRows(rows){
       estado: r.estado || 'Pendiente',
       fechaSeguimiento: r.fecha_seguimiento || '',
       horaSeguimiento: r.hora_seguimiento || '',
-      acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}]
+      acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'}]
     });
   });
   PAISES.forEach(p=>{
@@ -406,7 +410,7 @@ function mergeCustomKpisRows(rows){
       puntoControl: r.punto_control || '',
       fechaRevision: r.fecha_revision || '',
       horaRevision: r.hora_revision || '',
-      acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',estado:'Pendiente'}]
+      acciones: (r.acciones && r.acciones.length) ? r.acciones : [{accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'}]
     });
   });
   PAISES.forEach(p=>{
@@ -439,6 +443,33 @@ function markDirty(){
   document.getElementById('statusText').innerHTML = 'Cambios sin guardar';
 }
 
+function validarAccionesCompletas(code){
+  function revisar(acciones, origen){
+    for(const accion of acciones){
+      const tieneInfo = (accion.accion && accion.accion.trim()) || (accion.responsable && accion.responsable.trim());
+      if(tieneInfo && (!accion.fecha || !accion.hora)){
+        return 'La acción "' + (accion.accion || accion.responsable) + '" en ' + origen + ' necesita fecha Y hora de compromiso antes de guardar. Si no vas a definirlas todavía, borra el texto de "Acción"/"Responsable" de esa fila.';
+      }
+    }
+    return null;
+  }
+  for(const area of AREAS){
+    for(const kpi of area.kpis){
+      const err = revisar(state[code][area.id][kpi.id].acciones, kpi.nombre);
+      if(err) return err;
+    }
+    for(const c of state[code][area.id].customKpis){
+      const err = revisar(c.acciones, c.nombre || 'un KPI adicional');
+      if(err) return err;
+    }
+  }
+  for(const proy of state[code].proyectosEspeciales){
+    const err = revisar(proy.acciones, proy.nombre || 'un proyecto especial');
+    if(err) return err;
+  }
+  return null;
+}
+
 async function saveActiveCountry(){
   const activeBtn = document.querySelector('.tab-btn.active');
   const code = activeBtn.dataset.pais;
@@ -446,6 +477,13 @@ async function saveActiveCountry(){
     alert('Este país está bloqueado. Ingresa el PIN de ' + code + ' para poder guardar.');
     return;
   }
+
+  const errorAcciones = validarAccionesCompletas(code);
+  if(errorAcciones){
+    alert(errorAcciones);
+    return;
+  }
+
   // Refresca desde la nube los campos de fecha/hora ya bloqueados, para no
   // pisar un ajuste que Riesgo Regional haya hecho mientras este navegador
   // tenía un valor viejo en memoria.
@@ -1266,7 +1304,7 @@ function renderPais(paisCode){
       const header = document.createElement('div');
       header.className = 'kpi-row-header';
       header.innerHTML = `
-        <span class="titulo-wrap">${kpiTieneContenido(kpiState) ? '<span class="badge-tiene-datos" title="Tiene información registrada"></span>' : ''}<span>${escapeAttr(kpi.nombre)}</span></span>
+        <span class="titulo-wrap">${kpiTieneContenido(kpiState) ? '<span class="badge-tiene-datos' + (tieneAccionCumplida(kpiState) ? ' completada' : '') + '" title="' + (tieneAccionCumplida(kpiState) ? 'Tiene al menos una acción cumplida' : 'Tiene información registrada') + '"></span>' : ''}<span>${escapeAttr(kpi.nombre)}</span></span>
         <span class="chevron">▶</span>
       `;
       header.addEventListener('click', ()=>{
@@ -1318,7 +1356,7 @@ function renderPais(paisCode){
       const table = document.createElement('table');
       table.className = 'coreo';
       table.innerHTML = `
-        <tr><th style="width:5%;">#</th><th style="width:36%;">Acción</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
+        <tr><th style="width:5%;">#</th><th style="width:28%;">Acción</th><th style="width:16%;">Responsable</th><th style="width:13%;">Fecha compromiso</th><th style="width:10%;">Hora</th><th style="width:13%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
       `;
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
@@ -1332,6 +1370,7 @@ function renderPais(paisCode){
             <td><textarea data-f="accion" rows="1">${escapeAttr(accion.accion)}</textarea></td>
             <td><textarea data-f="responsable" rows="1">${escapeAttr(accion.responsable)}</textarea></td>
             <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
+            <td><input type="time" data-f="hora" value="${escapeAttr(accion.hora)}"></td>
             <td>
               <select data-f="estado" class="estado">
                 <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -1347,7 +1386,7 @@ function renderPais(paisCode){
               regionalMarcarCumplida('coreografias', { pais_code: paisCode, area_id: area.id, kpi_id: kpi.id }, kpiState.acciones, i, e.target);
             });
           }
-          tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
+          tr.querySelectorAll('[data-f]:not([data-f="fecha"]):not([data-f="hora"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
               accion[el.dataset.f] = el.value;
@@ -1356,14 +1395,16 @@ function renderPais(paisCode){
           });
           tr.querySelectorAll('textarea').forEach(wireAutoGrow);
           const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
+          const horaAccionInput = tr.querySelector('[data-f="hora"]');
           let fechaAccionComprometida = accion.fecha;
-          if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
+          if(fechaAccionComprometida){ fechaAccionInput.classList.add('fecha-definitiva'); horaAccionInput.classList.add('fecha-definitiva'); }
+          const bloquearAccion = ()=>{
+            fechaAccionInput.value = fechaAccionComprometida;
+            horaAccionInput.value = accion.hora;
+            alert('La fecha/hora de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + (accion.hora ? ' ' + accion.hora : '') + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha/hora.');
+          };
           fechaAccionInput.addEventListener('change', ()=>{
-            if(fechaAccionComprometida){
-              fechaAccionInput.value = fechaAccionComprometida;
-              alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-              return;
-            }
+            if(fechaAccionComprometida){ bloquearAccion(); return; }
             if(fechaAccionInput.value && fechaAccionInput.value < HOY){
               fechaAccionInput.value = '';
               alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
@@ -1371,12 +1412,17 @@ function renderPais(paisCode){
             }
             fechaAccionComprometida = fechaAccionInput.value;
             accion.fecha = fechaAccionInput.value;
-            fechaAccionInput.classList.add('fecha-definitiva');
+            if(fechaAccionComprometida){ fechaAccionInput.classList.add('fecha-definitiva'); horaAccionInput.classList.add('fecha-definitiva'); }
+            markDirty();
+          });
+          horaAccionInput.addEventListener('change', ()=>{
+            if(fechaAccionComprometida){ bloquearAccion(); return; }
+            accion.hora = horaAccionInput.value;
             markDirty();
           });
           tr.querySelector('[data-remove]').addEventListener('click', ()=>{
             kpiState.acciones.splice(i,1);
-            if(kpiState.acciones.length===0) kpiState.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+            if(kpiState.acciones.length===0) kpiState.acciones.push({accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'});
             renderAcciones();
             markDirty();
           });
@@ -1390,7 +1436,7 @@ function renderPais(paisCode){
       addBtn.className = 'add-row-btn';
       addBtn.textContent = '+ Agregar acción';
       addBtn.addEventListener('click', ()=>{
-        kpiState.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+        kpiState.acciones.push({accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'});
         renderAcciones();
         markDirty();
       });
@@ -1536,7 +1582,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
     const table = document.createElement('table');
     table.className = 'coreo';
     table.innerHTML = `
-      <tr><th style="width:5%;">#</th><th style="width:36%;">Acción</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
+      <tr><th style="width:5%;">#</th><th style="width:28%;">Acción</th><th style="width:16%;">Responsable</th><th style="width:13%;">Fecha compromiso</th><th style="width:10%;">Hora</th><th style="width:13%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
     `;
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
@@ -1550,6 +1596,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           <td><textarea data-f="accion" rows="1">${escapeAttr(accion.accion)}</textarea></td>
           <td><textarea data-f="responsable" rows="1">${escapeAttr(accion.responsable)}</textarea></td>
           <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
+          <td><input type="time" data-f="hora" value="${escapeAttr(accion.hora)}"></td>
           <td>
             <select data-f="estado" class="estado">
               <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -1565,7 +1612,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
             regionalMarcarCumplida('kpis_adicionales', { id: c.id }, c.acciones, i, e.target);
           });
         }
-        tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
+        tr.querySelectorAll('[data-f]:not([data-f="fecha"]):not([data-f="hora"])').forEach(el=>{
           const ev = el.tagName === 'SELECT' ? 'change' : 'input';
           el.addEventListener(ev, ()=>{
             accion[el.dataset.f] = el.value;
@@ -1574,14 +1621,16 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
         });
         tr.querySelectorAll('textarea').forEach(wireAutoGrow);
         const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
+        const horaAccionInput = tr.querySelector('[data-f="hora"]');
         let fechaAccionComprometida = accion.fecha;
-        if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
+        if(fechaAccionComprometida){ fechaAccionInput.classList.add('fecha-definitiva'); horaAccionInput.classList.add('fecha-definitiva'); }
+        const bloquearAccion = ()=>{
+          fechaAccionInput.value = fechaAccionComprometida;
+          horaAccionInput.value = accion.hora;
+          alert('La fecha/hora de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + (accion.hora ? ' ' + accion.hora : '') + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha/hora.');
+        };
         fechaAccionInput.addEventListener('change', ()=>{
-          if(fechaAccionComprometida){
-            fechaAccionInput.value = fechaAccionComprometida;
-            alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-            return;
-          }
+          if(fechaAccionComprometida){ bloquearAccion(); return; }
           if(fechaAccionInput.value && fechaAccionInput.value < HOY){
             fechaAccionInput.value = '';
             alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
@@ -1589,12 +1638,17 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           }
           fechaAccionComprometida = fechaAccionInput.value;
           accion.fecha = fechaAccionInput.value;
-          fechaAccionInput.classList.add('fecha-definitiva');
+          if(fechaAccionComprometida){ fechaAccionInput.classList.add('fecha-definitiva'); horaAccionInput.classList.add('fecha-definitiva'); }
+          markDirty();
+        });
+        horaAccionInput.addEventListener('change', ()=>{
+          if(fechaAccionComprometida){ bloquearAccion(); return; }
+          accion.hora = horaAccionInput.value;
           markDirty();
         });
         tr.querySelector('[data-remove]').addEventListener('click', ()=>{
           c.acciones.splice(i,1);
-          if(c.acciones.length===0) c.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+          if(c.acciones.length===0) c.acciones.push({accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'});
           renderAcciones();
           markDirty();
         });
@@ -1609,7 +1663,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
     addRowBtn.className = 'add-row-btn';
     addRowBtn.textContent = '+ Agregar acción';
     addRowBtn.addEventListener('click', ()=>{
-      c.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+      c.acciones.push({accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'});
       renderAcciones();
       markDirty();
     });
@@ -1761,7 +1815,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
       const table = document.createElement('table');
       table.className = 'coreo';
       table.innerHTML = `
-        <tr><th style="width:5%;">#</th><th style="width:36%;">Acción</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
+        <tr><th style="width:5%;">#</th><th style="width:28%;">Acción</th><th style="width:16%;">Responsable</th><th style="width:13%;">Fecha compromiso</th><th style="width:10%;">Hora</th><th style="width:13%;">Estado</th><th class="row-actions">&nbsp;</th></tr>
       `;
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
@@ -1775,6 +1829,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             <td><textarea data-f="accion" rows="1">${escapeAttr(accion.accion)}</textarea></td>
             <td><textarea data-f="responsable" rows="1">${escapeAttr(accion.responsable)}</textarea></td>
             <td><input type="date" data-f="fecha" min="${HOY}" value="${escapeAttr(accion.fecha)}"></td>
+            <td><input type="time" data-f="hora" value="${escapeAttr(accion.hora)}"></td>
             <td>
               <select data-f="estado" class="estado">
                 <option value="Pendiente" ${accion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -1790,7 +1845,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
               regionalMarcarCumplida('proyectos_especiales', { id: proy.id }, proy.acciones, i, e.target);
             });
           }
-          tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
+          tr.querySelectorAll('[data-f]:not([data-f="fecha"]):not([data-f="hora"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
               accion[el.dataset.f] = el.value;
@@ -1799,14 +1854,16 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
           });
           tr.querySelectorAll('textarea').forEach(wireAutoGrow);
           const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
+          const horaAccionInput = tr.querySelector('[data-f="hora"]');
           let fechaAccionComprometida = accion.fecha;
-          if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
+          if(fechaAccionComprometida){ fechaAccionInput.classList.add('fecha-definitiva'); horaAccionInput.classList.add('fecha-definitiva'); }
+          const bloquearAccion = ()=>{
+            fechaAccionInput.value = fechaAccionComprometida;
+            horaAccionInput.value = accion.hora;
+            alert('La fecha/hora de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + (accion.hora ? ' ' + accion.hora : '') + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha/hora.');
+          };
           fechaAccionInput.addEventListener('change', ()=>{
-            if(fechaAccionComprometida){
-              fechaAccionInput.value = fechaAccionComprometida;
-              alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-              return;
-            }
+            if(fechaAccionComprometida){ bloquearAccion(); return; }
             if(fechaAccionInput.value && fechaAccionInput.value < HOY){
               fechaAccionInput.value = '';
               alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
@@ -1814,12 +1871,17 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             }
             fechaAccionComprometida = fechaAccionInput.value;
             accion.fecha = fechaAccionInput.value;
-            fechaAccionInput.classList.add('fecha-definitiva');
+            if(fechaAccionComprometida){ fechaAccionInput.classList.add('fecha-definitiva'); horaAccionInput.classList.add('fecha-definitiva'); }
+            markDirty();
+          });
+          horaAccionInput.addEventListener('change', ()=>{
+            if(fechaAccionComprometida){ bloquearAccion(); return; }
+            accion.hora = horaAccionInput.value;
             markDirty();
           });
           tr.querySelector('[data-remove]').addEventListener('click', ()=>{
             proy.acciones.splice(i,1);
-            if(proy.acciones.length===0) proy.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+            if(proy.acciones.length===0) proy.acciones.push({accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'});
             renderAcciones();
             markDirty();
           });
@@ -1834,7 +1896,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
       addRowBtn.className = 'add-row-btn';
       addRowBtn.textContent = '+ Agregar acción';
       addRowBtn.addEventListener('click', ()=>{
-        proy.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
+        proy.acciones.push({accion:'',responsable:'',fecha:'',hora:'',estado:'Pendiente'});
         renderAcciones();
         markDirty();
       });
