@@ -33,6 +33,7 @@
   .proyecto-card.locked .nombre-input, .proyecto-card.locked textarea, .proyecto-card.locked input, .proyecto-card.locked select, .proyecto-card.locked button{
     pointer-events:none;opacity:.55;background:#F0F0F0 !important;
   }
+  .proyecto-card.locked button.proyecto-toggle{pointer-events:auto !important;opacity:1 !important;background:none !important;}
   .sin-proyectos{padding:20px;font-size:13px;color:var(--azul-claro);font-style:italic;}
   .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 20px;}
   .dashboard-card{background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:16px;}
@@ -146,7 +147,18 @@
   .area-owner strong{color:#fff;}
 
   .kpi-block{background:#fff;border:1px solid var(--gris-borde);border-top:none;}
-  .kpi-row-header{background:#F0F7EE;padding:10px 20px;font-weight:700;color:var(--azul);font-size:13px;border-top:1px solid var(--gris-borde);}
+  .kpi-row-header{background:#F0F7EE;padding:10px 20px;font-weight:700;color:var(--azul);font-size:13px;border-top:1px solid var(--gris-borde);cursor:pointer;display:flex;align-items:center;justify-content:space-between;-webkit-user-select:none;user-select:none;}
+  .kpi-row-header:hover{background:#E6F2E1;}
+  .kpi-row-header .chevron{display:inline-block;transition:transform .15s;font-size:11px;color:var(--verde);flex:0 0 auto;margin-left:10px;}
+  .kpi-accordion-item.open .kpi-row-header .chevron{transform:rotate(90deg);}
+  .kpi-accordion-body{display:none;}
+  .kpi-accordion-item.open .kpi-accordion-body{display:block;}
+  .kpi-row-header .titulo-wrap{display:flex;align-items:center;gap:8px;min-width:0;}
+  .badge-tiene-datos{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--verde);}
+  .proyecto-toggle{background:none;border:none;color:var(--azul);cursor:pointer;font-size:12px;padding:2px 4px;transition:transform .15s;flex:0 0 auto;}
+  .proyecto-card.open .proyecto-toggle{transform:rotate(90deg);}
+  .proyecto-card-body{display:none;}
+  .proyecto-card.open .proyecto-card-body{display:block;}
   .kpi-def{padding:4px 20px 10px 20px;font-size:12px;color:var(--azul-claro);border-bottom:1px solid var(--gris-borde);}
 
   .field-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 20px 6px 20px;}
@@ -282,6 +294,16 @@ const STORAGE_KEY = 'instacredit_coreografias_v1';
 const UNLOCK_KEY = 'instacredit_coreografias_unlocked';
 let state = {};
 let unlockedCountries = new Set(JSON.parse(sessionStorage.getItem(UNLOCK_KEY) || '[]'));
+const openAccordions = new Set();
+
+function kpiTieneContenido(k){
+  return !!(k.situacion || k.objetivo || k.responsable || k.puntoControl || k.fechaRevision ||
+    (k.acciones||[]).some(a=> a.accion || a.responsable));
+}
+function proyectoTieneContenido(p){
+  return !!(p.nombre || p.descripcion || p.responsable || p.fechaSeguimiento ||
+    (p.acciones||[]).some(a=> a.accion || a.responsable));
+}
 
 function emptyKpiState(){
   return { situacion:'', objetivo:'', responsable:'', puntoControl:'', fechaRevision:'', horaRevision:'',
@@ -1067,16 +1089,39 @@ function renderPais(paisCode){
 
     area.kpis.forEach(kpi=>{
       const kpiState = state[paisCode][area.id][kpi.id];
+      const accKey = paisCode + '|' + area.id + '|' + kpi.id;
+      if(kpiTieneContenido(kpiState)) openAccordions.add(accKey);
+      const isOpen = openAccordions.has(accKey);
+
+      const itemWrap = document.createElement('div');
+      itemWrap.className = 'kpi-accordion-item' + (isOpen ? ' open' : '');
 
       const header = document.createElement('div');
       header.className = 'kpi-row-header';
-      header.textContent = kpi.nombre;
-      kpiBlock.appendChild(header);
+      header.innerHTML = `
+        <span class="titulo-wrap">${kpiTieneContenido(kpiState) ? '<span class="badge-tiene-datos" title="Tiene información registrada"></span>' : ''}<span>${escapeAttr(kpi.nombre)}</span></span>
+        <span class="chevron">▶</span>
+      `;
+      header.addEventListener('click', ()=>{
+        itemWrap.classList.toggle('open');
+        if(itemWrap.classList.contains('open')){
+          openAccordions.add(accKey);
+          body.querySelectorAll('textarea').forEach(autoGrow);
+        } else {
+          openAccordions.delete(accKey);
+        }
+      });
+      itemWrap.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'kpi-accordion-body';
+      itemWrap.appendChild(body);
+      kpiBlock.appendChild(itemWrap);
 
       const def = document.createElement('div');
       def.className = 'kpi-def';
       def.textContent = kpi.def;
-      kpiBlock.appendChild(def);
+      body.appendChild(def);
 
       const fieldGrid = document.createElement('div');
       fieldGrid.className = 'field-grid';
@@ -1101,7 +1146,7 @@ function renderPais(paisCode){
         });
       });
       fieldGrid.querySelectorAll('textarea').forEach(wireAutoGrow);
-      kpiBlock.appendChild(fieldGrid);
+      body.appendChild(fieldGrid);
 
       const table = document.createElement('table');
       table.className = 'coreo';
@@ -1172,7 +1217,7 @@ function renderPais(paisCode){
         });
       }
       renderAcciones();
-      kpiBlock.appendChild(table);
+      body.appendChild(table);
 
       const addBtn = document.createElement('button');
       addBtn.className = 'add-row-btn';
@@ -1182,7 +1227,7 @@ function renderPais(paisCode){
         renderAcciones();
         markDirty();
       });
-      kpiBlock.appendChild(addBtn);
+      body.appendChild(addBtn);
 
       const fieldGrid2 = document.createElement('div');
       fieldGrid2.className = 'field-grid';
@@ -1210,7 +1255,7 @@ function renderPais(paisCode){
       fieldGrid2.querySelectorAll('textarea').forEach(wireAutoGrow);
 
       wireFechaHoraDefinitiva(fieldGrid2, kpiState, 'fechaRevision', 'horaRevision', 'la fecha/hora de revisión de "' + kpi.nombre + '"');
-      kpiBlock.appendChild(fieldGrid2);
+      body.appendChild(fieldGrid2);
     });
 
     renderCustomKpis(paisCode, area, isUnlocked, kpiBlock);
@@ -1228,15 +1273,29 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
   const customList = state[paisCode][area.id].customKpis;
 
   function renderOne(c){
+    const accKey = paisCode + '|' + area.id + '|custom|' + c.id;
+    if(kpiTieneContenido(c)) openAccordions.add(accKey);
+    const isOpen = openAccordions.has(accKey);
+
     const card = document.createElement('div');
-    card.className = 'proyecto-card' + (isUnlocked ? '' : ' locked');
+    card.className = 'proyecto-card' + (isUnlocked ? '' : ' locked') + (isOpen ? ' open' : '');
 
     const headerRow = document.createElement('div');
     headerRow.className = 'proyecto-card-header';
     headerRow.innerHTML = `
+      <button type="button" class="proyecto-toggle" title="Mostrar/ocultar detalle">▶</button>
       <input type="text" class="nombre-input" placeholder="Nombre del KPI adicional" value="${escapeAttr(c.nombre)}">
       <button type="button" class="btn-eliminar-proyecto">Eliminar KPI</button>
     `;
+    headerRow.querySelector('.proyecto-toggle').addEventListener('click', ()=>{
+      card.classList.toggle('open');
+      if(card.classList.contains('open')){
+        openAccordions.add(accKey);
+        card.querySelectorAll('textarea').forEach(autoGrow);
+      } else {
+        openAccordions.delete(accKey);
+      }
+    });
     headerRow.querySelector('.nombre-input').addEventListener('input', (e)=>{
       c.nombre = e.target.value;
       markDirty();
@@ -1266,6 +1325,10 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
     });
     card.appendChild(headerRow);
 
+    const body = document.createElement('div');
+    body.className = 'proyecto-card-body';
+    card.appendChild(body);
+
     const defField = document.createElement('div');
     defField.className = 'field';
     defField.style.padding = '10px 20px 0 20px';
@@ -1277,7 +1340,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       c.definicion = e.target.value;
       markDirty();
     });
-    card.appendChild(defField);
+    body.appendChild(defField);
 
     const fieldGrid = document.createElement('div');
     fieldGrid.className = 'field-grid';
@@ -1302,7 +1365,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       });
     });
     fieldGrid.querySelectorAll('textarea').forEach(wireAutoGrow);
-    card.appendChild(fieldGrid);
+    body.appendChild(fieldGrid);
 
     const table = document.createElement('table');
     table.className = 'coreo';
@@ -1373,7 +1436,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       });
     }
     renderAcciones();
-    card.appendChild(table);
+    body.appendChild(table);
 
     const addRowBtn = document.createElement('button');
     addRowBtn.type = 'button';
@@ -1384,7 +1447,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       renderAcciones();
       markDirty();
     });
-    card.appendChild(addRowBtn);
+    body.appendChild(addRowBtn);
 
     const fieldGrid2 = document.createElement('div');
     fieldGrid2.className = 'field-grid';
@@ -1409,7 +1472,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
     });
     fieldGrid2.querySelectorAll('textarea').forEach(wireAutoGrow);
     wireFechaHoraDefinitiva(fieldGrid2, c, 'fechaRevision', 'horaRevision', 'fecha/hora de revisión de "' + (c.nombre || 'este KPI adicional') + '"');
-    card.appendChild(fieldGrid2);
+    body.appendChild(fieldGrid2);
 
     return card;
   }
@@ -1461,15 +1524,29 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
       listWrap.appendChild(empty);
     }
     proyectos.forEach((proy, idx)=>{
+      const accKey = paisCode + '|proyecto|' + proy.id;
+      if(proyectoTieneContenido(proy)) openAccordions.add(accKey);
+      const isOpen = openAccordions.has(accKey);
+
       const card = document.createElement('div');
-      card.className = 'proyecto-card' + (isUnlocked ? '' : ' locked');
+      card.className = 'proyecto-card' + (isUnlocked ? '' : ' locked') + (isOpen ? ' open' : '');
 
       const headerRow = document.createElement('div');
       headerRow.className = 'proyecto-card-header';
       headerRow.innerHTML = `
+        <button type="button" class="proyecto-toggle" title="Mostrar/ocultar detalle">▶</button>
         <input type="text" class="nombre-input" placeholder="Nombre del proyecto especial" value="${escapeAttr(proy.nombre)}">
         <button type="button" class="btn-eliminar-proyecto">Eliminar proyecto</button>
       `;
+      headerRow.querySelector('.proyecto-toggle').addEventListener('click', ()=>{
+        card.classList.toggle('open');
+        if(card.classList.contains('open')){
+          openAccordions.add(accKey);
+          card.querySelectorAll('textarea').forEach(autoGrow);
+        } else {
+          openAccordions.delete(accKey);
+        }
+      });
       headerRow.querySelector('.nombre-input').addEventListener('input', (e)=>{
         proy.nombre = e.target.value;
         markDirty();
@@ -1480,6 +1557,10 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         markDirty();
       });
       card.appendChild(headerRow);
+
+      const body = document.createElement('div');
+      body.className = 'proyecto-card-body';
+      card.appendChild(body);
 
       const fieldGrid = document.createElement('div');
       fieldGrid.className = 'field-grid';
@@ -1510,7 +1591,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         });
       });
       fieldGrid.querySelectorAll('textarea').forEach(wireAutoGrow);
-      card.appendChild(fieldGrid);
+      body.appendChild(fieldGrid);
 
       const table = document.createElement('table');
       table.className = 'coreo';
@@ -1581,7 +1662,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         });
       }
       renderAcciones();
-      card.appendChild(table);
+      body.appendChild(table);
 
       const addRowBtn = document.createElement('button');
       addRowBtn.type = 'button';
@@ -1592,7 +1673,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         renderAcciones();
         markDirty();
       });
-      card.appendChild(addRowBtn);
+      body.appendChild(addRowBtn);
 
       const fieldGrid2 = document.createElement('div');
       fieldGrid2.className = 'field-grid';
@@ -1609,7 +1690,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         <div></div>
       `;
       wireFechaHoraDefinitiva(fieldGrid2, proy, 'fechaSeguimiento', 'horaSeguimiento', 'fecha/hora de seguimiento de "' + (proy.nombre || 'este proyecto especial') + '"');
-      card.appendChild(fieldGrid2);
+      body.appendChild(fieldGrid2);
 
       listWrap.appendChild(card);
     });
