@@ -239,7 +239,6 @@
 
 <div class="toolbar">
   <span class="status" id="statusText">Cargando datos de la nube…</span>
-  <button class="btn btn-secondary" type="button" id="btnPrint">Imprimir / PDF</button>
   <button class="btn btn-primary" type="button" id="btnSave">Guardar cambios de este país</button>
 </div>
 
@@ -1990,7 +1989,6 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
 }
 
 document.getElementById('btnSave').addEventListener('click', saveActiveCountry);
-document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
 
 async function loadKpiCatalog(){
   const { data, error } = await sb.from('kpis_catalogo').select('*').eq('activo', true).order('area_id').order('orden');
