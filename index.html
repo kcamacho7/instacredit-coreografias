@@ -285,6 +285,8 @@ const AREAS = [
       {id:'visitas_efectividad', nombre:'Estrategia de visitas de campo — efectividad', def:'PTP o recuperación generada por visita realizada.'}
     ]}
 ];
+// AREAS.kpis de arriba es el respaldo de fábrica; loadKpiCatalog() lo sobreescribe
+// con el catálogo vivo de Supabase (que Riesgo Regional puede editar/crear/eliminar).
 
 const SUPABASE_URL = 'https://kouwqcmletybfrkispov.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdXdxY21sZXR5YmZya2lzcG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MjY1ODIsImV4cCI6MjA5ODUwMjU4Mn0.FF3P6lkxmPgD6NMHaBwwuM1Y0ZprRMdsQJjEm08DmiI';
@@ -721,6 +723,22 @@ function renderRegional(){
   wrap.appendChild(accionesBlock);
   loadGestionAcciones(accionesWrap);
 
+  const catalogoBlock = document.createElement('div');
+  catalogoBlock.className = 'area-block proyecto-area';
+  catalogoBlock.innerHTML = `
+    <div class="area-header">
+      <h2>Mantenimiento de catálogo de KPI</h2>
+      <span>Solo Riesgo Regional</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> los KPI que edites, crees o elimines aquí se aplican a los 4 países como catálogo fijo — los gerentes de país NUNCA pueden renombrarlos ni borrarlos, solo llenar su información (igual que el resto del catálogo). Eliminar un KPI aquí lo oculta del catálogo, pero <strong>no borra</strong> la información que los gerentes ya hayan registrado en él.</div>
+  `;
+  const catalogoWrap = document.createElement('div');
+  catalogoWrap.id = 'catalogo-list';
+  catalogoWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+  catalogoBlock.appendChild(catalogoWrap);
+  wrap.appendChild(catalogoBlock);
+  loadCatalogoMantenimiento(catalogoWrap);
+
   return wrap;
 }
 
@@ -858,6 +876,107 @@ async function loadGestionAcciones(listWrap){
     tbody.appendChild(tr);
   });
   listWrap.appendChild(table);
+}
+
+function slugKpiId(nombre){
+  const base = (nombre||'kpi').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'kpi';
+  return base + '_' + Math.random().toString(36).slice(2,6);
+}
+
+async function loadCatalogoMantenimiento(catalogoWrap){
+  const { data, error } = await sb.from('kpis_catalogo').select('*').eq('activo', true).order('area_id').order('orden');
+  if(error){
+    catalogoWrap.innerHTML = '<div class="sin-proyectos">Error al cargar el catálogo: ' + error.message + '</div>';
+    return;
+  }
+  catalogoWrap.innerHTML = '';
+
+  AREAS.forEach(area=>{
+    const areaWrap = document.createElement('div');
+    areaWrap.style.marginBottom = '18px';
+    const areaTitulo = document.createElement('div');
+    areaTitulo.style.cssText = 'padding:10px 20px;background:#F0F3F7;font-weight:700;color:var(--azul);font-size:13px;';
+    areaTitulo.textContent = area.nombre + ' (Dominio ' + area.id + ')';
+    areaWrap.appendChild(areaTitulo);
+
+    const kpisDeEstaArea = (data||[]).filter(r=> r.area_id === area.id);
+    kpisDeEstaArea.forEach(row=>{
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#fff;border:1px solid var(--gris-borde);border-top:none;padding:12px 20px;';
+      card.innerHTML = `
+        <div class="field-grid" style="padding:0 0 10px 0;">
+          <div class="field">
+            <label>Nombre del KPI</label>
+            <input type="text" class="edit-nombre" value="${escapeAttr(row.nombre)}">
+          </div>
+          <div class="field" style="grid-column: span 2;">
+            <label>Definición</label>
+            <textarea class="edit-def">${escapeAttr(row.definicion)}</textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);">Guardar</button>
+          <button type="button" class="btn-eliminar-proyecto">Eliminar del catálogo</button>
+        </div>
+      `;
+      card.querySelectorAll('textarea').forEach(wireAutoGrow);
+      const [btnGuardar, btnEliminar] = card.querySelectorAll('.btn-eliminar-proyecto');
+      btnGuardar.addEventListener('click', async ()=>{
+        const nombre = card.querySelector('.edit-nombre').value.trim();
+        const definicion = card.querySelector('.edit-def').value.trim();
+        if(!nombre){ alert('El nombre no puede estar vacío.'); return; }
+        const { error: err } = await sb.from('kpis_catalogo').update({ nombre, definicion, updated_at: new Date().toISOString() }).eq('id', row.id);
+        if(err){ alert('Error: ' + err.message); return; }
+        await loadKpiCatalog();
+        renderTabs();
+        selectTab('REGIONAL');
+      });
+      btnEliminar.addEventListener('click', async ()=>{
+        if(!confirm('¿Quitar "' + row.nombre + '" del catálogo de los 4 países? La información que los gerentes ya hayan registrado en este KPI NO se borra, solo deja de ser visible.')) return;
+        const { error: err } = await sb.from('kpis_catalogo').update({ activo: false }).eq('id', row.id);
+        if(err){ alert('Error: ' + err.message); return; }
+        await loadKpiCatalog();
+        renderTabs();
+        selectTab('REGIONAL');
+      });
+      areaWrap.appendChild(card);
+    });
+
+    const addCard = document.createElement('div');
+    addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-top:none;padding:12px 20px;';
+    addCard.innerHTML = `
+      <div class="field-grid" style="padding:0 0 10px 0;">
+        <div class="field">
+          <label>Nombre del nuevo KPI</label>
+          <input type="text" class="nuevo-nombre" placeholder="Nombre del KPI">
+        </div>
+        <div class="field" style="grid-column: span 2;">
+          <label>Definición</label>
+          <textarea class="nuevo-def" placeholder="Qué mide este KPI"></textarea>
+        </div>
+      </div>
+      <button type="button" class="add-proyecto-btn" style="margin:0;">+ Agregar KPI a este dominio</button>
+    `;
+    addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
+    addCard.querySelector('button').addEventListener('click', async ()=>{
+      const nombre = addCard.querySelector('.nuevo-nombre').value.trim();
+      const definicion = addCard.querySelector('.nuevo-def').value.trim();
+      if(!nombre){ alert('Ponle un nombre al nuevo KPI.'); return; }
+      const maxOrden = kpisDeEstaArea.reduce((m,r)=> Math.max(m, r.orden||0), 0);
+      const { error: err } = await sb.from('kpis_catalogo').insert([{
+        area_id: area.id, kpi_id: slugKpiId(nombre), nombre, definicion, orden: maxOrden + 1, activo: true
+      }]);
+      if(err){ alert('Error: ' + err.message); return; }
+      await loadKpiCatalog();
+      renderTabs();
+      selectTab('REGIONAL');
+    });
+    areaWrap.appendChild(addCard);
+
+    catalogoWrap.appendChild(areaWrap);
+  });
 }
 
 const CHART_COLORS = { Pendiente:'#677C98', 'En curso':'#4C9C2E', Cumplida:'#002554', Vencida:'#EE212E' };
@@ -1780,9 +1899,23 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
 document.getElementById('btnSave').addEventListener('click', saveActiveCountry);
 document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
 
-loadLocalCache();
-renderTabs();
-loadFromCloud();
+async function loadKpiCatalog(){
+  const { data, error } = await sb.from('kpis_catalogo').select('*').eq('activo', true).order('area_id').order('orden');
+  if(error || !data || data.length === 0) return;
+  AREAS.forEach(area=>{
+    const kpisDeEstaArea = data.filter(r=> r.area_id === area.id);
+    if(kpisDeEstaArea.length){
+      area.kpis = kpisDeEstaArea.map(r=> ({ id: r.kpi_id, nombre: r.nombre, def: r.definicion || '' }));
+    }
+  });
+}
+
+(async function init(){
+  await loadKpiCatalog();
+  loadLocalCache();
+  renderTabs();
+  loadFromCloud();
+})();
 </script>
 
 </body>
