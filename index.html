@@ -443,11 +443,50 @@ function markDirty(){
   document.getElementById('statusText').innerHTML = 'Cambios sin guardar';
 }
 
+function validarAntesDeGuardar(code){
+  function revisarAcciones(acciones, origen){
+    for(const accion of acciones){
+      if(accion.accion && accion.accion.trim() && !(accion.responsable && accion.responsable.trim())){
+        return 'La acción "' + accion.accion + '" en ' + origen + ' necesita un Responsable antes de guardar.';
+      }
+    }
+    return null;
+  }
+  function revisarPuntoControl(k, origen){
+    if(k.puntoControl && k.puntoControl.trim() && !(k.fechaRevision && k.horaRevision)){
+      return 'El KPI "' + origen + '" tiene texto en Punto de control, así que la Fecha de revisión con Riesgo Regional y la Hora sugerida son obligatorias antes de guardar.';
+    }
+    return null;
+  }
+  for(const area of AREAS){
+    for(const kpi of area.kpis){
+      const k = state[code][area.id][kpi.id];
+      const err = revisarAcciones(k.acciones, kpi.nombre) || revisarPuntoControl(k, kpi.nombre);
+      if(err) return err;
+    }
+    for(const c of state[code][area.id].customKpis){
+      const err = revisarAcciones(c.acciones, c.nombre || 'un KPI adicional') || revisarPuntoControl(c, c.nombre || 'un KPI adicional');
+      if(err) return err;
+    }
+  }
+  for(const proy of state[code].proyectosEspeciales){
+    const err = revisarAcciones(proy.acciones, proy.nombre || 'un proyecto especial');
+    if(err) return err;
+  }
+  return null;
+}
+
 async function saveActiveCountry(){
   const activeBtn = document.querySelector('.tab-btn.active');
   const code = activeBtn.dataset.pais;
   if(!unlockedCountries.has(code)){
     alert('Este país está bloqueado. Ingresa el PIN de ' + code + ' para poder guardar.');
+    return;
+  }
+
+  const errorValidacion = validarAntesDeGuardar(code);
+  if(errorValidacion){
+    alert(errorValidacion);
     return;
   }
 
