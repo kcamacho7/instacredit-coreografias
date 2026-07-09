@@ -251,10 +251,10 @@
 
 <script>
 const PAISES = [
-  {code:'CR', nombre:'Costa Rica'},
-  {code:'NI', nombre:'Nicaragua'},
-  {code:'PA', nombre:'Panamá'},
-  {code:'SV', nombre:'El Salvador'}
+  {code:'CR', nombre:'Costa Rica', bandera:'🇨🇷'},
+  {code:'NI', nombre:'Nicaragua', bandera:'🇳🇮'},
+  {code:'PA', nombre:'Panamá', bandera:'🇵🇦'},
+  {code:'SV', nombre:'El Salvador', bandera:'🇸🇻'}
 ];
 
 const AREAS = [
@@ -604,7 +604,7 @@ function renderTabs(){
   PAISES.forEach((p, idx)=>{
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (idx===0 ? ' active' : '');
-    btn.textContent = p.nombre;
+    btn.textContent = p.bandera + ' ' + p.nombre;
     btn.dataset.pais = p.code;
     btn.addEventListener('click', ()=> selectTab(p.code));
     tabsEl.appendChild(btn);
@@ -1003,12 +1003,12 @@ function renderDashboardPublico(){
   const chartsWrap = document.createElement('div');
   chartsWrap.id = 'dashboard-publico-charts';
 
-  const opciones = [{ code:'ALL', nombre:'Consolidado' }, ...PAISES];
+  const opciones = [{ code:'ALL', nombre:'Consolidado', bandera:'🌎' }, ...PAISES];
   opciones.forEach((o, idx)=>{
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'filtro-btn' + (idx===0 ? ' active' : '');
-    btn.textContent = o.nombre;
+    btn.textContent = o.bandera + ' ' + o.nombre;
     btn.addEventListener('click', ()=>{
       filtroBar.querySelectorAll('.filtro-btn').forEach(b=> b.classList.remove('active'));
       btn.classList.add('active');
