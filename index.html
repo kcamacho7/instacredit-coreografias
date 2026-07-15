@@ -1205,19 +1205,21 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
   // Avance por KPI (top 10 por volumen de acciones)
   const porKpi = {};
   acciones.forEach(a=>{
-    if(!porKpi[a.kpi]) porKpi[a.kpi] = { total:0, cumplidas:0 };
+    if(!porKpi[a.kpi]) porKpi[a.kpi] = { total:0, Pendiente:0, 'En curso':0, Cumplida:0, Vencida:0 };
     porKpi[a.kpi].total++;
-    if(a.estado==='Cumplida') porKpi[a.kpi].cumplidas++;
+    porKpi[a.kpi][a.estado] = (porKpi[a.kpi][a.estado] || 0) + 1;
   });
   const topKpis = Object.entries(porKpi).sort((a,b)=> b[1].total - a[1].total).slice(0,10);
   new Chart(document.getElementById('chart-por-kpi'), {
     type: 'bar',
     data: {
       labels: topKpis.map(([nombre])=> nombre),
-      datasets: [
-        { label:'Cumplidas', data: topKpis.map(([,v])=> v.cumplidas), backgroundColor:'#4C9C2E', borderRadius:4 },
-        { label:'Pendientes/otras', data: topKpis.map(([,v])=> v.total - v.cumplidas), backgroundColor:'#D2D2D2', borderRadius:4 }
-      ]
+      datasets: ESTADOS.map(e=> ({
+        label: e,
+        data: topKpis.map(([,v])=> v[e] || 0),
+        backgroundColor: CHART_COLORS[e],
+        borderRadius: 4
+      }))
     },
     options: { indexAxis:'y', scales: { x: { stacked:true, beginAtZero:true, ticks:{ precision:0 } }, y: { stacked:true, ticks:{ font:{ size:10.5 } } } }, plugins: { legend: { position:'bottom', labels:{ boxWidth:12, font:{ size:11 } } } } }
   });
