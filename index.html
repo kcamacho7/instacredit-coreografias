@@ -1085,7 +1085,10 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
     (rows||[]).forEach(r=>{
       (r.acciones||[]).forEach(a=>{
         if(!a.accion && !a.responsable) return;
-        todas.push({ dominio: dominioFn(r), pais: paisFn(r), kpi: kpiFn(r), estado: a.estado || 'Pendiente' });
+        todas.push({
+          dominio: dominioFn(r), pais: paisFn(r), kpi: kpiFn(r), estado: a.estado || 'Pendiente',
+          accionTexto: a.accion || '', responsable: a.responsable || '', fecha: a.fecha || ''
+        });
       });
     });
   }
@@ -1108,6 +1111,20 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
   const vencidas = acciones.filter(a=> a.estado==='Vencida').length;
   const enCurso = acciones.filter(a=> a.estado==='En curso').length;
   const avancePct = Math.round((cumplidas/total)*100);
+
+  const vencidasList = acciones.filter(a=> a.estado==='Vencida').sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''));
+  const paisNombreDe = (code)=> (PAISES.find(p=>p.code===code) || {}).nombre || code;
+  const filasVencidas = vencidasList.length === 0
+    ? '<tr><td colspan="5" style="text-align:center;color:var(--azul-claro);padding:16px;">Sin acciones vencidas 🎉</td></tr>'
+    : vencidasList.map(a=> `
+      <tr>
+        <td>${escapeAttr(paisNombreDe(a.pais))}</td>
+        <td>${escapeAttr(a.kpi)}</td>
+        <td>${escapeAttr(a.accionTexto)}</td>
+        <td>${escapeAttr(a.responsable)}</td>
+        <td style="color:var(--rojo);font-weight:700;">${a.fecha || '—'}</td>
+      </tr>
+    `).join('');
 
   dashWrap.innerHTML = `
     <div class="dashboard-kpis">
@@ -1136,6 +1153,14 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
         <h4>Avance por KPI</h4>
         <div class="subtitulo">Los 10 KPI/proyectos con más acciones registradas</div>
         <canvas id="chart-por-kpi"></canvas>
+      </div>
+      <div class="dashboard-card full">
+        <h4>⚠️ Acciones vencidas</h4>
+        <div class="subtitulo">Fecha de compromiso ya superada y sin cumplir. Se actualiza sola todos los días.</div>
+        <table class="coreo">
+          <tr><th style="width:14%;">País</th><th style="width:22%;">KPI / Proyecto</th><th style="width:34%;">Acción</th><th style="width:16%;">Responsable</th><th style="width:14%;">Fecha</th></tr>
+          ${filasVencidas}
+        </table>
       </div>
     </div>
   `;
