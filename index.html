@@ -1528,17 +1528,25 @@ function renderPais(paisCode){
       </div>
       <div class="area-owner">
         <span><strong>Ejecuta:</strong> ${area.ejecuta} &nbsp;|&nbsp; <strong>Controla:</strong> ${area.controla}</span>
-        <button type="button" class="btn-expandir-con-datos">Expandir KPI con datos</button>
+        <button type="button" class="btn-expandir-con-datos"></button>
       </div>
     `;
-    block.querySelector('.btn-expandir-con-datos').addEventListener('click', ()=>{
-      area.kpis.forEach(kpi=>{
-        const kpiState = state[paisCode][area.id][kpi.id];
-        if(kpiTieneContenido(kpiState)) openAccordions.add(paisCode + '|' + area.id + '|' + kpi.id);
-      });
-      state[paisCode][area.id].customKpis.forEach(c=>{
-        if(kpiTieneContenido(c)) openAccordions.add(paisCode + '|' + area.id + '|custom|' + c.id);
-      });
+    const keysConDatos = [];
+    area.kpis.forEach(kpi=>{
+      if(kpiTieneContenido(state[paisCode][area.id][kpi.id])) keysConDatos.push(paisCode + '|' + area.id + '|' + kpi.id);
+    });
+    state[paisCode][area.id].customKpis.forEach(c=>{
+      if(kpiTieneContenido(c)) keysConDatos.push(paisCode + '|' + area.id + '|custom|' + c.id);
+    });
+    const todosAbiertos = keysConDatos.length > 0 && keysConDatos.every(k=> openAccordions.has(k));
+    const btnExpandir = block.querySelector('.btn-expandir-con-datos');
+    btnExpandir.textContent = todosAbiertos ? 'Contraer KPI con datos' : 'Expandir KPI con datos';
+    btnExpandir.addEventListener('click', ()=>{
+      if(todosAbiertos){
+        keysConDatos.forEach(k=> openAccordions.delete(k));
+      } else {
+        keysConDatos.forEach(k=> openAccordions.add(k));
+      }
       renderTabs();
       selectTab(paisCode);
     });
