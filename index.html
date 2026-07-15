@@ -157,6 +157,9 @@
   .area-header{background:var(--verde);color:#fff;padding:12px 20px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;}
   .area-header h2{margin:0;font-size:17px;font-weight:800;}
   .area-header span{font-size:11px;font-weight:600;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:12px;}
+  .area-header .header-right{display:flex;align-items:center;gap:8px;}
+  .btn-colapsar-seccion{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:14px;font-family:'Inter Tight',sans-serif;font-size:11px;font-weight:700;padding:5px 12px;cursor:pointer;}
+  .btn-colapsar-seccion:hover{background:rgba(255,255,255,.28);}
   .area-owner{background:var(--azul);color:var(--azul-claro);padding:7px 20px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
   .btn-expandir-con-datos{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:14px;font-family:'Inter Tight',sans-serif;font-size:11px;font-weight:700;padding:5px 12px;cursor:pointer;flex:0 0 auto;}
   .btn-expandir-con-datos:hover{background:rgba(255,255,255,.28);}
@@ -745,6 +748,7 @@ function renderAuthBar(){
 const REGIONAL_UNLOCK_KEY = 'instacredit_coreografias_regional_unlocked';
 let regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
 let regionalSubTab = 'bitacora';
+const seccionesRegionalColapsadas = new Set();
 
 async function attemptUnlockRegional(pin){
   const { data, error } = await sb.rpc('verificar_pin_regional', { p_pin: pin });
@@ -877,15 +881,18 @@ function renderRegional(){
     block.innerHTML = `
       <div class="area-header">
         <h2>Bitácora de KPI adicionales eliminados</h2>
-        <span>Solo Riesgo Regional</span>
+        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
-      <div class="area-owner"><strong>Qué es:</strong> cada vez que un gerente elimina un KPI adicional que había creado, queda registrado aquí con los últimos datos que tenía antes de borrarlo. Riesgo Regional puede eliminar estos registros cuando ya no los necesite.</div>
     `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> cada vez que un gerente elimina un KPI adicional que había creado, queda registrado aquí con los últimos datos que tenía antes de borrarlo. Riesgo Regional puede eliminar estos registros cuando ya no los necesite.</div>';
     const listWrap = document.createElement('div');
     listWrap.id = 'bitacora-list';
     listWrap.innerHTML = '<div class="sin-proyectos">Cargando bitácora…</div>';
-    block.appendChild(listWrap);
+    body.appendChild(listWrap);
+    block.appendChild(body);
     subpanelsWrap.appendChild(block);
+    wireColapsarSeccion(block.querySelector('.area-header'), body, 'bitacora');
     loadBitacora(listWrap);
   }
 
@@ -895,15 +902,18 @@ function renderRegional(){
     fechasBlock.innerHTML = `
       <div class="area-header">
         <h2>Gestión de fechas y horas de reunión</h2>
-        <span>Solo Riesgo Regional</span>
+        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
-      <div class="area-owner"><strong>Qué es:</strong> aquí puedes ajustar la fecha/hora de cualquier reunión ya definida por un gerente (por ejemplo, si pide un cambio o si choca con otra sesión tuya). Estos campos no tienen candado para ti — se guardan al instante al presionar "Guardar".</div>
     `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> aquí puedes ajustar la fecha/hora de cualquier reunión ya definida por un gerente (por ejemplo, si pide un cambio o si choca con otra sesión tuya). Estos campos no tienen candado para ti — se guardan al instante al presionar "Guardar".</div>';
     const fechasWrap = document.createElement('div');
     fechasWrap.id = 'fechas-list';
     fechasWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-    fechasBlock.appendChild(fechasWrap);
+    body.appendChild(fechasWrap);
+    fechasBlock.appendChild(body);
     subpanelsWrap.appendChild(fechasBlock);
+    wireColapsarSeccion(fechasBlock.querySelector('.area-header'), body, 'fechas');
     loadFechasReunion(fechasWrap);
   }
 
@@ -913,15 +923,18 @@ function renderRegional(){
     accionesBlock.innerHTML = `
       <div class="area-header">
         <h2>Gestión de acciones</h2>
-        <span>Solo Riesgo Regional</span>
+        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
-      <div class="area-owner"><strong>Qué es:</strong> todas las acciones registradas por los 4 países (coreografías, KPI adicionales y proyectos especiales). Puedes marcar cualquiera como cumplida o eliminarla directamente, sin esperar a que el gerente lo haga.</div>
     `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> todas las acciones registradas por los 4 países (coreografías, KPI adicionales y proyectos especiales). Puedes marcar cualquiera como cumplida o eliminarla directamente, sin esperar a que el gerente lo haga.</div>';
     const accionesWrap = document.createElement('div');
     accionesWrap.id = 'acciones-list';
     accionesWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-    accionesBlock.appendChild(accionesWrap);
+    body.appendChild(accionesWrap);
+    accionesBlock.appendChild(body);
     subpanelsWrap.appendChild(accionesBlock);
+    wireColapsarSeccion(accionesBlock.querySelector('.area-header'), body, 'acciones');
     loadGestionAcciones(accionesWrap);
   }
 
@@ -931,15 +944,18 @@ function renderRegional(){
     catalogoBlock.innerHTML = `
       <div class="area-header">
         <h2>Mantenimiento de catálogo de KPI</h2>
-        <span>Solo Riesgo Regional</span>
+        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
-      <div class="area-owner"><strong>Qué es:</strong> los KPI que edites, crees o elimines aquí se aplican a los 4 países como catálogo fijo — los gerentes de país NUNCA pueden renombrarlos ni borrarlos, solo llenar su información (igual que el resto del catálogo). Eliminar un KPI aquí lo oculta del catálogo, pero <strong>no borra</strong> la información que los gerentes ya hayan registrado en él.</div>
     `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> los KPI que edites, crees o elimines aquí se aplican a los 4 países como catálogo fijo — los gerentes de país NUNCA pueden renombrarlos ni borrarlos, solo llenar su información (igual que el resto del catálogo). Eliminar un KPI aquí lo oculta del catálogo, pero <strong>no borra</strong> la información que los gerentes ya hayan registrado en él.</div>';
     const catalogoWrap = document.createElement('div');
     catalogoWrap.id = 'catalogo-list';
     catalogoWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-    catalogoBlock.appendChild(catalogoWrap);
+    body.appendChild(catalogoWrap);
+    catalogoBlock.appendChild(body);
     subpanelsWrap.appendChild(catalogoBlock);
+    wireColapsarSeccion(catalogoBlock.querySelector('.area-header'), body, 'catalogo');
     loadCatalogoMantenimiento(catalogoWrap);
   }
 
@@ -949,19 +965,40 @@ function renderRegional(){
     usuariosBlock.innerHTML = `
       <div class="area-header">
         <h2>Mantenimiento de usuarios</h2>
-        <span>Solo Riesgo Regional</span>
+        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
-      <div class="area-owner"><strong>Qué es:</strong> cada persona se crea su propia cuenta (correo + contraseña) desde la barra de inicio de sesión. Aquí les asignas a qué país pueden editar. Un país puede tener varios usuarios asignados.</div>
     `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> cada persona se crea su propia cuenta (correo + contraseña) desde la barra de inicio de sesión. Aquí les asignas a qué país pueden editar. Un país puede tener varios usuarios asignados.</div>';
     const usuariosWrap = document.createElement('div');
     usuariosWrap.id = 'usuarios-list';
     usuariosWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-    usuariosBlock.appendChild(usuariosWrap);
+    body.appendChild(usuariosWrap);
+    usuariosBlock.appendChild(body);
     subpanelsWrap.appendChild(usuariosBlock);
+    wireColapsarSeccion(usuariosBlock.querySelector('.area-header'), body, 'usuarios');
     loadMantenimientoUsuarios(usuariosWrap);
   }
 
   return wrap;
+}
+
+function wireColapsarSeccion(headerEl, bodyEl, key){
+  const btn = headerEl.querySelector('.btn-colapsar-seccion');
+  const colapsada = seccionesRegionalColapsadas.has(key);
+  bodyEl.style.display = colapsada ? 'none' : '';
+  btn.textContent = colapsada ? 'Expandir' : 'Contraer';
+  btn.addEventListener('click', ()=>{
+    if(seccionesRegionalColapsadas.has(key)){
+      seccionesRegionalColapsadas.delete(key);
+      bodyEl.style.display = '';
+      btn.textContent = 'Contraer';
+    } else {
+      seccionesRegionalColapsadas.add(key);
+      bodyEl.style.display = 'none';
+      btn.textContent = 'Expandir';
+    }
+  });
 }
 
 async function loadFechasReunion(listWrap){
