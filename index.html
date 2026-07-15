@@ -744,6 +744,7 @@ function renderAuthBar(){
 
 const REGIONAL_UNLOCK_KEY = 'instacredit_coreografias_regional_unlocked';
 let regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+let regionalSubTab = 'bitacora';
 
 async function attemptUnlockRegional(pin){
   const { data, error } = await sb.rpc('verificar_pin_regional', { p_pin: pin });
@@ -840,85 +841,125 @@ function renderRegional(){
   }
 
 
-  const block = document.createElement('div');
-  block.className = 'area-block proyecto-area';
-  block.innerHTML = `
-    <div class="area-header">
-      <h2>Bitácora de KPI adicionales eliminados</h2>
-      <span>Solo Riesgo Regional</span>
-    </div>
-    <div class="area-owner"><strong>Qué es:</strong> cada vez que un gerente elimina un KPI adicional que había creado, queda registrado aquí con los últimos datos que tenía antes de borrarlo. Riesgo Regional puede eliminar estos registros cuando ya no los necesite.</div>
-  `;
-  const listWrap = document.createElement('div');
-  listWrap.id = 'bitacora-list';
-  listWrap.innerHTML = '<div class="sin-proyectos">Cargando bitácora…</div>';
-  block.appendChild(listWrap);
-  wrap.appendChild(block);
-  loadBitacora(listWrap);
+  const subtabBar = document.createElement('div');
+  subtabBar.className = 'filtro-bar';
+  const subpanelsWrap = document.createElement('div');
 
-  const fechasBlock = document.createElement('div');
-  fechasBlock.className = 'area-block proyecto-area';
-  fechasBlock.innerHTML = `
-    <div class="area-header">
-      <h2>Gestión de fechas y horas de reunión</h2>
-      <span>Solo Riesgo Regional</span>
-    </div>
-    <div class="area-owner"><strong>Qué es:</strong> aquí puedes ajustar la fecha/hora de cualquier reunión ya definida por un gerente (por ejemplo, si pide un cambio o si choca con otra sesión tuya). Estos campos no tienen candado para ti — se guardan al instante al presionar "Guardar".</div>
-  `;
-  const fechasWrap = document.createElement('div');
-  fechasWrap.id = 'fechas-list';
-  fechasWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-  fechasBlock.appendChild(fechasWrap);
-  wrap.appendChild(fechasBlock);
-  loadFechasReunion(fechasWrap);
+  const SECCIONES = [
+    { id:'bitacora', nombre:'Bitácora' },
+    { id:'fechas', nombre:'Fechas y horas' },
+    { id:'acciones', nombre:'Acciones' },
+    { id:'catalogo', nombre:'Catálogo KPI' },
+    { id:'usuarios', nombre:'Usuarios' }
+  ];
+  if(!SECCIONES.some(s=>s.id===regionalSubTab)) regionalSubTab = 'bitacora';
 
-  const accionesBlock = document.createElement('div');
-  accionesBlock.className = 'area-block proyecto-area';
-  accionesBlock.innerHTML = `
-    <div class="area-header">
-      <h2>Gestión de acciones</h2>
-      <span>Solo Riesgo Regional</span>
-    </div>
-    <div class="area-owner"><strong>Qué es:</strong> todas las acciones registradas por los 4 países (coreografías, KPI adicionales y proyectos especiales). Puedes marcar cualquiera como cumplida o eliminarla directamente, sin esperar a que el gerente lo haga.</div>
-  `;
-  const accionesWrap = document.createElement('div');
-  accionesWrap.id = 'acciones-list';
-  accionesWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-  accionesBlock.appendChild(accionesWrap);
-  wrap.appendChild(accionesBlock);
-  loadGestionAcciones(accionesWrap);
+  SECCIONES.forEach(sec=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filtro-btn' + (regionalSubTab===sec.id ? ' active' : '');
+    btn.textContent = sec.nombre;
+    btn.addEventListener('click', ()=>{
+      regionalSubTab = sec.id;
+      renderTabs();
+      selectTab('REGIONAL');
+    });
+    subtabBar.appendChild(btn);
+  });
+  wrap.appendChild(subtabBar);
+  wrap.appendChild(subpanelsWrap);
 
-  const catalogoBlock = document.createElement('div');
-  catalogoBlock.className = 'area-block proyecto-area';
-  catalogoBlock.innerHTML = `
-    <div class="area-header">
-      <h2>Mantenimiento de catálogo de KPI</h2>
-      <span>Solo Riesgo Regional</span>
-    </div>
-    <div class="area-owner"><strong>Qué es:</strong> los KPI que edites, crees o elimines aquí se aplican a los 4 países como catálogo fijo — los gerentes de país NUNCA pueden renombrarlos ni borrarlos, solo llenar su información (igual que el resto del catálogo). Eliminar un KPI aquí lo oculta del catálogo, pero <strong>no borra</strong> la información que los gerentes ya hayan registrado en él.</div>
-  `;
-  const catalogoWrap = document.createElement('div');
-  catalogoWrap.id = 'catalogo-list';
-  catalogoWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-  catalogoBlock.appendChild(catalogoWrap);
-  wrap.appendChild(catalogoBlock);
-  loadCatalogoMantenimiento(catalogoWrap);
+  function seccionVisible(id){ return regionalSubTab === id; }
 
-  const usuariosBlock = document.createElement('div');
-  usuariosBlock.className = 'area-block proyecto-area';
-  usuariosBlock.innerHTML = `
-    <div class="area-header">
-      <h2>Mantenimiento de usuarios</h2>
-      <span>Solo Riesgo Regional</span>
-    </div>
-    <div class="area-owner"><strong>Qué es:</strong> cada persona se crea su propia cuenta (correo + contraseña) desde la barra de inicio de sesión. Aquí les asignas a qué país pueden editar. Un país puede tener varios usuarios asignados.</div>
-  `;
-  const usuariosWrap = document.createElement('div');
-  usuariosWrap.id = 'usuarios-list';
-  usuariosWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
-  usuariosBlock.appendChild(usuariosWrap);
-  wrap.appendChild(usuariosBlock);
-  loadMantenimientoUsuarios(usuariosWrap);
+  if(seccionVisible('bitacora')){
+    const block = document.createElement('div');
+    block.className = 'area-block proyecto-area';
+    block.innerHTML = `
+      <div class="area-header">
+        <h2>Bitácora de KPI adicionales eliminados</h2>
+        <span>Solo Riesgo Regional</span>
+      </div>
+      <div class="area-owner"><strong>Qué es:</strong> cada vez que un gerente elimina un KPI adicional que había creado, queda registrado aquí con los últimos datos que tenía antes de borrarlo. Riesgo Regional puede eliminar estos registros cuando ya no los necesite.</div>
+    `;
+    const listWrap = document.createElement('div');
+    listWrap.id = 'bitacora-list';
+    listWrap.innerHTML = '<div class="sin-proyectos">Cargando bitácora…</div>';
+    block.appendChild(listWrap);
+    subpanelsWrap.appendChild(block);
+    loadBitacora(listWrap);
+  }
+
+  if(seccionVisible('fechas')){
+    const fechasBlock = document.createElement('div');
+    fechasBlock.className = 'area-block proyecto-area';
+    fechasBlock.innerHTML = `
+      <div class="area-header">
+        <h2>Gestión de fechas y horas de reunión</h2>
+        <span>Solo Riesgo Regional</span>
+      </div>
+      <div class="area-owner"><strong>Qué es:</strong> aquí puedes ajustar la fecha/hora de cualquier reunión ya definida por un gerente (por ejemplo, si pide un cambio o si choca con otra sesión tuya). Estos campos no tienen candado para ti — se guardan al instante al presionar "Guardar".</div>
+    `;
+    const fechasWrap = document.createElement('div');
+    fechasWrap.id = 'fechas-list';
+    fechasWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+    fechasBlock.appendChild(fechasWrap);
+    subpanelsWrap.appendChild(fechasBlock);
+    loadFechasReunion(fechasWrap);
+  }
+
+  if(seccionVisible('acciones')){
+    const accionesBlock = document.createElement('div');
+    accionesBlock.className = 'area-block proyecto-area';
+    accionesBlock.innerHTML = `
+      <div class="area-header">
+        <h2>Gestión de acciones</h2>
+        <span>Solo Riesgo Regional</span>
+      </div>
+      <div class="area-owner"><strong>Qué es:</strong> todas las acciones registradas por los 4 países (coreografías, KPI adicionales y proyectos especiales). Puedes marcar cualquiera como cumplida o eliminarla directamente, sin esperar a que el gerente lo haga.</div>
+    `;
+    const accionesWrap = document.createElement('div');
+    accionesWrap.id = 'acciones-list';
+    accionesWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+    accionesBlock.appendChild(accionesWrap);
+    subpanelsWrap.appendChild(accionesBlock);
+    loadGestionAcciones(accionesWrap);
+  }
+
+  if(seccionVisible('catalogo')){
+    const catalogoBlock = document.createElement('div');
+    catalogoBlock.className = 'area-block proyecto-area';
+    catalogoBlock.innerHTML = `
+      <div class="area-header">
+        <h2>Mantenimiento de catálogo de KPI</h2>
+        <span>Solo Riesgo Regional</span>
+      </div>
+      <div class="area-owner"><strong>Qué es:</strong> los KPI que edites, crees o elimines aquí se aplican a los 4 países como catálogo fijo — los gerentes de país NUNCA pueden renombrarlos ni borrarlos, solo llenar su información (igual que el resto del catálogo). Eliminar un KPI aquí lo oculta del catálogo, pero <strong>no borra</strong> la información que los gerentes ya hayan registrado en él.</div>
+    `;
+    const catalogoWrap = document.createElement('div');
+    catalogoWrap.id = 'catalogo-list';
+    catalogoWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+    catalogoBlock.appendChild(catalogoWrap);
+    subpanelsWrap.appendChild(catalogoBlock);
+    loadCatalogoMantenimiento(catalogoWrap);
+  }
+
+  if(seccionVisible('usuarios')){
+    const usuariosBlock = document.createElement('div');
+    usuariosBlock.className = 'area-block proyecto-area';
+    usuariosBlock.innerHTML = `
+      <div class="area-header">
+        <h2>Mantenimiento de usuarios</h2>
+        <span>Solo Riesgo Regional</span>
+      </div>
+      <div class="area-owner"><strong>Qué es:</strong> cada persona se crea su propia cuenta (correo + contraseña) desde la barra de inicio de sesión. Aquí les asignas a qué país pueden editar. Un país puede tener varios usuarios asignados.</div>
+    `;
+    const usuariosWrap = document.createElement('div');
+    usuariosWrap.id = 'usuarios-list';
+    usuariosWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+    usuariosBlock.appendChild(usuariosWrap);
+    subpanelsWrap.appendChild(usuariosBlock);
+    loadMantenimientoUsuarios(usuariosWrap);
+  }
 
   return wrap;
 }
@@ -1084,9 +1125,28 @@ async function loadCatalogoMantenimiento(catalogoWrap){
 
     const kpisDeEstaArea = (data||[]).filter(r=> r.area_id === area.id);
     kpisDeEstaArea.forEach(row=>{
+      const accKey = 'catalogo|' + row.id;
+      const isOpen = openAccordions.has(accKey);
+
       const card = document.createElement('div');
-      card.style.cssText = 'background:#fff;border:1px solid var(--gris-borde);border-top:none;padding:12px 20px;';
-      card.innerHTML = `
+      card.className = 'kpi-accordion-item' + (isOpen ? ' open' : '');
+      card.style.cssText = 'background:#fff;border:1px solid var(--gris-borde);border-top:none;';
+
+      const header = document.createElement('div');
+      header.className = 'kpi-row-header';
+      header.style.background = '#fff';
+      header.innerHTML = `<span>${escapeAttr(row.nombre)}</span><span class="chevron">▶</span>`;
+      header.addEventListener('click', ()=>{
+        card.classList.toggle('open');
+        if(card.classList.contains('open')){ openAccordions.add(accKey); body.querySelectorAll('textarea').forEach(autoGrow); }
+        else openAccordions.delete(accKey);
+      });
+      card.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'kpi-accordion-body';
+      body.style.padding = '12px 20px';
+      body.innerHTML = `
         <div class="field-grid" style="padding:0 0 10px 0;">
           <div class="field">
             <label>Nombre del KPI</label>
@@ -1102,8 +1162,9 @@ async function loadCatalogoMantenimiento(catalogoWrap){
           <button type="button" class="btn-eliminar-proyecto">Eliminar del catálogo</button>
         </div>
       `;
-      card.querySelectorAll('textarea').forEach(wireAutoGrow);
-      const [btnGuardar, btnEliminar] = card.querySelectorAll('.btn-eliminar-proyecto');
+      card.appendChild(body);
+      body.querySelectorAll('textarea').forEach(wireAutoGrow);
+      const [btnGuardar, btnEliminar] = body.querySelectorAll('.btn-eliminar-proyecto');
       btnGuardar.addEventListener('click', async ()=>{
         const nombre = card.querySelector('.edit-nombre').value.trim();
         const definicion = card.querySelector('.edit-def').value.trim();
