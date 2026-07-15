@@ -13,6 +13,15 @@
   .pin-bar.unlocked{background:var(--verde-claro);border-color:var(--verde);}
   .pin-bar input[type="password"]{font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:6px 9px;font-size:13px;width:110px;}
   .pin-bar button{font-family:'Inter Tight',sans-serif;background:var(--azul);color:#fff;border:none;border-radius:5px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  #authBar{background:#fff;border-bottom:1px solid var(--gris-borde);padding:10px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;}
+  #authBar input[type="email"], #authBar input[type="password"]{font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:7px 9px;font-size:13px;width:200px;}
+  #authBar button{font-family:'Inter Tight',sans-serif;border:none;border-radius:5px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  #authBar .btn-auth-primary{background:var(--verde);color:#fff;}
+  #authBar .btn-auth-secondary{background:none;color:var(--azul);text-decoration:underline;padding:7px 4px;}
+  #authBar .auth-error{color:var(--rojo);font-size:12px;}
+  #authBar .auth-status{color:var(--azul);font-weight:600;}
+  #authBar .auth-status .pais-asignado{color:var(--verde);font-weight:700;}
+  #authBar .auth-status .sin-pais{color:var(--rojo);font-weight:700;}
   .kpi-block.locked textarea, .kpi-block.locked input, .kpi-block.locked select, .kpi-block.locked button.add-row-btn, .kpi-block.locked button[data-remove]{
     pointer-events:none;opacity:.55;background:#F0F0F0 !important;
   }
@@ -244,6 +253,8 @@
   <button class="btn btn-primary" type="button" id="btnSave">Guardar cambios de este país</button>
 </div>
 
+<div id="authBar"></div>
+
 <div class="tabs" id="tabs"></div>
 
 <div class="page" id="tabPanels"></div>
@@ -301,10 +312,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const STORAGE_KEY = 'instacredit_coreografias_v1';
-const UNLOCK_KEY = 'instacredit_coreografias_unlocked';
 let state = {};
-let unlockedCountries = new Set(JSON.parse(sessionStorage.getItem(UNLOCK_KEY) || '[]'));
 const openAccordions = new Set();
+let currentUser = null;
+let currentUserProfile = null;
+let authModo = 'login';
+let authError = '';
 
 function kpiTieneContenido(k){
   return !!(k.situacion || k.objetivo || k.responsable || k.puntoControl || k.fechaRevision ||
@@ -480,8 +493,8 @@ function validarAntesDeGuardar(code){
 async function saveActiveCountry(){
   const activeBtn = document.querySelector('.tab-btn.active');
   const code = activeBtn.dataset.pais;
-  if(!unlockedCountries.has(code)){
-    alert('Este país está bloqueado. Ingresa el PIN de ' + code + ' para poder guardar.');
+  if(!currentUserProfile || currentUserProfile.pais_code !== code){
+    alert('No tienes permiso para editar ' + code + '. Inicia sesión con la cuenta asignada a ese país.');
     return;
   }
 
@@ -615,16 +628,110 @@ async function saveActiveCountry(){
   }
 }
 
-async function attemptUnlock(code, pin, panelEl){
-  const { data, error } = await sb.rpc('verificar_pin', { p_code: code, p_pin: pin });
-  if(error || data !== true){
-    alert('PIN incorrecto para ' + code + '.');
+async function cargarPerfilUsuario(){
+  if(!currentUser){ currentUserProfile = null; return; }
+  const { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
+  currentUserProfile = data || null;
+}
+
+async function checkSesionInicial(){
+  const { data } = await sb.auth.getSession();
+  currentUser = data && data.session ? data.session.user : null;
+  await cargarPerfilUsuario();
+}
+
+async function handleLogin(email, password){
+  authError = '';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ authError = 'No se pudo iniciar sesión: ' + error.message; renderAuthBar(); return; }
+  currentUser = data.user;
+  await cargarPerfilUsuario();
+  renderAuthBar();
+  renderTabs();
+}
+
+async function handleSignup(email, password){
+  authError = '';
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if(error){ authError = 'No se pudo crear la cuenta: ' + error.message; renderAuthBar(); return; }
+  if(data.user){
+    await sb.from('perfiles_usuario').insert([{ user_id: data.user.id, email: data.user.email, pais_code: null }]);
+  }
+  currentUser = data.user;
+  await cargarPerfilUsuario();
+  authError = data.session ? '' : 'Cuenta creada. Si tu correo pide confirmación, revisa tu bandeja antes de poder iniciar sesión.';
+  renderAuthBar();
+  renderTabs();
+}
+
+async function handleLogout(){
+  await sb.auth.signOut();
+  currentUser = null;
+  currentUserProfile = null;
+  renderAuthBar();
+  renderTabs();
+}
+
+function renderAuthBar(){
+  const bar = document.getElementById('authBar');
+  bar.innerHTML = '';
+
+  if(currentUser){
+    const paisNombre = currentUserProfile && currentUserProfile.pais_code
+      ? (PAISES.find(p=>p.code===currentUserProfile.pais_code) || {}).nombre
+      : null;
+    const status = document.createElement('span');
+    status.className = 'auth-status';
+    status.innerHTML = 'Sesión: ' + escapeAttr(currentUser.email) + ' — ' +
+      (paisNombre ? '<span class="pais-asignado">' + paisNombre + '</span>' : '<span class="sin-pais">sin país asignado, contacta a Riesgo Regional</span>');
+    bar.appendChild(status);
+
+    const btnOut = document.createElement('button');
+    btnOut.type = 'button';
+    btnOut.className = 'btn-auth-secondary';
+    btnOut.textContent = 'Cerrar sesión';
+    btnOut.addEventListener('click', handleLogout);
+    bar.appendChild(btnOut);
     return;
   }
-  unlockedCountries.add(code);
-  sessionStorage.setItem(UNLOCK_KEY, JSON.stringify([...unlockedCountries]));
-  renderTabs();
-  selectTab(code);
+
+  const emailInput = document.createElement('input');
+  emailInput.type = 'email';
+  emailInput.placeholder = 'correo@instacredit.com';
+  const passInput = document.createElement('input');
+  passInput.type = 'password';
+  passInput.placeholder = 'contraseña';
+
+  const btnSubmit = document.createElement('button');
+  btnSubmit.type = 'button';
+  btnSubmit.className = 'btn-auth-primary';
+  btnSubmit.textContent = authModo === 'login' ? 'Iniciar sesión' : 'Crear cuenta';
+  btnSubmit.addEventListener('click', ()=>{
+    if(!emailInput.value.trim() || !passInput.value){ authError = 'Completa correo y contraseña.'; renderAuthBar(); return; }
+    if(authModo === 'login') handleLogin(emailInput.value.trim(), passInput.value);
+    else handleSignup(emailInput.value.trim(), passInput.value);
+  });
+
+  const btnToggle = document.createElement('button');
+  btnToggle.type = 'button';
+  btnToggle.className = 'btn-auth-secondary';
+  btnToggle.textContent = authModo === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión';
+  btnToggle.addEventListener('click', ()=>{
+    authModo = authModo === 'login' ? 'signup' : 'login';
+    authError = '';
+    renderAuthBar();
+  });
+
+  bar.appendChild(emailInput);
+  bar.appendChild(passInput);
+  bar.appendChild(btnSubmit);
+  bar.appendChild(btnToggle);
+  if(authError){
+    const err = document.createElement('span');
+    err.className = 'auth-error';
+    err.textContent = authError;
+    bar.appendChild(err);
+  }
 }
 
 const REGIONAL_UNLOCK_KEY = 'instacredit_coreografias_regional_unlocked';
@@ -788,6 +895,22 @@ function renderRegional(){
   catalogoBlock.appendChild(catalogoWrap);
   wrap.appendChild(catalogoBlock);
   loadCatalogoMantenimiento(catalogoWrap);
+
+  const usuariosBlock = document.createElement('div');
+  usuariosBlock.className = 'area-block proyecto-area';
+  usuariosBlock.innerHTML = `
+    <div class="area-header">
+      <h2>Mantenimiento de usuarios</h2>
+      <span>Solo Riesgo Regional</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> cada persona se crea su propia cuenta (correo + contraseña) desde la barra de inicio de sesión. Aquí les asignas a qué país pueden editar. Un país puede tener varios usuarios asignados.</div>
+  `;
+  const usuariosWrap = document.createElement('div');
+  usuariosWrap.id = 'usuarios-list';
+  usuariosWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+  usuariosBlock.appendChild(usuariosWrap);
+  wrap.appendChild(usuariosBlock);
+  loadMantenimientoUsuarios(usuariosWrap);
 
   return wrap;
 }
@@ -1027,6 +1150,45 @@ async function loadCatalogoMantenimiento(catalogoWrap){
 
     catalogoWrap.appendChild(areaWrap);
   });
+}
+
+async function loadMantenimientoUsuarios(usuariosWrap){
+  const { data, error } = await sb.from('perfiles_usuario').select('*').order('email');
+  if(error){
+    usuariosWrap.innerHTML = '<div class="sin-proyectos">Error al cargar usuarios: ' + error.message + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    usuariosWrap.innerHTML = '<div class="sin-proyectos">Todavía no se ha registrado ningún usuario.</div>';
+    return;
+  }
+  usuariosWrap.innerHTML = '';
+  const table = document.createElement('table');
+  table.className = 'coreo';
+  table.innerHTML = '<tr><th style="width:36%;">Correo</th><th style="width:28%;">País asignado</th><th style="width:36%;">&nbsp;</th></tr>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  data.forEach(u=>{
+    const tr = document.createElement('tr');
+    const opciones = '<option value="">Sin asignar</option>' + PAISES.map(p=>
+      '<option value="' + p.code + '"' + (u.pais_code===p.code ? ' selected' : '') + '>' + p.nombre + '</option>'
+    ).join('');
+    tr.innerHTML = `
+      <td>${escapeAttr(u.email)}</td>
+      <td><select class="estado">${opciones}</select></td>
+      <td><button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);">Guardar</button></td>
+    `;
+    tr.querySelector('button').addEventListener('click', async ()=>{
+      const nuevoPais = tr.querySelector('select').value || null;
+      const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais }).eq('user_id', u.user_id);
+      if(err){ alert('Error: ' + err.message); return; }
+      if(currentUser && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
+      alert('País asignado. ' + escapeAttr(u.email) + ' ya puede editar ese país la próxima vez que inicie sesión (o al recargar si ya tiene sesión abierta).');
+    });
+    tbody.appendChild(tr);
+  });
+  usuariosWrap.appendChild(table);
 }
 
 const CHART_COLORS = { Pendiente:'#677C98', 'En curso':'#4C9C2E', Cumplida:'#002554', Vencida:'#EE212E' };
@@ -1290,25 +1452,16 @@ async function loadBitacora(listWrap){
 
 function renderPais(paisCode){
   const wrap = document.createElement('div');
-  const isUnlocked = unlockedCountries.has(paisCode);
+  const isUnlocked = !!(currentUserProfile && currentUserProfile.pais_code === paisCode);
 
   const pinBar = document.createElement('div');
   pinBar.className = 'pin-bar' + (isUnlocked ? ' unlocked' : '');
   if(isUnlocked){
-    pinBar.innerHTML = `<span>🔓 ${paisCode} desbloqueado en esta sesión — los campos son editables.</span>`;
+    pinBar.innerHTML = `<span>🔓 Sesión de ${escapeAttr(currentUser.email)} — los campos de ${paisCode} son editables.</span>`;
+  } else if(!currentUser){
+    pinBar.innerHTML = `<span>🔒 Inicia sesión (arriba) con la cuenta asignada a ${paisCode} para editar. Mientras tanto, solo lectura.</span>`;
   } else {
-    pinBar.innerHTML = `
-      <span>🔒 Ingresa el PIN de ${paisCode} para editar (solo lectura mientras tanto):</span>
-      <input type="password" placeholder="PIN" maxlength="6">
-      <button type="button">Desbloquear</button>
-    `;
-    pinBar.querySelector('button').addEventListener('click', ()=>{
-      const pin = pinBar.querySelector('input').value.trim();
-      if(pin) attemptUnlock(paisCode, pin);
-    });
-    pinBar.querySelector('input').addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter') pinBar.querySelector('button').click();
-    });
+    pinBar.innerHTML = `<span>🔒 Tu cuenta no está asignada a ${paisCode} — lo gestiona otro usuario. Solo lectura.</span>`;
   }
   wrap.appendChild(pinBar);
 
@@ -2045,6 +2198,8 @@ async function loadKpiCatalog(){
 }
 
 (async function init(){
+  await checkSesionInicial();
+  renderAuthBar();
   await loadKpiCatalog();
   loadLocalCache();
   renderTabs();
