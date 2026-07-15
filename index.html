@@ -652,10 +652,18 @@ async function handleLogin(email, password){
 
 async function handleSignup(email, password){
   authError = '';
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const emailNorm = email.trim().toLowerCase();
+  const { data: preauth, error: preauthErr } = await sb.from('perfiles_usuario').select('*').eq('email', emailNorm).is('user_id', null).maybeSingle();
+  if(preauthErr){ authError = 'No se pudo verificar la autorización: ' + preauthErr.message; renderAuthBar(); return; }
+  if(!preauth){
+    authError = 'Tu correo no ha sido autorizado por Riesgo Regional. Pídele que te agregue primero desde el panel de mantenimiento de usuarios.';
+    renderAuthBar();
+    return;
+  }
+  const { data, error } = await sb.auth.signUp({ email: emailNorm, password });
   if(error){ authError = 'No se pudo crear la cuenta: ' + error.message; renderAuthBar(); return; }
   if(data.user){
-    await sb.from('perfiles_usuario').insert([{ user_id: data.user.id, email: data.user.email, pais_code: null }]);
+    await sb.from('perfiles_usuario').update({ user_id: data.user.id }).eq('id', preauth.id);
   }
   currentUser = data.user;
   await cargarPerfilUsuario();
@@ -715,7 +723,7 @@ function renderAuthBar(){
   const btnToggle = document.createElement('button');
   btnToggle.type = 'button';
   btnToggle.className = 'btn-auth-secondary';
-  btnToggle.textContent = authModo === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión';
+  btnToggle.textContent = authModo === 'login' ? '¿Tu correo ya fue autorizado? Crea tu contraseña' : '¿Ya tienes cuenta? Inicia sesión';
   btnToggle.addEventListener('click', ()=>{
     authModo = authModo === 'login' ? 'signup' : 'login';
     authError = '';
@@ -1158,37 +1166,81 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     usuariosWrap.innerHTML = '<div class="sin-proyectos">Error al cargar usuarios: ' + error.message + '</div>';
     return;
   }
-  if(!data || data.length === 0){
-    usuariosWrap.innerHTML = '<div class="sin-proyectos">Todavía no se ha registrado ningún usuario.</div>';
-    return;
-  }
   usuariosWrap.innerHTML = '';
-  const table = document.createElement('table');
-  table.className = 'coreo';
-  table.innerHTML = '<tr><th style="width:36%;">Correo</th><th style="width:28%;">País asignado</th><th style="width:36%;">&nbsp;</th></tr>';
-  const tbody = document.createElement('tbody');
-  table.appendChild(tbody);
 
-  data.forEach(u=>{
-    const tr = document.createElement('tr');
-    const opciones = '<option value="">Sin asignar</option>' + PAISES.map(p=>
-      '<option value="' + p.code + '"' + (u.pais_code===p.code ? ' selected' : '') + '>' + p.nombre + '</option>'
-    ).join('');
-    tr.innerHTML = `
-      <td>${escapeAttr(u.email)}</td>
-      <td><select class="estado">${opciones}</select></td>
-      <td><button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);">Guardar</button></td>
-    `;
-    tr.querySelector('button').addEventListener('click', async ()=>{
-      const nuevoPais = tr.querySelector('select').value || null;
-      const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais }).eq('user_id', u.user_id);
-      if(err){ alert('Error: ' + err.message); return; }
-      if(currentUser && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
-      alert('País asignado. ' + escapeAttr(u.email) + ' ya puede editar ese país la próxima vez que inicie sesión (o al recargar si ya tiene sesión abierta).');
+  if(!data || data.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'sin-proyectos';
+    empty.textContent = 'Todavía no hay correos preautorizados.';
+    usuariosWrap.appendChild(empty);
+  } else {
+    const table = document.createElement('table');
+    table.className = 'coreo';
+    table.innerHTML = '<tr><th style="width:32%;">Correo</th><th style="width:16%;">Estado</th><th style="width:22%;">País asignado</th><th style="width:30%;">&nbsp;</th></tr>';
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    data.forEach(u=>{
+      const tr = document.createElement('tr');
+      const opciones = '<option value="">Sin asignar</option>' + PAISES.map(p=>
+        '<option value="' + p.code + '"' + (u.pais_code===p.code ? ' selected' : '') + '>' + p.nombre + '</option>'
+      ).join('');
+      tr.innerHTML = `
+        <td>${escapeAttr(u.email)}</td>
+        <td>${u.user_id ? '<span style="color:var(--verde);font-weight:700;">Registrado</span>' : '<span style="color:var(--azul-claro);">Pendiente de registro</span>'}</td>
+        <td><select class="estado">${opciones}</select></td>
+        <td style="white-space:nowrap;">
+          <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-right:6px;">Guardar</button>
+          <button type="button" class="btn-eliminar-proyecto">Quitar acceso</button>
+        </td>
+      `;
+      const [btnGuardar, btnQuitar] = tr.querySelectorAll('button');
+      btnGuardar.addEventListener('click', async ()=>{
+        const nuevoPais = tr.querySelector('select').value || null;
+        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais }).eq('id', u.id);
+        if(err){ alert('Error: ' + err.message); return; }
+        if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
+        alert('País asignado a ' + escapeAttr(u.email) + '.');
+      });
+      btnQuitar.addEventListener('click', async ()=>{
+        if(!confirm('¿Quitar el acceso de ' + u.email + '? ' + (u.user_id ? 'Su cuenta ya no podrá editar ningún país.' : 'Se cancela la preautorización antes de que se haya registrado.'))) return;
+        const { error: err } = await sb.from('perfiles_usuario').delete().eq('id', u.id);
+        if(err){ alert('Error: ' + err.message); return; }
+        loadMantenimientoUsuarios(usuariosWrap);
+      });
+      tbody.appendChild(tr);
     });
-    tbody.appendChild(tr);
+    usuariosWrap.appendChild(table);
+  }
+
+  const addCard = document.createElement('div');
+  addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-top:12px;';
+  addCard.innerHTML = `
+    <div class="field-grid" style="padding:0 0 10px 0;">
+      <div class="field">
+        <label>Correo a preautorizar</label>
+        <input type="email" class="nuevo-email" placeholder="correo@instacredit.com">
+      </div>
+      <div class="field">
+        <label>País que podrá editar</label>
+        <select class="nuevo-pais">
+          <option value="">Sin asignar</option>
+          ${PAISES.map(p=> '<option value="' + p.code + '">' + p.nombre + '</option>').join('')}
+        </select>
+      </div>
+      <div></div>
+    </div>
+    <button type="button" class="add-proyecto-btn" style="margin:0;">+ Preautorizar correo</button>
+  `;
+  addCard.querySelector('button').addEventListener('click', async ()=>{
+    const email = addCard.querySelector('.nuevo-email').value.trim().toLowerCase();
+    const pais = addCard.querySelector('.nuevo-pais').value || null;
+    if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
+    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, pais_code: pais }]);
+    if(err){ alert('Error: ' + err.message); return; }
+    loadMantenimientoUsuarios(usuariosWrap);
   });
-  usuariosWrap.appendChild(table);
+  usuariosWrap.appendChild(addCard);
 }
 
 const CHART_COLORS = { Pendiente:'#677C98', 'En curso':'#4C9C2E', Cumplida:'#002554', Vencida:'#EE212E' };
