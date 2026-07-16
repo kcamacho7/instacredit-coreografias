@@ -22,7 +22,7 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-PAISES = {"CR": "Costa Rica", "NI": "Nicaragua", "PA": "Panamá", "SV": "El Salvador"}
+PAISES = {"CR": "Costa Rica", "NI": "Nicaragua", "PA": "Panamá", "SV": "El Salvador", "RG": "Riesgo Regional"}
 
 KPI_NOMBRE = {
     "1pd_4pd": "1PD / 2PD / 3PD / 4PD",
@@ -123,6 +123,12 @@ def cargar_items(catalogo_cache):
                           "acciones_full": row.get("acciones") or []})
 
     return items
+
+
+def destinatarios_de(pais, usuarios_por_pais):
+    if pais == "RG":
+        return [REGIONAL_EMAIL]
+    return usuarios_por_pais.get(pais, [])
 
 
 def cargar_usuarios_por_pais():
@@ -246,7 +252,7 @@ def paso_diario(items, usuarios_por_pais):
         por_pais.setdefault(it["pais"], []).append(it)
 
     for pais, its in por_pais.items():
-        destinatarios = usuarios_por_pais.get(pais, [])
+        destinatarios = destinatarios_de(pais, usuarios_por_pais)
         if destinatarios:
             html_body = plantilla_html(
                 "Alerta diaria",
@@ -285,7 +291,7 @@ def paso_recordatorio(items, usuarios_por_pais):
         por_pais.setdefault(it["pais"], []).append(it)
 
     for pais, its in por_pais.items():
-        destinatarios = usuarios_por_pais.get(pais, [])
+        destinatarios = destinatarios_de(pais, usuarios_por_pais)
         if destinatarios:
             html_body = plantilla_html(
                 "Recordatorio",
@@ -318,7 +324,7 @@ def paso_semanal(items, usuarios_por_pais):
         por_pais.setdefault(it["pais"], []).append(it)
 
     for pais, its in por_pais.items():
-        destinatarios = usuarios_por_pais.get(pais, [])
+        destinatarios = destinatarios_de(pais, usuarios_por_pais)
         if destinatarios:
             html_body = plantilla_html(
                 "Resumen semanal",

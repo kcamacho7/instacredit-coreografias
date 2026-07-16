@@ -409,6 +409,8 @@ function ensureState(){
     });
     if(!state[p.code].proyectosEspeciales) state[p.code].proyectosEspeciales = [];
   });
+  if(!state.RG) state.RG = {};
+  if(!state.RG.proyectosEspeciales) state.RG.proyectosEspeciales = [];
 }
 
 function emptyCustomKpi(){
@@ -468,6 +470,7 @@ function mergeProyectosRows(rows){
   PAISES.forEach(p=>{
     state[p.code].proyectosEspeciales = byPais[p.code] || [];
   });
+  if(state.RG) state.RG.proyectosEspeciales = byPais.RG || [];
 }
 
 function mergeCustomKpisRows(rows){
@@ -533,15 +536,17 @@ function validarAntesDeGuardar(code){
     }
     return null;
   }
-  for(const area of AREAS){
-    for(const kpi of area.kpis){
-      const k = state[code][area.id][kpi.id];
-      const err = revisarAcciones(k.acciones, kpi.nombre) || revisarPuntoControl(k, kpi.nombre);
-      if(err) return err;
-    }
-    for(const c of state[code][area.id].customKpis){
-      const err = revisarAcciones(c.acciones, c.nombre || 'un KPI adicional') || revisarPuntoControl(c, c.nombre || 'un KPI adicional');
-      if(err) return err;
+  if(code !== 'RG'){
+    for(const area of AREAS){
+      for(const kpi of area.kpis){
+        const k = state[code][area.id][kpi.id];
+        const err = revisarAcciones(k.acciones, kpi.nombre) || revisarPuntoControl(k, kpi.nombre);
+        if(err) return err;
+      }
+      for(const c of state[code][area.id].customKpis){
+        const err = revisarAcciones(c.acciones, c.nombre || 'un KPI adicional') || revisarPuntoControl(c, c.nombre || 'un KPI adicional');
+        if(err) return err;
+      }
     }
   }
   for(const proy of state[code].proyectosEspeciales){
@@ -583,26 +588,28 @@ async function saveActiveCountry(){
   (freshCustom||[]).forEach(r=> freshCustomMap[r.id] = r);
 
   const rows = [];
-  AREAS.forEach(area=>{
-    area.kpis.forEach(kpi=>{
-      const k = state[code][area.id][kpi.id];
-      const fresh = freshCoreoMap[area.id+'|'+kpi.id];
-      const usarFresh = k._locked_fechaRevision && fresh;
-      rows.push({
-        pais_code: code,
-        area_id: area.id,
-        kpi_id: kpi.id,
-        situacion: k.situacion,
-        objetivo: k.objetivo,
-        responsable: k.responsable,
-        punto_control: k.puntoControl,
-        fecha_revision: usarFresh ? fresh.fecha_revision : (k.fechaRevision || null),
-        hora_revision: usarFresh ? fresh.hora_revision : (k.horaRevision || null),
-        acciones: k.acciones,
-        updated_at: new Date().toISOString()
+  if(code !== 'RG'){
+    AREAS.forEach(area=>{
+      area.kpis.forEach(kpi=>{
+        const k = state[code][area.id][kpi.id];
+        const fresh = freshCoreoMap[area.id+'|'+kpi.id];
+        const usarFresh = k._locked_fechaRevision && fresh;
+        rows.push({
+          pais_code: code,
+          area_id: area.id,
+          kpi_id: kpi.id,
+          situacion: k.situacion,
+          objetivo: k.objetivo,
+          responsable: k.responsable,
+          punto_control: k.puntoControl,
+          fecha_revision: usarFresh ? fresh.fecha_revision : (k.fechaRevision || null),
+          hora_revision: usarFresh ? fresh.hora_revision : (k.horaRevision || null),
+          acciones: k.acciones,
+          updated_at: new Date().toISOString()
+        });
       });
     });
-  });
+  }
   const proyectoRows = state[code].proyectosEspeciales.map((p, i)=>{
     const fresh = freshProyMap[p.id];
     const usarFresh = p._locked_fechaSeguimiento && fresh;
@@ -622,42 +629,52 @@ async function saveActiveCountry(){
   });
 
   const customKpiRows = [];
-  AREAS.forEach(area=>{
-    state[code][area.id].customKpis.forEach((c, i)=>{
-      const fresh = freshCustomMap[c.id];
-      const usarFresh = c._locked_fechaRevision && fresh;
-      customKpiRows.push({
-        id: c.id,
-        pais_code: code,
-        area_id: area.id,
-        nombre: c.nombre,
-        definicion: c.definicion,
-        situacion: c.situacion,
-        objetivo: c.objetivo,
-        responsable: c.responsable,
-        punto_control: c.puntoControl,
-        fecha_revision: usarFresh ? fresh.fecha_revision : (c.fechaRevision || null),
-        hora_revision: usarFresh ? fresh.hora_revision : (c.horaRevision || null),
-        acciones: c.acciones,
-        orden: i,
-        updated_at: new Date().toISOString()
+  if(code !== 'RG'){
+    AREAS.forEach(area=>{
+      state[code][area.id].customKpis.forEach((c, i)=>{
+        const fresh = freshCustomMap[c.id];
+        const usarFresh = c._locked_fechaRevision && fresh;
+        customKpiRows.push({
+          id: c.id,
+          pais_code: code,
+          area_id: area.id,
+          nombre: c.nombre,
+          definicion: c.definicion,
+          situacion: c.situacion,
+          objetivo: c.objetivo,
+          responsable: c.responsable,
+          punto_control: c.puntoControl,
+          fecha_revision: usarFresh ? fresh.fecha_revision : (c.fechaRevision || null),
+          hora_revision: usarFresh ? fresh.hora_revision : (c.horaRevision || null),
+          acciones: c.acciones,
+          orden: i,
+          updated_at: new Date().toISOString()
+        });
       });
     });
-  });
+  }
 
   document.getElementById('statusText').innerHTML = 'Guardando ' + code + '…';
-  const { error } = await sb.from('coreografias').upsert(rows, { onConflict: 'pais_code,area_id,kpi_id' });
+  let error = null;
+  if(code !== 'RG' && rows.length){
+    const res = await sb.from('coreografias').upsert(rows, { onConflict: 'pais_code,area_id,kpi_id' });
+    error = res.error;
+  }
   const { error: delErr } = await sb.from('proyectos_especiales').delete().eq('pais_code', code);
   let proyErr = null;
   if(!delErr && proyectoRows.length){
     const res = await sb.from('proyectos_especiales').insert(proyectoRows);
     proyErr = res.error;
   }
-  const { error: delCustomErr } = await sb.from('kpis_adicionales').delete().eq('pais_code', code);
+  let delCustomErr = null;
   let customErr = null;
-  if(!delCustomErr && customKpiRows.length){
-    const res = await sb.from('kpis_adicionales').insert(customKpiRows);
-    customErr = res.error;
+  if(code !== 'RG'){
+    const resDel = await sb.from('kpis_adicionales').delete().eq('pais_code', code);
+    delCustomErr = resDel.error;
+    if(!delCustomErr && customKpiRows.length){
+      const res = await sb.from('kpis_adicionales').insert(customKpiRows);
+      customErr = res.error;
+    }
   }
   const now = new Date().toLocaleString('es-CR');
   if(error || delErr || proyErr || delCustomErr || customErr){
@@ -674,15 +691,17 @@ async function saveActiveCountry(){
       id: r.id, nombre: r.nombre, descripcion: r.descripcion, responsable: r.responsable, estado: r.estado,
       fechaSeguimiento: r.fecha_seguimiento || '', horaSeguimiento: r.hora_seguimiento || '', acciones: r.acciones
     }));
-    AREAS.forEach(area=>{
-      state[code][area.id].customKpis = customKpiRows
-        .filter(r=> r.area_id === area.id)
-        .map(r=> ({
-          id: r.id, nombre: r.nombre, definicion: r.definicion, situacion: r.situacion, objetivo: r.objetivo,
-          responsable: r.responsable, puntoControl: r.punto_control,
-          fechaRevision: r.fecha_revision || '', horaRevision: r.hora_revision || '', acciones: r.acciones
-        }));
-    });
+    if(code !== 'RG'){
+      AREAS.forEach(area=>{
+        state[code][area.id].customKpis = customKpiRows
+          .filter(r=> r.area_id === area.id)
+          .map(r=> ({
+            id: r.id, nombre: r.nombre, definicion: r.definicion, situacion: r.situacion, objetivo: r.objetivo,
+            responsable: r.responsable, puntoControl: r.punto_control,
+            fechaRevision: r.fecha_revision || '', horaRevision: r.hora_revision || '', acciones: r.acciones
+          }));
+      });
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     renderTabs();
     selectTab(code);
@@ -913,6 +932,21 @@ function renderTabs(){
   dashPanel.appendChild(renderDashboardPublico());
   panelsEl.appendChild(dashPanel);
 
+  if(regionalUnlocked){
+    const rgBtn = document.createElement('button');
+    rgBtn.className = 'tab-btn tab-btn-regional';
+    rgBtn.textContent = '🗂️ KPI y tareas Regional';
+    rgBtn.dataset.pais = 'RG';
+    rgBtn.addEventListener('click', ()=> selectTab('RG'));
+    tabsEl.appendChild(rgBtn);
+
+    const rgPanel = document.createElement('div');
+    rgPanel.className = 'tab-panel';
+    rgPanel.id = 'panel-RG';
+    rgPanel.appendChild(renderRegionalTareas());
+    panelsEl.appendChild(rgPanel);
+  }
+
   const regionalBtn = document.createElement('button');
   regionalBtn.className = 'tab-btn tab-btn-regional';
   regionalBtn.textContent = '🔒 Riesgo Regional';
@@ -936,6 +970,17 @@ function selectTab(code){
   document.querySelectorAll('.tab-panel').forEach(p=> p.classList.toggle('active', p.id==='panel-'+code));
   const activePanel = document.getElementById('panel-' + code);
   if(activePanel) activePanel.querySelectorAll('textarea').forEach(autoGrow);
+}
+
+function renderRegionalTareas(){
+  const wrap = document.createElement('div');
+  wrap.style.paddingTop = '20px';
+  const info = document.createElement('div');
+  info.className = 'pin-bar unlocked';
+  info.innerHTML = '<span>🔒 Sección privada de Riesgo Regional — solo tu usuario la ve, los gerentes de país no tienen acceso. Úsala para documentar tus propios proyectos y tareas de seguimiento.</span>';
+  wrap.appendChild(info);
+  wrap.appendChild(renderProyectosEspeciales('RG', true));
+  return wrap;
 }
 
 function renderRegional(){
