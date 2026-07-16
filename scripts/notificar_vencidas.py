@@ -307,7 +307,8 @@ def main():
 
     paso_diario(items, usuarios_por_pais)
 
-    if hoy_cr().weekday() == 2:  # 0=lunes ... 2=miércoles
+    forzar_semanal = os.environ.get("FORZAR_SEMANAL", "").lower() == "true"
+    if hoy_cr().weekday() == 2 or forzar_semanal:  # 0=lunes ... 2=miércoles
         items_frescos = cargar_items(catalogo_cache)
         paso_semanal(items_frescos, usuarios_por_pais)
     else:
