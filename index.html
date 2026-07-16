@@ -2271,7 +2271,20 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         proy.nombre = e.target.value;
         markDirty();
       });
-      headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', ()=>{
+      headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+        if(!confirm('¿Eliminar el proyecto especial "' + (proy.nombre || '(sin nombre)') + '"? Quedará registrado en la bitácora de Riesgo Regional con los últimos datos.')) return;
+        await sb.from('proyectos_especiales_log').insert([{
+          original_id: proy.id,
+          pais_code: paisCode,
+          nombre: proy.nombre,
+          descripcion: proy.descripcion,
+          responsable: proy.responsable,
+          estado: proy.estado,
+          fecha_seguimiento: proy.fechaSeguimiento || null,
+          hora_seguimiento: proy.horaSeguimiento || null,
+          acciones: proy.acciones
+        }]);
+        await sb.from('proyectos_especiales').delete().eq('id', proy.id);
         proyectos.splice(idx,1);
         renderList();
         markDirty();
