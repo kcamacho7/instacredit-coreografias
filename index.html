@@ -668,6 +668,7 @@ async function saveActiveCountry(){
     renderTabs();
     selectTab(code);
     document.getElementById('statusText').innerHTML = 'Guardado en la nube (' + code + ') — <b>' + now + '</b>';
+    alert('Los cambios de ' + code + ' se guardaron correctamente.');
   }
 }
 
