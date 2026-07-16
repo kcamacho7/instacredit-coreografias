@@ -1554,8 +1554,10 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
   const enCurso = acciones.filter(a=> a.estado==='En curso').length;
   const avancePct = Math.round((cumplidas/total)*100);
 
-  const vencidasList = acciones.filter(a=> a.estado==='Vencida').sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''));
   const paisNombreDe = (code)=> (PAISES.find(p=>p.code===code) || {}).nombre || code;
+  const vencidasList = acciones.filter(a=> a.estado==='Vencida').sort((a,b)=>
+    paisNombreDe(a.pais).localeCompare(paisNombreDe(b.pais)) || (b.fecha||'').localeCompare(a.fecha||'')
+  );
   const filasVencidas = vencidasList.length === 0
     ? '<tr><td colspan="5" style="text-align:center;color:var(--azul-claro);padding:16px;">Sin acciones vencidas 🎉</td></tr>'
     : vencidasList.map(a=> `
