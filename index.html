@@ -218,6 +218,9 @@
   button.btn-comentario.tiene-texto{color:var(--verde);}
   button.btn-comentario:disabled{opacity:.3;cursor:not-allowed;color:var(--gris-borde);}
   button.btn-historial-fecha{background:none;border:none;color:var(--azul-claro);cursor:pointer;font-size:12px;padding:0 0 0 3px;vertical-align:middle;}
+  table.coreo th[data-sort]{-webkit-user-select:none;user-select:none;}
+  table.coreo th[data-sort]:hover{color:var(--verde);}
+  .orden-flecha{font-size:9px;}
   tr.fila-resultado td{background:#FAFBFC;border-bottom:1px solid var(--gris-borde);padding:8px 10px;}
   tr.fila-resultado label{display:block;font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
   tr.fila-resultado textarea{width:100%;font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:7px 9px;font-size:13px;resize:vertical;}
@@ -858,6 +861,7 @@ function renderAuthBar(){
 const REGIONAL_UNLOCK_KEY = 'instacredit_coreografias_regional_unlocked';
 let regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
 let regionalSubTab = 'bitacora';
+let dashboardOrdenVencidas = null;
 const seccionesRegionalColapsadas = new Set();
 
 async function attemptUnlockRegional(pin){
@@ -1555,20 +1559,32 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
   const avancePct = Math.round((cumplidas/total)*100);
 
   const paisNombreDe = (code)=> (PAISES.find(p=>p.code===code) || {}).nombre || code;
-  const vencidasList = acciones.filter(a=> a.estado==='Vencida').sort((a,b)=>
-    paisNombreDe(a.pais).localeCompare(paisNombreDe(b.pais)) || (b.fecha||'').localeCompare(a.fecha||'')
-  );
-  const filasVencidas = vencidasList.length === 0
-    ? '<tr><td colspan="5" style="text-align:center;color:var(--azul-claro);padding:16px;">Sin acciones vencidas 🎉</td></tr>'
-    : vencidasList.map(a=> `
-      <tr>
-        <td>${escapeAttr(paisNombreDe(a.pais))}</td>
-        <td>${escapeAttr(a.kpi)}</td>
-        <td>${escapeAttr(a.accionTexto)}</td>
-        <td>${escapeAttr(a.responsable)}</td>
-        <td style="color:var(--rojo);font-weight:700;">${a.fecha || '—'}</td>
-      </tr>
-    `).join('');
+  if(!dashboardOrdenVencidas) dashboardOrdenVencidas = { campo: 'pais', dir: 'asc' };
+  function construirVencidasOrdenadas(){
+    const dirMul = dashboardOrdenVencidas.dir === 'asc' ? 1 : -1;
+    return acciones.filter(a=> a.estado==='Vencida').sort((a,b)=>{
+      if(dashboardOrdenVencidas.campo === 'fecha'){
+        const cmp = (a.fecha||'').localeCompare(b.fecha||'');
+        return cmp !== 0 ? cmp*dirMul : paisNombreDe(a.pais).localeCompare(paisNombreDe(b.pais));
+      }
+      const cmp = paisNombreDe(a.pais).localeCompare(paisNombreDe(b.pais));
+      return cmp !== 0 ? cmp*dirMul : (b.fecha||'').localeCompare(a.fecha||'');
+    });
+  }
+  function filasVencidasHtml(lista){
+    return lista.length === 0
+      ? '<tr><td colspan="5" style="text-align:center;color:var(--azul-claro);padding:16px;">Sin acciones vencidas 🎉</td></tr>'
+      : lista.map(a=> `
+        <tr>
+          <td>${escapeAttr(paisNombreDe(a.pais))}</td>
+          <td>${escapeAttr(a.kpi)}</td>
+          <td>${escapeAttr(a.accionTexto)}</td>
+          <td>${escapeAttr(a.responsable)}</td>
+          <td style="color:var(--rojo);font-weight:700;">${a.fecha || '—'}</td>
+        </tr>
+      `).join('');
+  }
+  const filasVencidas = filasVencidasHtml(construirVencidasOrdenadas());
 
   dashWrap.innerHTML = `
     <div class="dashboard-kpis">
@@ -1602,12 +1618,38 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
         <h4>⚠️ Acciones vencidas</h4>
         <div class="subtitulo">Fecha de compromiso ya superada y sin cumplir. Se actualiza sola todos los días.</div>
         <table class="coreo">
-          <tr><th style="width:14%;">País</th><th style="width:22%;">KPI / Proyecto</th><th style="width:34%;">Acción</th><th style="width:16%;">Responsable</th><th style="width:14%;">Fecha</th></tr>
-          ${filasVencidas}
+          <tr>
+            <th style="width:14%;cursor:pointer;" data-sort="pais">País <span class="orden-flecha" data-flecha="pais"></span></th>
+            <th style="width:22%;">KPI / Proyecto</th>
+            <th style="width:34%;">Acción</th>
+            <th style="width:16%;">Responsable</th>
+            <th style="width:14%;cursor:pointer;" data-sort="fecha">Fecha <span class="orden-flecha" data-flecha="fecha"></span></th>
+          </tr>
+          <tbody id="tbody-vencidas">${filasVencidas}</tbody>
         </table>
       </div>
     </div>
   `;
+
+  const actualizarFlechasVencidas = ()=>{
+    dashWrap.querySelectorAll('.orden-flecha').forEach(sp=>{
+      sp.textContent = sp.dataset.flecha === dashboardOrdenVencidas.campo ? (dashboardOrdenVencidas.dir==='asc' ? '▲' : '▼') : '';
+    });
+  };
+  actualizarFlechasVencidas();
+  dashWrap.querySelectorAll('[data-sort]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const campo = th.dataset.sort;
+      if(dashboardOrdenVencidas.campo === campo){
+        dashboardOrdenVencidas.dir = dashboardOrdenVencidas.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        dashboardOrdenVencidas.campo = campo;
+        dashboardOrdenVencidas.dir = campo === 'fecha' ? 'desc' : 'asc';
+      }
+      dashWrap.querySelector('#tbody-vencidas').innerHTML = filasVencidasHtml(construirVencidasOrdenadas());
+      actualizarFlechasVencidas();
+    });
+  });
 
   const ESTADOS = ['Pendiente','En curso','Cumplida','Vencida'];
 
