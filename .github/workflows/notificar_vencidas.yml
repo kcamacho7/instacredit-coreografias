@@ -9,6 +9,14 @@ on:
         description: "Forzar envío del resumen semanal aunque hoy no sea miércoles"
         type: boolean
         default: false
+      correo_prueba:
+        description: "Modo prueba: correo destino (deja vacío para envío normal)"
+        type: string
+        default: ""
+      pais_prueba:
+        description: "Modo prueba: código de país (CR, NI, PA, SV)"
+        type: string
+        default: ""
 
 jobs:
   notificar:
@@ -36,4 +44,6 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           REGIONAL_EMAIL: ${{ secrets.REGIONAL_EMAIL }}
           FORZAR_SEMANAL: ${{ github.event.inputs.forzar_semanal }}
+          CORREO_PRUEBA: ${{ github.event.inputs.correo_prueba }}
+          PAIS_PRUEBA: ${{ github.event.inputs.pais_prueba }}
         run: python scripts/notificar_vencidas.py

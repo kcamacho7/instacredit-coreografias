@@ -300,10 +300,28 @@ def paso_semanal(items, usuarios_por_pais):
     print("Resumen semanal enviado con %d acciones vencidas." % len(vencidas))
 
 
+def paso_prueba(items, correo, pais_code):
+    vencidas = [it for it in items if it["pais"] == pais_code and it["accion"].get("estado") == "Vencida"]
+    html_body = plantilla_html(
+        "Prueba",
+        "Prueba — acciones vencidas de " + PAISES.get(pais_code, pais_code),
+        "Este es un envío de prueba manual (no afecta el estado de notificación real). Acciones vencidas actuales de tu país (%d):" % len(vencidas),
+        [(None, tabla_html(vencidas))],
+    )
+    enviar_correo([correo], "🧪 Prueba — acciones vencidas de " + PAISES.get(pais_code, pais_code), html_body)
+    print("Prueba enviada a %s con %d acciones vencidas." % (correo, len(vencidas)))
+
+
 def main():
     catalogo_cache = cargar_catalogo()
     items = cargar_items(catalogo_cache)
     usuarios_por_pais = cargar_usuarios_por_pais()
+
+    correo_prueba = os.environ.get("CORREO_PRUEBA", "").strip()
+    pais_prueba = os.environ.get("PAIS_PRUEBA", "").strip().upper()
+    if correo_prueba and pais_prueba:
+        paso_prueba(items, correo_prueba, pais_prueba)
+        return
 
     paso_diario(items, usuarios_por_pais)
 
