@@ -1,0 +1,5 @@
+// Configuración pública del proyecto Supabase.
+// La "anon key" no es un secreto: es la clave pública diseñada para el navegador,
+// protegida por las políticas de Row Level Security (RLS) de cada tabla.
+const SUPABASE_URL = 'https://kouwqcmletybfrkispov.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdXdxY21sZXR5YmZya2lzcG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MjY1ODIsImV4cCI6MjA5ODUwMjU4Mn0.FF3P6lkxmPgD6NMHaBwwuM1Y0ZprRMdsQJjEm08DmiI';

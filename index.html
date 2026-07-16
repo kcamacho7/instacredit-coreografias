@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
 <style>
   .pin-bar{background:#FFF6E0;border:1px solid #E8D48A;border-radius:6px;padding:10px 16px;margin:16px 0 0 0;display:flex;align-items:center;gap:10px;font-size:13px;}
   .pin-bar.unlocked{background:var(--verde-claro);border-color:var(--verde);}
@@ -323,8 +324,7 @@ const AREAS = [
 // AREAS.kpis de arriba es el respaldo de fábrica; loadKpiCatalog() lo sobreescribe
 // con el catálogo vivo de Supabase (que Riesgo Regional puede editar/crear/eliminar).
 
-const SUPABASE_URL = 'https://kouwqcmletybfrkispov.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdXdxY21sZXR5YmZya2lzcG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MjY1ODIsImV4cCI6MjA5ODUwMjU4Mn0.FF3P6lkxmPgD6NMHaBwwuM1Y0ZprRMdsQJjEm08DmiI';
+// SUPABASE_URL y SUPABASE_ANON_KEY vienen de config.js (cargado antes que este script).
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }
 });
