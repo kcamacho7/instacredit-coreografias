@@ -1,7 +1,9 @@
 import os
 import smtplib
 import ssl
+import html as html_lib
 from datetime import datetime, timezone, timedelta
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import requests
 
@@ -21,7 +23,6 @@ HEADERS = {
 }
 
 PAISES = {"CR": "Costa Rica", "NI": "Nicaragua", "PA": "Panamá", "SV": "El Salvador"}
-AREA_NOMBRE = {"A": "Dominio A — Originación", "B": "Dominio B — Comercial", "C": "Dominio C — Cobro"}
 
 KPI_NOMBRE = {
     "1pd_4pd": "1PD / 2PD / 3PD / 4PD",
@@ -46,6 +47,20 @@ KPI_NOMBRE = {
     "visitas_cobertura": "Visitas de campo — cobertura",
     "visitas_efectividad": "Visitas de campo — efectividad",
 }
+
+LANDING_URL = "https://kcamacho7.github.io/instacredit-coreografias/"
+
+VERDE = "#4C9C2E"
+AZUL = "#002554"
+ROJO = "#EE212E"
+VERDE_CLARO = "#CEF0C4"
+GRIS_TEXTO = "#333333"
+GRIS_BORDE = "#D2D2D2"
+FONDO = "#F5FCF3"
+
+
+def esc(v):
+    return html_lib.escape(str(v or ""), quote=True)
 
 
 def hoy_cr():
@@ -119,13 +134,81 @@ def cargar_usuarios_por_pais():
     return por_pais
 
 
-def enviar_correo(destinatarios, asunto, cuerpo_texto):
+def tabla_html(items):
+    filas = ""
+    for it in items:
+        a = it["accion"]
+        filas += """
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{azul};font-weight:700;white-space:nowrap;">{pais}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{origen}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{accion}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};white-space:nowrap;">{resp}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{rojo};font-weight:700;white-space:nowrap;">{fecha}</td>
+          </tr>""".format(
+            borde=GRIS_BORDE, azul=AZUL, texto=GRIS_TEXTO, rojo=ROJO,
+            pais=esc(PAISES.get(it["pais"], it["pais"])),
+            origen=esc(it["origen"]),
+            accion=esc(a.get("accion") or "(sin descripción)"),
+            resp=esc(a.get("responsable") or "—"),
+            fecha=esc(a.get("fecha") or "—"),
+        )
+    return """
+    <table style="width:100%;border-collapse:collapse;background:#fff;margin:14px 0;">
+      <tr>
+        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">País</th>
+        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">KPI / Proyecto</th>
+        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Acción</th>
+        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Responsable</th>
+        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Fecha</th>
+      </tr>
+      {filas}
+    </table>
+    """.format(azul=AZUL, filas=filas)
+
+
+def plantilla_html(eyebrow, titulo, intro, secciones, boton_texto="Abrir el landing"):
+    """secciones: lista de (subtitulo, tabla_html) o solo tabla_html si no hay subtitulo"""
+    bloques = ""
+    for sub, tabla in secciones:
+        if sub:
+            bloques += '<h3 style="color:{azul};font-size:15px;margin:22px 0 4px 0;">{sub}</h3>'.format(azul=AZUL, sub=esc(sub))
+        bloques += tabla
+
+    return """<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:{fondo};font-family:Arial,'Segoe UI',sans-serif;color:{texto};">
+  <div style="max-width:680px;margin:0 auto;background:{fondo};">
+    <div style="background:{azul};padding:26px 28px;">
+      <div style="color:{verde_claro};font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Riesgo Regional · Instacredit</div>
+      <div style="color:#fff;font-size:22px;font-weight:800;">{titulo}</div>
+    </div>
+    <div style="padding:24px 28px;">
+      <p style="font-size:14px;line-height:1.6;">{intro}</p>
+      {bloques}
+      <div style="margin-top:26px;">
+        <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 22px;border-radius:6px;display:inline-block;">{boton_texto}</a>
+      </div>
+    </div>
+    <div style="padding:16px 28px;border-top:1px solid {borde};font-size:11.5px;color:#677C98;">
+      ¡Apoyándote siempre! — Instacredit Riesgo Regional · Notificación automática, no responder a este correo.
+    </div>
+  </div>
+</body></html>""".format(
+        fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, texto=GRIS_TEXTO, borde=GRIS_BORDE,
+        titulo=esc(titulo), intro=intro, bloques=bloques, link=LANDING_URL, boton_texto=esc(boton_texto),
+    )
+
+
+def enviar_correo(destinatarios, asunto, cuerpo_html):
     if not destinatarios:
         return
-    msg = MIMEText(cuerpo_texto, "plain", "utf-8")
+    msg = MIMEMultipart("alternative")
     msg["Subject"] = asunto
-    msg["From"] = SMTP_USER
+    msg["From"] = "Riesgo Regional Instacredit <" + SMTP_USER + ">"
     msg["To"] = ", ".join(destinatarios)
+    msg.attach(MIMEText("Este correo requiere un cliente compatible con HTML. Entra a " + LANDING_URL, "plain", "utf-8"))
+    msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
 
     if SMTP_SECURE == "ssl":
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ssl.create_default_context()) as server:
@@ -140,18 +223,6 @@ def enviar_correo(destinatarios, asunto, cuerpo_texto):
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, destinatarios, msg.as_string())
-
-
-def texto_items(items):
-    lineas = []
-    for it in items:
-        a = it["accion"]
-        lineas.append(
-            "- [%s] %s\n    Acción: %s\n    Responsable: %s\n    Fecha compromiso: %s"
-            % (PAISES.get(it["pais"], it["pais"]), it["origen"], a.get("accion") or "(sin descripción)",
-               a.get("responsable") or "—", a.get("fecha") or "—")
-        )
-    return "\n".join(lineas)
 
 
 def marcar_notificadas(items):
@@ -177,18 +248,21 @@ def paso_diario(items, usuarios_por_pais):
     for pais, its in por_pais.items():
         destinatarios = usuarios_por_pais.get(pais, [])
         if destinatarios:
-            enviar_correo(
-                destinatarios,
+            html_body = plantilla_html(
+                "Alerta diaria",
                 "Acciones vencidas hoy — " + PAISES.get(pais, pais),
-                "Estas acciones de tu país pasaron su fecha de compromiso y siguen pendientes:\n\n"
-                + texto_items(its) + "\n\nActualízalas en el landing cuanto antes.",
+                "Estas acciones de tu país pasaron su fecha de compromiso y siguen sin cumplirse. Actualízalas cuanto antes desde el landing.",
+                [(None, tabla_html(its))],
             )
+            enviar_correo(destinatarios, "⚠ Acciones vencidas hoy — " + PAISES.get(pais, pais), html_body)
 
-    enviar_correo(
-        [REGIONAL_EMAIL],
+    html_regional = plantilla_html(
+        "Alerta diaria",
         "Nuevas acciones vencidas hoy — todos los países",
-        "Se marcaron como vencidas hoy:\n\n" + texto_items(nuevas),
+        "Se marcaron como vencidas hoy en el sistema:",
+        [(None, tabla_html(nuevas))],
     )
+    enviar_correo([REGIONAL_EMAIL], "⚠ Nuevas acciones vencidas hoy (%d)" % len(nuevas), html_regional)
 
     marcar_notificadas(nuevas)
     print("Notificadas %d acciones nuevas vencidas." % len(nuevas))
@@ -207,21 +281,22 @@ def paso_semanal(items, usuarios_por_pais):
     for pais, its in por_pais.items():
         destinatarios = usuarios_por_pais.get(pais, [])
         if destinatarios:
-            enviar_correo(
-                destinatarios,
+            html_body = plantilla_html(
+                "Resumen semanal",
                 "Resumen semanal — acciones vencidas de " + PAISES.get(pais, pais),
-                "Todas las acciones vencidas de tu país al día de hoy:\n\n" + texto_items(its),
+                "Todas las acciones vencidas de tu país al día de hoy (%d en total):" % len(its),
+                [(None, tabla_html(its))],
             )
+            enviar_correo(destinatarios, "📋 Resumen semanal — " + PAISES.get(pais, pais), html_body)
 
-    cuerpo_regional = ""
-    for pais, its in por_pais.items():
-        cuerpo_regional += "\n== %s (%d) ==\n%s\n" % (PAISES.get(pais, pais), len(its), texto_items(its))
-
-    enviar_correo(
-        [REGIONAL_EMAIL],
-        "Resumen semanal consolidado — acciones vencidas (todos los países)",
-        "Total de acciones vencidas: %d\n%s" % (len(vencidas), cuerpo_regional),
+    secciones = [(PAISES.get(pais, pais) + " (" + str(len(its)) + ")", tabla_html(its)) for pais, its in por_pais.items()]
+    html_regional = plantilla_html(
+        "Resumen semanal",
+        "Resumen semanal consolidado — todos los países",
+        "Total de acciones vencidas en la región: <strong>%d</strong>" % len(vencidas),
+        secciones,
     )
+    enviar_correo([REGIONAL_EMAIL], "📋 Resumen semanal consolidado (%d vencidas)" % len(vencidas), html_regional)
     print("Resumen semanal enviado con %d acciones vencidas." % len(vencidas))
 
 
