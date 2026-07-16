@@ -749,7 +749,10 @@ async function handleSignup(email, password){
     renderAuthBar();
     return;
   }
-  const { data, error } = await sb.auth.signUp({ email: emailNorm, password });
+  const { data, error } = await sb.auth.signUp({
+    email: emailNorm, password,
+    options: { emailRedirectTo: window.location.href.split('#')[0] }
+  });
   if(error){ authError = 'No se pudo crear la cuenta: ' + error.message; renderAuthBar(); return; }
   if(data.user){
     await sb.from('perfiles_usuario').update({ user_id: data.user.id }).eq('id', preauth.id);
