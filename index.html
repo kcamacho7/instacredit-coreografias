@@ -2383,7 +2383,7 @@ function crearBadgeHistorial(getHistorial){
     e.preventDefault();
     const hist = getHistorial() || [];
     if(!hist.length) return;
-    const texto = hist.map((h,idx)=> (idx+1) + '. Fecha anterior: ' + h.fechaAnterior + (h.horaAnterior ? ' ' + h.horaAnterior : '') + ' — ajustada por Riesgo Regional el ' + new Date(h.ajustadaEl).toLocaleString('es-CR')).join('\n');
+    const texto = hist.map((h,idx)=> (idx+1) + '. ' + h.fechaAnterior + (h.horaAnterior ? ' ' + h.horaAnterior : '') + ' → ' + h.fechaNueva + (h.horaNueva ? ' ' + h.horaNueva : '') + ' — ajustada por Riesgo Regional el ' + new Date(h.ajustadaEl).toLocaleString('es-CR')).join('\n');
     alert('Historial de cambios de fecha:\n\n' + texto);
   });
   const refrescar = ()=>{ btn.style.display = (getHistorial() && getHistorial().length) ? 'inline-block' : 'none'; };
@@ -2413,7 +2413,7 @@ function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
     }
     if(comprometida && regionalUnlocked && fechaAccionInput.value !== comprometida){
       if(!accion.historialFechas) accion.historialFechas = [];
-      accion.historialFechas.push({ fechaAnterior: comprometida, ajustadaEl: new Date().toISOString() });
+      accion.historialFechas.push({ fechaAnterior: comprometida, fechaNueva: fechaAccionInput.value, ajustadaEl: new Date().toISOString() });
       refrescarBadge();
     }
     comprometida = fechaAccionInput.value;
@@ -2504,7 +2504,7 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
     if(comprometida && !regionalUnlocked){ bloquear(); return; }
     if(comprometida && regionalUnlocked && fechaInput.value !== obj[fechaField]){
       if(!obj[historyKey]) obj[historyKey] = [];
-      obj[historyKey].push({ fechaAnterior: obj[fechaField], horaAnterior: obj[horaField], ajustadaEl: new Date().toISOString() });
+      obj[historyKey].push({ fechaAnterior: obj[fechaField], horaAnterior: obj[horaField], fechaNueva: fechaInput.value, horaNueva: horaInput.value, ajustadaEl: new Date().toISOString() });
       refrescarBadge();
     }
     obj[fechaField] = fechaInput.value;
