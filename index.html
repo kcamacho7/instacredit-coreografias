@@ -554,7 +554,8 @@ function validarAntesDeGuardar(code){
 async function saveActiveCountry(){
   const activeBtn = document.querySelector('.tab-btn.active');
   const code = activeBtn.dataset.pais;
-  if(!currentUserProfile || currentUserProfile.pais_code !== code){
+  const puedeEditar = currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.pais_code === code);
+  if(!puedeEditar){
     alert('No tienes permiso para editar ' + code + '. Inicia sesión con la cuenta asignada a ese país.');
     return;
   }
@@ -759,8 +760,10 @@ function renderAuthBar(){
       : null;
     const status = document.createElement('span');
     status.className = 'auth-status';
-    status.innerHTML = 'Sesión: ' + escapeAttr(currentUser.email) + ' — ' +
-      (paisNombre ? '<span class="pais-asignado">' + paisNombre + '</span>' : '<span class="sin-pais">sin país asignado, contacta a Riesgo Regional</span>');
+    const etiquetaAcceso = currentUserProfile && currentUserProfile.es_regional
+      ? '<span class="pais-asignado">Riesgo Regional — edita los 4 países</span>'
+      : (paisNombre ? '<span class="pais-asignado">' + paisNombre + '</span>' : '<span class="sin-pais">sin país asignado, contacta a Riesgo Regional</span>');
+    status.innerHTML = 'Sesión: ' + escapeAttr(currentUser.email) + ' — ' + etiquetaAcceso;
     bar.appendChild(status);
 
     const btnOut = document.createElement('button');
@@ -1776,7 +1779,7 @@ async function loadBitacora(listWrap){
 
 function renderPais(paisCode){
   const wrap = document.createElement('div');
-  const isUnlocked = !!(currentUserProfile && currentUserProfile.pais_code === paisCode);
+  const isUnlocked = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.pais_code === paisCode));
 
   const pinBar = document.createElement('div');
   pinBar.className = 'pin-bar' + (isUnlocked ? ' unlocked' : '');
