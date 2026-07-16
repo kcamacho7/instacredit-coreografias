@@ -635,6 +635,10 @@ async function cargarPerfilUsuario(){
   if(!currentUser){ currentUserProfile = null; return; }
   const { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
   currentUserProfile = data || null;
+  if(currentUserProfile && currentUserProfile.es_regional){
+    regionalUnlocked = true;
+    sessionStorage.setItem(REGIONAL_UNLOCK_KEY, '1');
+  }
 }
 
 async function checkSesionInicial(){
@@ -1274,7 +1278,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
   } else {
     const table = document.createElement('table');
     table.className = 'coreo';
-    table.innerHTML = '<tr><th style="width:32%;">Correo</th><th style="width:16%;">Estado</th><th style="width:22%;">País asignado</th><th style="width:30%;">&nbsp;</th></tr>';
+    table.innerHTML = '<tr><th style="width:28%;">Correo</th><th style="width:14%;">Estado</th><th style="width:18%;">País asignado</th><th style="width:12%;">Regional</th><th style="width:28%;">&nbsp;</th></tr>';
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
 
@@ -1287,6 +1291,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         <td>${escapeAttr(u.email)}</td>
         <td>${u.user_id ? '<span style="color:var(--verde);font-weight:700;">Registrado</span>' : '<span style="color:var(--azul-claro);">Pendiente de registro</span>'}</td>
         <td><select class="estado">${opciones}</select></td>
+        <td style="text-align:center;"><input type="checkbox" class="es-regional" ${u.es_regional ? 'checked' : ''}></td>
         <td style="white-space:nowrap;">
           <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-right:6px;">Guardar</button>
           <button type="button" class="btn-eliminar-proyecto">Quitar acceso</button>
@@ -1295,13 +1300,14 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       const [btnGuardar, btnQuitar] = tr.querySelectorAll('button');
       btnGuardar.addEventListener('click', async ()=>{
         const nuevoPais = tr.querySelector('select').value || null;
-        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais }).eq('id', u.id);
+        const esRegional = tr.querySelector('.es-regional').checked;
+        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional }).eq('id', u.id);
         if(err){ alert('Error: ' + err.message); return; }
         if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
-        alert('País asignado a ' + escapeAttr(u.email) + '.');
+        alert('Cambios guardados para ' + escapeAttr(u.email) + '.');
       });
       btnQuitar.addEventListener('click', async ()=>{
-        if(!confirm('¿Quitar el acceso de ' + u.email + '? ' + (u.user_id ? 'Su cuenta ya no podrá editar ningún país.' : 'Se cancela la preautorización antes de que se haya registrado.'))) return;
+        if(!confirm('¿Quitar el acceso de ' + u.email + '? ' + (u.user_id ? 'Su cuenta ya no podrá editar ningún país ni entrar a Regional.' : 'Se cancela la preautorización antes de que se haya registrado.'))) return;
         const { error: err } = await sb.from('perfiles_usuario').delete().eq('id', u.id);
         if(err){ alert('Error: ' + err.message); return; }
         loadMantenimientoUsuarios(usuariosWrap);
@@ -1326,15 +1332,21 @@ async function loadMantenimientoUsuarios(usuariosWrap){
           ${PAISES.map(p=> '<option value="' + p.code + '">' + p.nombre + '</option>').join('')}
         </select>
       </div>
-      <div></div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;">
+          <input type="checkbox" class="nuevo-regional"> Es Riesgo Regional
+        </label>
+      </div>
     </div>
     <button type="button" class="add-proyecto-btn" style="margin:0;">+ Preautorizar correo</button>
   `;
   addCard.querySelector('button').addEventListener('click', async ()=>{
     const email = addCard.querySelector('.nuevo-email').value.trim().toLowerCase();
     const pais = addCard.querySelector('.nuevo-pais').value || null;
+    const esRegional = addCard.querySelector('.nuevo-regional').checked;
     if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
-    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, pais_code: pais }]);
+    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, pais_code: pais, es_regional: esRegional }]);
     if(err){ alert('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
   });
