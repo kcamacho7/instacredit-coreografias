@@ -149,7 +149,8 @@
     white-space:nowrap;
   }
   .tab-btn.active{color:var(--azul);border-bottom-color:var(--verde);}
-  .tab-btn-regional{margin-left:auto;color:var(--rojo);}
+  .tab-btn-regional{color:var(--rojo);}
+  .tab-btn-regional-push{margin-left:auto;}
   .tab-btn-regional.active{border-bottom-color:var(--rojo);}
   .tab-panel{display:none;padding-top:28px;}
   .tab-panel.active{display:block;}
@@ -935,7 +936,7 @@ function renderTabs(){
 
   if(regionalUnlocked){
     const rgBtn = document.createElement('button');
-    rgBtn.className = 'tab-btn tab-btn-regional';
+    rgBtn.className = 'tab-btn tab-btn-regional tab-btn-regional-push';
     rgBtn.innerHTML = '<img src="assets/isotipo_instacredit.png" alt="" style="height:1em;width:auto;vertical-align:-0.15em;margin-right:.35em;"> KPI y tareas Regional';
     rgBtn.dataset.pais = 'RG';
     rgBtn.addEventListener('click', ()=> selectTab('RG'));
@@ -949,7 +950,7 @@ function renderTabs(){
   }
 
   const regionalBtn = document.createElement('button');
-  regionalBtn.className = 'tab-btn tab-btn-regional';
+  regionalBtn.className = 'tab-btn tab-btn-regional' + (regionalUnlocked ? '' : ' tab-btn-regional-push');
   regionalBtn.textContent = '🔒 Riesgo Regional';
   regionalBtn.dataset.pais = 'REGIONAL';
   regionalBtn.addEventListener('click', ()=> selectTab('REGIONAL'));
