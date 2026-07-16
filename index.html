@@ -211,7 +211,7 @@
   }
   table.coreo td textarea{resize:none;overflow-y:hidden;min-height:26px;line-height:1.35;display:block;}
   table.coreo td input:focus, table.coreo td select:focus, table.coreo td textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
-  .row-actions{width:34px;text-align:center;}
+  .row-actions{width:56px;text-align:center;white-space:nowrap;}
   .row-actions button{background:none;border:none;color:var(--rojo);cursor:pointer;font-size:15px;font-weight:700;}
   .add-row-btn{
     margin:0 20px 18px 20px;
@@ -1737,7 +1737,7 @@ function renderPais(paisCode){
                 <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
               </select>
             </td>
-            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="Marcar cumplida (Riesgo Regional)"' + (accion.estado==='Cumplida'?' disabled':'') + '>' + (accion.estado==='Cumplida'?'✓ Cumplida':'✓') + '</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
           `;
           if(regionalUnlocked){
             tr.querySelector('.btn-regional-check').addEventListener('click', (e)=>{
@@ -1955,7 +1955,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
               <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
             </select>
           </td>
-          <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="Marcar cumplida (Riesgo Regional)"' + (accion.estado==='Cumplida'?' disabled':'') + '>' + (accion.estado==='Cumplida'?'✓ Cumplida':'✓') + '</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+          <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
         `;
         if(regionalUnlocked){
           tr.querySelector('.btn-regional-check').addEventListener('click', (e)=>{
@@ -2180,7 +2180,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
                 <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
               </select>
             </td>
-            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="Marcar cumplida (Riesgo Regional)"' + (accion.estado==='Cumplida'?' disabled':'') + '>' + (accion.estado==='Cumplida'?'✓ Cumplida':'✓') + '</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
           `;
           if(regionalUnlocked){
             tr.querySelector('.btn-regional-check').addEventListener('click', (e)=>{
@@ -2307,7 +2307,7 @@ async function regionalMarcarCumplida(tabla, match, acciones, idx, btn){
   const estadoSelect = row.querySelector('[data-f="estado"]');
   if(estadoSelect) estadoSelect.value = 'Cumplida';
   btn.disabled = true;
-  btn.textContent = '✓ Cumplida';
+  btn.title = 'Ya marcada como cumplida';
 }
 
 function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
