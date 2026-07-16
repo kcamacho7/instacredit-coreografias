@@ -1630,18 +1630,25 @@ function renderPais(paisCode){
       </div>
     `;
     const keysConDatos = [];
+    const keysTodos = [];
     area.kpis.forEach(kpi=>{
-      if(kpiTieneContenido(state[paisCode][area.id][kpi.id])) keysConDatos.push(paisCode + '|' + area.id + '|' + kpi.id);
+      const key = paisCode + '|' + area.id + '|' + kpi.id;
+      keysTodos.push(key);
+      if(kpiTieneContenido(state[paisCode][area.id][kpi.id])) keysConDatos.push(key);
     });
     state[paisCode][area.id].customKpis.forEach(c=>{
-      if(kpiTieneContenido(c)) keysConDatos.push(paisCode + '|' + area.id + '|custom|' + c.id);
+      const key = paisCode + '|' + area.id + '|custom|' + c.id;
+      keysTodos.push(key);
+      if(kpiTieneContenido(c)) keysConDatos.push(key);
     });
-    const todosAbiertos = keysConDatos.length > 0 && keysConDatos.every(k=> openAccordions.has(k));
+    // "Contraer" cierra CUALQUIER KPI abierto en este dominio, incluidos los que el
+    // usuario expandió manualmente (no solo los que el botón abrió).
+    const algunoAbierto = keysTodos.some(k=> openAccordions.has(k));
     const btnExpandir = block.querySelector('.btn-expandir-con-datos');
-    btnExpandir.textContent = todosAbiertos ? 'Contraer KPI con datos' : 'Expandir KPI con datos';
+    btnExpandir.textContent = algunoAbierto ? 'Contraer KPI' : 'Expandir KPI con datos';
     btnExpandir.addEventListener('click', ()=>{
-      if(todosAbiertos){
-        keysConDatos.forEach(k=> openAccordions.delete(k));
+      if(algunoAbierto){
+        keysTodos.forEach(k=> openAccordions.delete(k));
       } else {
         keysConDatos.forEach(k=> openAccordions.add(k));
       }
