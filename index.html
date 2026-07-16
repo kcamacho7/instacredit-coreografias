@@ -2386,6 +2386,17 @@ function wireAutoGrow(textareaEl){
   textareaEl.addEventListener('input', ()=> autoGrow(textareaEl));
 }
 
+function colocarBadgeJuntoAInput(input, badge){
+  const wrapper = document.createElement('span');
+  wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;width:100%;';
+  input.parentNode.insertBefore(wrapper, input);
+  wrapper.appendChild(input);
+  wrapper.appendChild(badge);
+  input.style.flex = '1';
+  input.style.minWidth = '0';
+  input.style.width = 'auto';
+}
+
 function crearBadgeHistorial(getHistorial){
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -2413,7 +2424,7 @@ function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
   };
   aplicarClase();
   const { btn: badge, refrescar: refrescarBadge } = crearBadgeHistorial(()=> accion.historialFechas);
-  fechaAccionInput.insertAdjacentElement('afterend', badge);
+  colocarBadgeJuntoAInput(fechaAccionInput, badge);
   fechaAccionInput.addEventListener('change', ()=>{
     if(comprometida && !regionalUnlocked){
       fechaAccionInput.value = comprometida;
@@ -2508,7 +2519,7 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
   aplicarClase();
   const historyKey = '_historial_' + fechaField;
   const { btn: badge, refrescar: refrescarBadge } = crearBadgeHistorial(()=> obj[historyKey]);
-  fechaInput.insertAdjacentElement('afterend', badge);
+  colocarBadgeJuntoAInput(fechaInput, badge);
   const bloquear = ()=>{
     fechaInput.value = obj[fechaField];
     horaInput.value = obj[horaField];
