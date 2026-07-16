@@ -175,6 +175,7 @@
   .kpi-row-header .titulo-wrap{display:flex;align-items:center;gap:8px;min-width:0;}
   .badge-tiene-datos{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--verde);}
   .badge-tiene-datos.completada{background:var(--azul);}
+  .badge-tiene-datos.vencida{background:var(--rojo);}
   .proyecto-toggle{background:none;border:none;color:var(--azul);cursor:pointer;font-size:12px;padding:2px 4px;transition:transform .15s;flex:0 0 auto;}
   .proyecto-card.open .proyecto-toggle{transform:rotate(90deg);}
   .proyecto-card-body{display:none;}
@@ -373,6 +374,19 @@ function proyectoTieneContenido(p){
 }
 function tieneAccionCumplida(obj){
   return (obj.acciones||[]).some(a=> a.estado === 'Cumplida');
+}
+function tieneAccionVencida(obj){
+  return (obj.acciones||[]).some(a=> a.estado === 'Vencida');
+}
+function claseBadgeEstado(obj){
+  if(tieneAccionVencida(obj)) return ' vencida';
+  if(tieneAccionCumplida(obj)) return ' completada';
+  return '';
+}
+function tituloBadgeEstado(obj){
+  if(tieneAccionVencida(obj)) return 'Tiene al menos una acción vencida';
+  if(tieneAccionCumplida(obj)) return 'Tiene al menos una acción cumplida';
+  return 'Tiene información registrada';
 }
 
 function emptyKpiState(){
@@ -1786,7 +1800,7 @@ function renderPais(paisCode){
       const header = document.createElement('div');
       header.className = 'kpi-row-header';
       header.innerHTML = `
-        <span class="titulo-wrap">${kpiTieneContenido(kpiState) ? '<span class="badge-tiene-datos' + (tieneAccionCumplida(kpiState) ? ' completada' : '') + '" title="' + (tieneAccionCumplida(kpiState) ? 'Tiene al menos una acción cumplida' : 'Tiene información registrada') + '"></span>' : ''}<span>${escapeAttr(kpi.nombre)}</span></span>
+        <span class="titulo-wrap">${kpiTieneContenido(kpiState) ? '<span class="badge-tiene-datos' + claseBadgeEstado(kpiState) + '" title="' + tituloBadgeEstado(kpiState) + '"></span>' : ''}<span>${escapeAttr(kpi.nombre)}</span></span>
         <span class="chevron">▶</span>
       `;
       header.addEventListener('click', ()=>{
