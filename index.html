@@ -312,7 +312,9 @@ const AREAS = [
 
 const SUPABASE_URL = 'https://kouwqcmletybfrkispov.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvdXdxY21sZXR5YmZya2lzcG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MjY1ODIsImV4cCI6MjA5ODUwMjU4Mn0.FF3P6lkxmPgD6NMHaBwwuM1Y0ZprRMdsQJjEm08DmiI';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }
+});
 
 const STORAGE_KEY = 'instacredit_coreografias_v1';
 let state = {};
