@@ -225,12 +225,12 @@ def enviar_correo(destinatarios, asunto, cuerpo_html):
             server.sendmail(SMTP_USER, destinatarios, msg.as_string())
 
 
-def marcar_notificadas(items):
+def marcar_flag(items, flag):
     por_fila = {}
     for it in items:
         key = (it["tabla"], it["row_id"])
         por_fila.setdefault(key, it["acciones_full"])
-        por_fila[key][it["idx"]]["notificada"] = True
+        por_fila[key][it["idx"]][flag] = True
     for (tabla, row_id), acciones in por_fila.items():
         sb_patch(tabla, row_id, {"acciones": acciones})
 
@@ -264,8 +264,47 @@ def paso_diario(items, usuarios_por_pais):
     )
     enviar_correo([REGIONAL_EMAIL], "⚠ Nuevas acciones vencidas hoy (%d)" % len(nuevas), html_regional)
 
-    marcar_notificadas(nuevas)
+    marcar_flag(nuevas, "notificada")
     print("Notificadas %d acciones nuevas vencidas." % len(nuevas))
+
+
+def paso_recordatorio(items, usuarios_por_pais):
+    manana = (hoy_cr() + timedelta(days=1)).isoformat()
+    por_vencer = [
+        it for it in items
+        if it["accion"].get("fecha") == manana
+        and it["accion"].get("estado") in ("Pendiente", "En curso")
+        and not it["accion"].get("recordada")
+    ]
+    if not por_vencer:
+        print("Sin acciones que venzan mañana.")
+        return
+
+    por_pais = {}
+    for it in por_vencer:
+        por_pais.setdefault(it["pais"], []).append(it)
+
+    for pais, its in por_pais.items():
+        destinatarios = usuarios_por_pais.get(pais, [])
+        if destinatarios:
+            html_body = plantilla_html(
+                "Recordatorio",
+                "Acciones que vencen mañana — " + PAISES.get(pais, pais),
+                "Estas acciones de tu país tienen fecha de compromiso mañana. Actualiza su estado o resultado antes de que venzan.",
+                [(None, tabla_html(its))],
+            )
+            enviar_correo(destinatarios, "⏰ Recordatorio — acciones que vencen mañana en " + PAISES.get(pais, pais), html_body)
+
+    html_regional = plantilla_html(
+        "Recordatorio",
+        "Acciones que vencen mañana — todos los países",
+        "Se les recordó hoy a los gerentes correspondientes:",
+        [(None, tabla_html(por_vencer))],
+    )
+    enviar_correo([REGIONAL_EMAIL], "⏰ Recordatorio — acciones que vencen mañana (%d)" % len(por_vencer), html_regional)
+
+    marcar_flag(por_vencer, "recordada")
+    print("Recordadas %d acciones que vencen mañana." % len(por_vencer))
 
 
 def paso_semanal(items, usuarios_por_pais):
@@ -324,6 +363,9 @@ def main():
         return
 
     paso_diario(items, usuarios_por_pais)
+
+    items_para_recordatorio = cargar_items(catalogo_cache)
+    paso_recordatorio(items_para_recordatorio, usuarios_por_pais)
 
     forzar_semanal = os.environ.get("FORZAR_SEMANAL", "").lower() == "true"
     if hoy_cr().weekday() == 2 or forzar_semanal:  # 0=lunes ... 2=miércoles

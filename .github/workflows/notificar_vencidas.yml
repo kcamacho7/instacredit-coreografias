@@ -2,7 +2,7 @@ name: Notificar acciones vencidas
 
 on:
   schedule:
-    - cron: "37 12 * * *"
+    - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       forzar_semanal:
