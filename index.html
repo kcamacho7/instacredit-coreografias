@@ -216,6 +216,7 @@
   button.btn-comentario{background:none;border:none;color:var(--azul-claro);cursor:pointer;font-size:13px;padding:0 4px;margin-right:2px;}
   button.btn-comentario.tiene-texto{color:var(--verde);}
   button.btn-comentario:disabled{opacity:.3;cursor:not-allowed;color:var(--gris-borde);}
+  button.btn-historial-fecha{background:none;border:none;color:var(--azul-claro);cursor:pointer;font-size:12px;padding:0 0 0 3px;vertical-align:middle;}
   tr.fila-resultado td{background:#FAFBFC;border-bottom:1px solid var(--gris-borde);padding:8px 10px;}
   tr.fila-resultado label{display:block;font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
   tr.fila-resultado textarea{width:100%;font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:7px 9px;font-size:13px;resize:vertical;}
@@ -2371,6 +2372,25 @@ function wireAutoGrow(textareaEl){
   textareaEl.addEventListener('input', ()=> autoGrow(textareaEl));
 }
 
+function crearBadgeHistorial(getHistorial){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn-historial-fecha';
+  btn.title = 'Ver historial de cambios de esta fecha';
+  btn.textContent = '🕓';
+  btn.style.display = 'none';
+  btn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const hist = getHistorial() || [];
+    if(!hist.length) return;
+    const texto = hist.map((h,idx)=> (idx+1) + '. Fecha anterior: ' + h.fechaAnterior + (h.horaAnterior ? ' ' + h.horaAnterior : '') + ' — ajustada por Riesgo Regional el ' + new Date(h.ajustadaEl).toLocaleString('es-CR')).join('\n');
+    alert('Historial de cambios de fecha:\n\n' + texto);
+  });
+  const refrescar = ()=>{ btn.style.display = (getHistorial() && getHistorial().length) ? 'inline-block' : 'none'; };
+  refrescar();
+  return { btn, refrescar };
+}
+
 function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
   let comprometida = accion.fecha;
   const aplicarClase = ()=>{
@@ -2378,6 +2398,8 @@ function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
     else fechaAccionInput.classList.remove('fecha-definitiva');
   };
   aplicarClase();
+  const { btn: badge, refrescar: refrescarBadge } = crearBadgeHistorial(()=> accion.historialFechas);
+  fechaAccionInput.insertAdjacentElement('afterend', badge);
   fechaAccionInput.addEventListener('change', ()=>{
     if(comprometida && !regionalUnlocked){
       fechaAccionInput.value = comprometida;
@@ -2392,6 +2414,7 @@ function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
     if(comprometida && regionalUnlocked && fechaAccionInput.value !== comprometida){
       if(!accion.historialFechas) accion.historialFechas = [];
       accion.historialFechas.push({ fechaAnterior: comprometida, ajustadaEl: new Date().toISOString() });
+      refrescarBadge();
     }
     comprometida = fechaAccionInput.value;
     accion.fecha = fechaAccionInput.value;
@@ -2469,6 +2492,9 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
     }
   };
   aplicarClase();
+  const historyKey = '_historial_' + fechaField;
+  const { btn: badge, refrescar: refrescarBadge } = crearBadgeHistorial(()=> obj[historyKey]);
+  fechaInput.insertAdjacentElement('afterend', badge);
   const bloquear = ()=>{
     fechaInput.value = obj[fechaField];
     horaInput.value = obj[horaField];
@@ -2477,9 +2503,9 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
   fechaInput.addEventListener('change', ()=>{
     if(comprometida && !regionalUnlocked){ bloquear(); return; }
     if(comprometida && regionalUnlocked && fechaInput.value !== obj[fechaField]){
-      const historyKey = '_historial_' + fechaField;
       if(!obj[historyKey]) obj[historyKey] = [];
       obj[historyKey].push({ fechaAnterior: obj[fechaField], horaAnterior: obj[horaField], ajustadaEl: new Date().toISOString() });
+      refrescarBadge();
     }
     obj[fechaField] = fechaInput.value;
     comprometida = !!obj[fechaField];
