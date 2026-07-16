@@ -632,13 +632,14 @@ async function saveActiveCountry(){
 }
 
 async function cargarPerfilUsuario(){
-  if(!currentUser){ currentUserProfile = null; return; }
+  if(!currentUser){
+    currentUserProfile = null;
+    regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+    return;
+  }
   const { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
   currentUserProfile = data || null;
-  if(currentUserProfile && currentUserProfile.es_regional){
-    regionalUnlocked = true;
-    sessionStorage.setItem(REGIONAL_UNLOCK_KEY, '1');
-  }
+  regionalUnlocked = (currentUserProfile && currentUserProfile.es_regional) || sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
 }
 
 async function checkSesionInicial(){
