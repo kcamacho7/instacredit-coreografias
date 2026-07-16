@@ -1878,24 +1878,7 @@ function renderPais(paisCode){
           });
           tr.querySelectorAll('textarea').forEach(wireAutoGrow);
           const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
-          let fechaAccionComprometida = accion.fecha;
-          if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
-          fechaAccionInput.addEventListener('change', ()=>{
-            if(fechaAccionComprometida){
-              fechaAccionInput.value = fechaAccionComprometida;
-              alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-              return;
-            }
-            if(fechaAccionInput.value && fechaAccionInput.value < HOY){
-              fechaAccionInput.value = '';
-              alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
-              return;
-            }
-            fechaAccionComprometida = fechaAccionInput.value;
-            accion.fecha = fechaAccionInput.value;
-            fechaAccionInput.classList.add('fecha-definitiva');
-            markDirty();
-          });
+          wireFechaAccionDefinitiva(fechaAccionInput, accion, markDirty);
           tr.querySelector('[data-remove]').addEventListener('click', ()=>{
             kpiState.acciones.splice(i,1);
             if(kpiState.acciones.length===0) kpiState.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
@@ -2100,24 +2083,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
         });
         tr.querySelectorAll('textarea').forEach(wireAutoGrow);
         const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
-        let fechaAccionComprometida = accion.fecha;
-        if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
-        fechaAccionInput.addEventListener('change', ()=>{
-          if(fechaAccionComprometida){
-            fechaAccionInput.value = fechaAccionComprometida;
-            alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-            return;
-          }
-          if(fechaAccionInput.value && fechaAccionInput.value < HOY){
-            fechaAccionInput.value = '';
-            alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
-            return;
-          }
-          fechaAccionComprometida = fechaAccionInput.value;
-          accion.fecha = fechaAccionInput.value;
-          fechaAccionInput.classList.add('fecha-definitiva');
-          markDirty();
-        });
+        wireFechaAccionDefinitiva(fechaAccionInput, accion, markDirty);
         tr.querySelector('[data-remove]').addEventListener('click', ()=>{
           c.acciones.splice(i,1);
           if(c.acciones.length===0) c.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
@@ -2329,24 +2295,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
           });
           tr.querySelectorAll('textarea').forEach(wireAutoGrow);
           const fechaAccionInput = tr.querySelector('[data-f="fecha"]');
-          let fechaAccionComprometida = accion.fecha;
-          if(fechaAccionComprometida) fechaAccionInput.classList.add('fecha-definitiva');
-          fechaAccionInput.addEventListener('change', ()=>{
-            if(fechaAccionComprometida){
-              fechaAccionInput.value = fechaAccionComprometida;
-              alert('La fecha de compromiso de esta acción ya fue definida (' + fechaAccionComprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
-              return;
-            }
-            if(fechaAccionInput.value && fechaAccionInput.value < HOY){
-              fechaAccionInput.value = '';
-              alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
-              return;
-            }
-            fechaAccionComprometida = fechaAccionInput.value;
-            accion.fecha = fechaAccionInput.value;
-            fechaAccionInput.classList.add('fecha-definitiva');
-            markDirty();
-          });
+          wireFechaAccionDefinitiva(fechaAccionInput, accion, markDirty);
           tr.querySelector('[data-remove]').addEventListener('click', ()=>{
             proy.acciones.splice(i,1);
             if(proy.acciones.length===0) proy.acciones.push({accion:'',responsable:'',fecha:'',estado:'Pendiente'});
@@ -2422,6 +2371,35 @@ function wireAutoGrow(textareaEl){
   textareaEl.addEventListener('input', ()=> autoGrow(textareaEl));
 }
 
+function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
+  let comprometida = accion.fecha;
+  const aplicarClase = ()=>{
+    if(comprometida && !regionalUnlocked) fechaAccionInput.classList.add('fecha-definitiva');
+    else fechaAccionInput.classList.remove('fecha-definitiva');
+  };
+  aplicarClase();
+  fechaAccionInput.addEventListener('change', ()=>{
+    if(comprometida && !regionalUnlocked){
+      fechaAccionInput.value = comprometida;
+      alert('La fecha de compromiso de esta acción ya fue definida (' + comprometida + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha.');
+      return;
+    }
+    if(fechaAccionInput.value && fechaAccionInput.value < HOY && !regionalUnlocked){
+      fechaAccionInput.value = '';
+      alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
+      return;
+    }
+    if(comprometida && regionalUnlocked && fechaAccionInput.value !== comprometida){
+      if(!accion.historialFechas) accion.historialFechas = [];
+      accion.historialFechas.push({ fechaAnterior: comprometida, ajustadaEl: new Date().toISOString() });
+    }
+    comprometida = fechaAccionInput.value;
+    accion.fecha = fechaAccionInput.value;
+    aplicarClase();
+    onDirty();
+  });
+}
+
 function crearFilaResultado(colspan, accion, onDirty){
   const trDet = document.createElement('tr');
   trDet.className = 'fila-resultado';
@@ -2481,28 +2459,36 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
   const horaInput = container.querySelector('[data-field="' + horaField + '"]');
   let comprometida = !!obj[fechaField];
   obj['_locked_' + fechaField] = comprometida;
-  if(comprometida){
-    fechaInput.classList.add('fecha-definitiva');
-    horaInput.classList.add('fecha-definitiva');
-  }
+  const aplicarClase = ()=>{
+    if(comprometida && !regionalUnlocked){
+      fechaInput.classList.add('fecha-definitiva');
+      horaInput.classList.add('fecha-definitiva');
+    } else {
+      fechaInput.classList.remove('fecha-definitiva');
+      horaInput.classList.remove('fecha-definitiva');
+    }
+  };
+  aplicarClase();
   const bloquear = ()=>{
     fechaInput.value = obj[fechaField];
     horaInput.value = obj[horaField];
     alert('La ' + label + ' ya fue definida (' + obj[fechaField] + (obj[horaField] ? ' ' + obj[horaField] : '') + ') y es definitiva. Si necesitas cambiarla, comunícate con Riesgo Regional para coordinar una nueva fecha/hora.');
   };
   fechaInput.addEventListener('change', ()=>{
-    if(comprometida){ bloquear(); return; }
+    if(comprometida && !regionalUnlocked){ bloquear(); return; }
+    if(comprometida && regionalUnlocked && fechaInput.value !== obj[fechaField]){
+      const historyKey = '_historial_' + fechaField;
+      if(!obj[historyKey]) obj[historyKey] = [];
+      obj[historyKey].push({ fechaAnterior: obj[fechaField], horaAnterior: obj[horaField], ajustadaEl: new Date().toISOString() });
+    }
     obj[fechaField] = fechaInput.value;
     comprometida = !!obj[fechaField];
     obj['_locked_' + fechaField] = comprometida;
-    if(comprometida){
-      fechaInput.classList.add('fecha-definitiva');
-      horaInput.classList.add('fecha-definitiva');
-    }
+    aplicarClase();
     markDirty();
   });
   horaInput.addEventListener('change', ()=>{
-    if(comprometida){ bloquear(); return; }
+    if(comprometida && !regionalUnlocked){ bloquear(); return; }
     obj[horaField] = horaInput.value;
     markDirty();
   });
