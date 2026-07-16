@@ -211,8 +211,13 @@
   }
   table.coreo td textarea{resize:none;overflow-y:hidden;min-height:26px;line-height:1.35;display:block;}
   table.coreo td input:focus, table.coreo td select:focus, table.coreo td textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
-  .row-actions{width:56px;text-align:center;white-space:nowrap;}
+  .row-actions{width:78px;text-align:center;white-space:nowrap;}
   .row-actions button{background:none;border:none;color:var(--rojo);cursor:pointer;font-size:15px;font-weight:700;}
+  button.btn-comentario{background:none;border:none;color:var(--azul-claro);cursor:pointer;font-size:13px;padding:0 4px;margin-right:2px;}
+  button.btn-comentario.tiene-texto{color:var(--verde);}
+  tr.fila-resultado td{background:#FAFBFC;border-bottom:1px solid var(--gris-borde);padding:8px 10px;}
+  tr.fila-resultado label{display:block;font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
+  tr.fila-resultado textarea{width:100%;font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:7px 9px;font-size:13px;resize:vertical;}
   .add-row-btn{
     margin:0 20px 18px 20px;
     background:none;
@@ -1852,13 +1857,15 @@ function renderPais(paisCode){
                 <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
               </select>
             </td>
-            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" class="btn-comentario" title="Ver/agregar resultado">💬</button><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
           `;
           if(regionalUnlocked){
             tr.querySelector('.btn-regional-check').addEventListener('click', (e)=>{
               regionalMarcarCumplida('coreografias', { pais_code: paisCode, area_id: area.id, kpi_id: kpi.id }, kpiState.acciones, i, e.target);
             });
           }
+          const filaResultado = crearFilaResultado(6, accion, markDirty);
+          wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
           tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
@@ -1893,6 +1900,7 @@ function renderPais(paisCode){
             markDirty();
           });
           tbody.appendChild(tr);
+          tbody.appendChild(filaResultado);
         });
       }
       renderAcciones();
@@ -2070,13 +2078,15 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
               <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
             </select>
           </td>
-          <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+          <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" class="btn-comentario" title="Ver/agregar resultado">💬</button><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
         `;
         if(regionalUnlocked){
           tr.querySelector('.btn-regional-check').addEventListener('click', (e)=>{
             regionalMarcarCumplida('kpis_adicionales', { id: c.id }, c.acciones, i, e.target);
           });
         }
+        const filaResultado = crearFilaResultado(6, accion, markDirty);
+        wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
         tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
           const ev = el.tagName === 'SELECT' ? 'change' : 'input';
           el.addEventListener(ev, ()=>{
@@ -2111,6 +2121,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           markDirty();
         });
         tbody.appendChild(tr);
+        tbody.appendChild(filaResultado);
       });
     }
     renderAcciones();
@@ -2295,13 +2306,15 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
                 <option value="Vencida" ${accion.estado==='Vencida'?'selected':''}>Vencida</option>
               </select>
             </td>
-            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
+            <td class="row-actions">${regionalUnlocked ? '<button type="button" class="btn-regional-check" title="' + (accion.estado==='Cumplida'?'Ya marcada como cumplida':'Marcar cumplida') + '"' + (accion.estado==='Cumplida'?' disabled':'') + '>✓</button>' : ''}<button type="button" class="btn-comentario" title="Ver/agregar resultado">💬</button><button type="button" title="Eliminar fila" data-remove="${i}">×</button></td>
           `;
           if(regionalUnlocked){
             tr.querySelector('.btn-regional-check').addEventListener('click', (e)=>{
               regionalMarcarCumplida('proyectos_especiales', { id: proy.id }, proy.acciones, i, e.target);
             });
           }
+          const filaResultado = crearFilaResultado(6, accion, markDirty);
+          wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
           tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
@@ -2336,6 +2349,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             markDirty();
           });
           tbody.appendChild(tr);
+          tbody.appendChild(filaResultado);
         });
       }
       renderAcciones();
@@ -2401,6 +2415,25 @@ function autoGrow(el){
 function wireAutoGrow(textareaEl){
   autoGrow(textareaEl);
   textareaEl.addEventListener('input', ()=> autoGrow(textareaEl));
+}
+
+function crearFilaResultado(colspan, accion, onDirty){
+  const trDet = document.createElement('tr');
+  trDet.className = 'fila-resultado';
+  trDet.style.display = 'none';
+  trDet.innerHTML = '<td colspan="' + colspan + '"><label>Resultado obtenido</label><textarea rows="2" placeholder="Describe el resultado obtenido con esta acción...">' + escapeAttr(accion.resultado) + '</textarea></td>';
+  const ta = trDet.querySelector('textarea');
+  ta.addEventListener('input', ()=>{ accion.resultado = ta.value; autoGrow(ta); onDirty(); });
+  return trDet;
+}
+
+function wireBtnComentario(btn, trDet, accion){
+  if(accion.resultado && accion.resultado.trim()) btn.classList.add('tiene-texto');
+  btn.addEventListener('click', ()=>{
+    const abrir = trDet.style.display === 'none';
+    trDet.style.display = abrir ? 'table-row' : 'none';
+    if(abrir) autoGrow(trDet.querySelector('textarea'));
+  });
 }
 
 function escapeAttr(v){
