@@ -683,6 +683,8 @@ async function handleLogout(){
   await sb.auth.signOut();
   currentUser = null;
   currentUserProfile = null;
+  regionalUnlocked = false;
+  sessionStorage.removeItem(REGIONAL_UNLOCK_KEY);
   renderAuthBar();
   renderTabs();
 }

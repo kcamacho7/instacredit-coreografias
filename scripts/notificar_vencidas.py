@@ -50,13 +50,13 @@ KPI_NOMBRE = {
 
 LANDING_URL = "https://kcamacho7.github.io/instacredit-coreografias/"
 
-VERDE = "#4C9C2E"
-AZUL = "#002554"
-ROJO = "#EE212E"
-VERDE_CLARO = "#CEF0C4"
-GRIS_TEXTO = "#333333"
+VERDE = "#46A139"
+AZUL = "#1D2953"
+ROJO = "#EE232E"
+VERDE_CLARO = "#7CC36A"
+GRIS_TEXTO = "#333740"
 GRIS_BORDE = "#D2D2D2"
-FONDO = "#F5FCF3"
+FONDO = "#F2F4F7"
 
 
 def esc(v):
