@@ -1011,6 +1011,25 @@ function renderRegional(){
     subpanelsWrap.appendChild(block);
     wireColapsarSeccion(block.querySelector('.area-header'), body, 'bitacora');
     loadBitacora(listWrap);
+
+    const blockProy = document.createElement('div');
+    blockProy.className = 'area-block proyecto-area';
+    blockProy.innerHTML = `
+      <div class="area-header">
+        <h2>Bitácora de proyectos especiales eliminados</h2>
+        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+      </div>
+    `;
+    const bodyProy = document.createElement('div');
+    bodyProy.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> cada vez que un gerente (o Riesgo Regional) elimina un proyecto especial, queda registrado aquí con los últimos datos que tenía antes de borrarlo.</div>';
+    const listWrapProy = document.createElement('div');
+    listWrapProy.id = 'bitacora-proyectos-list';
+    listWrapProy.innerHTML = '<div class="sin-proyectos">Cargando bitácora…</div>';
+    bodyProy.appendChild(listWrapProy);
+    blockProy.appendChild(bodyProy);
+    subpanelsWrap.appendChild(blockProy);
+    wireColapsarSeccion(blockProy.querySelector('.area-header'), bodyProy, 'bitacora_proyectos');
+    loadBitacoraProyectos(listWrapProy);
   }
 
   if(seccionVisible('fechas')){
@@ -1770,6 +1789,66 @@ async function loadBitacora(listWrap){
       <div style="margin-bottom:6px;"><strong>Responsable:</strong> ${escapeAttr(row.responsable) || '—'}</div>
       <div style="margin-bottom:6px;"><strong>Punto de control:</strong> ${escapeAttr(row.punto_control) || '—'}</div>
       <div style="margin-bottom:6px;"><strong>Fecha de revisión:</strong> ${row.fecha_revision || '—'}</div>
+      <div><strong>Acciones registradas:</strong><br>${accionesTexto || '—'}</div>
+    `;
+    card.appendChild(info);
+    listWrap.appendChild(card);
+  });
+}
+
+async function loadBitacoraProyectos(listWrap){
+  const { data, error } = await sb.from('proyectos_especiales_log').select('*').order('deleted_at', { ascending: false });
+  if(error){
+    listWrap.innerHTML = '<div class="sin-proyectos">Error al cargar la bitácora: ' + error.message + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    listWrap.innerHTML = '<div class="sin-proyectos">Sin proyectos especiales eliminados registrados todavía.</div>';
+    return;
+  }
+  listWrap.innerHTML = '';
+
+  const clearAllBtn = document.createElement('button');
+  clearAllBtn.type = 'button';
+  clearAllBtn.className = 'add-proyecto-btn';
+  clearAllBtn.style.background = 'var(--rojo)';
+  clearAllBtn.textContent = 'Vaciar toda la bitácora (' + data.length + ')';
+  clearAllBtn.addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
+    const { error: delAllErr } = await sb.from('proyectos_especiales_log').delete().not('id', 'is', null);
+    if(delAllErr){ alert('Error: ' + delAllErr.message); return; }
+    loadBitacoraProyectos(listWrap);
+  });
+  listWrap.appendChild(clearAllBtn);
+
+  data.forEach(row=>{
+    const paisNombre = (PAISES.find(p=>p.code===row.pais_code) || {}).nombre || row.pais_code;
+    const card = document.createElement('div');
+    card.className = 'proyecto-card';
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'proyecto-card-header';
+    headerRow.innerHTML = `
+      <span style="font-weight:800;color:var(--azul);">${escapeAttr(row.nombre || '(sin nombre)')} — ${paisNombre}</span>
+      <button type="button" class="btn-eliminar-proyecto">Eliminar registro</button>
+    `;
+    headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+      const { error: delErr } = await sb.from('proyectos_especiales_log').delete().eq('id', row.id);
+      if(delErr){ alert('Error: ' + delErr.message); return; }
+      loadBitacoraProyectos(listWrap);
+    });
+    card.appendChild(headerRow);
+
+    const info = document.createElement('div');
+    info.style.padding = '12px 20px';
+    info.style.fontSize = '13px';
+    const accionesTexto = (row.acciones || []).map((a,i)=> (i+1) + '. ' + (a.accion||'(sin descripción)') + ' — ' + (a.responsable||'—') + ' — ' + (a.fecha||'sin fecha') + ' — ' + (a.estado||'')).join('<br>');
+    info.innerHTML = `
+      <div style="margin-bottom:6px;"><strong>Eliminado:</strong> ${new Date(row.deleted_at).toLocaleString('es-CR')}</div>
+      <div style="margin-bottom:6px;"><strong>Descripción:</strong> ${escapeAttr(row.descripcion) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Responsable:</strong> ${escapeAttr(row.responsable) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Estado:</strong> ${escapeAttr(row.estado) || '—'}</div>
+      <div style="margin-bottom:6px;"><strong>Fecha de seguimiento:</strong> ${row.fecha_seguimiento || '—'} ${row.hora_seguimiento || ''}</div>
       <div><strong>Acciones registradas:</strong><br>${accionesTexto || '—'}</div>
     `;
     card.appendChild(info);
