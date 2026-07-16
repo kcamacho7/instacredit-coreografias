@@ -215,6 +215,7 @@
   .row-actions button{background:none;border:none;color:var(--rojo);cursor:pointer;font-size:15px;font-weight:700;}
   button.btn-comentario{background:none;border:none;color:var(--azul-claro);cursor:pointer;font-size:13px;padding:0 4px;margin-right:2px;}
   button.btn-comentario.tiene-texto{color:var(--verde);}
+  button.btn-comentario:disabled{opacity:.3;cursor:not-allowed;color:var(--gris-borde);}
   tr.fila-resultado td{background:#FAFBFC;border-bottom:1px solid var(--gris-borde);padding:8px 10px;}
   tr.fila-resultado label{display:block;font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
   tr.fila-resultado textarea{width:100%;font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:7px 9px;font-size:13px;resize:vertical;}
@@ -1865,12 +1866,13 @@ function renderPais(paisCode){
             });
           }
           const filaResultado = crearFilaResultado(6, accion, markDirty);
-          wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
+          const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
           tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
               accion[el.dataset.f] = el.value;
               markDirty();
+              if(el.dataset.f === 'estado') refrescarComentario();
             });
           });
           tr.querySelectorAll('textarea').forEach(wireAutoGrow);
@@ -2086,12 +2088,13 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
           });
         }
         const filaResultado = crearFilaResultado(6, accion, markDirty);
-        wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
+        const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
         tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
           const ev = el.tagName === 'SELECT' ? 'change' : 'input';
           el.addEventListener(ev, ()=>{
             accion[el.dataset.f] = el.value;
             markDirty();
+            if(el.dataset.f === 'estado') refrescarComentario();
           });
         });
         tr.querySelectorAll('textarea').forEach(wireAutoGrow);
@@ -2314,12 +2317,13 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
             });
           }
           const filaResultado = crearFilaResultado(6, accion, markDirty);
-          wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
+          const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, accion);
           tr.querySelectorAll('[data-f]:not([data-f="fecha"])').forEach(el=>{
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, ()=>{
               accion[el.dataset.f] = el.value;
               markDirty();
+              if(el.dataset.f === 'estado') refrescarComentario();
             });
           });
           tr.querySelectorAll('textarea').forEach(wireAutoGrow);
@@ -2434,6 +2438,14 @@ function wireBtnComentario(btn, trDet, accion){
     trDet.style.display = abrir ? 'table-row' : 'none';
     if(abrir) autoGrow(trDet.querySelector('textarea'));
   });
+  const actualizarDisponibilidad = ()=>{
+    const habilitado = accion.estado === 'Cumplida';
+    btn.disabled = !habilitado;
+    btn.title = habilitado ? 'Ver/agregar resultado' : 'Disponible cuando la acción esté Cumplida';
+    if(!habilitado) trDet.style.display = 'none';
+  };
+  actualizarDisponibilidad();
+  return actualizarDisponibilidad;
 }
 
 function escapeAttr(v){
@@ -2456,6 +2468,11 @@ async function regionalMarcarCumplida(tabla, match, acciones, idx, btn){
   if(estadoSelect) estadoSelect.value = 'Cumplida';
   btn.disabled = true;
   btn.title = 'Ya marcada como cumplida';
+  const btnComentario = row.querySelector('.btn-comentario');
+  if(btnComentario){
+    btnComentario.disabled = false;
+    btnComentario.title = 'Ver/agregar resultado';
+  }
 }
 
 function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
