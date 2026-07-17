@@ -2669,10 +2669,11 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
   block.innerHTML = `
     <div class="area-header">
       <h2>Acuerdos de reunión</h2>
-      <span>${esVistaRegional ? 'Acuerdos asignados a los usuarios de este país' : 'Acuerdos personales asignados a ti'}</span>
+      <span class="header-right"><span>${esVistaRegional ? 'Acuerdos asignados a los usuarios de este país' : 'Acuerdos personales asignados a ti'}</span><button type="button" class="btn-colapsar-seccion"></button></span>
     </div>
-    <div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones${esVistaRegional ? ', asignados a cualquier usuario de este país' : ' y te fueron asignados a ti directamente'}.</div>
   `;
+  const body = document.createElement('div');
+  body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones' + (esVistaRegional ? ', asignados a cualquier usuario de este país' : ' y te fueron asignados a ti directamente') + '.</div>';
   const table = document.createElement('table');
   table.className = 'coreo';
   table.innerHTML = '<tr><th style="width:5%;">#</th><th style="width:' + (esVistaRegional?'30%':'36%') + ';">Acuerdo</th><th style="width:18%;">Responsable</th>' +
@@ -2726,8 +2727,10 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
     tbody.appendChild(filaResultado);
   });
 
-  block.appendChild(table);
+  body.appendChild(table);
+  block.appendChild(body);
   wrap.appendChild(block);
+  wireColapsarSeccion(block.querySelector('.area-header'), body, 'acuerdos-reunion-' + paisCode + (esVistaRegional ? '-regional' : ''));
 }
 
 function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
