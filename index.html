@@ -1308,7 +1308,9 @@ async function cargarListaReuniones(listWrap){
 
   for(const reunion of reuniones){
     const { data: acuerdos } = await sb.from('acuerdos_reunion').select('*').eq('reunion_id', reunion.id).order('creado_at', { ascending: true });
-    listWrap.appendChild(renderReunionCard(reunion, acuerdos || [], perfiles || [], listWrap));
+    const card = renderReunionCard(reunion, acuerdos || [], perfiles || [], listWrap);
+    listWrap.appendChild(card);
+    if(card.classList.contains('open')) card.querySelectorAll('textarea').forEach(autoGrow);
   }
 }
 
