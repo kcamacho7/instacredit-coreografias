@@ -1210,6 +1210,38 @@ async function procesarConIA(reunionId, progresoDiv, listWrap){
   await cargarListaReuniones(listWrap);
 }
 
+async function enviarMinutaConProgreso(reunionId, progresoDiv, listWrap){
+  progresoDiv.style.display = 'block';
+  const inicio = Date.now();
+  let segundos = 0;
+  progresoDiv.innerHTML = '<strong style="color:var(--azul);">📧 Enviando minuta por correo…</strong> <span class="progreso-tiempo">0s</span>';
+  const spanTiempo = progresoDiv.querySelector('.progreso-tiempo');
+  const timer = setInterval(()=>{
+    segundos = Math.round((Date.now() - inicio) / 1000);
+    if(spanTiempo) spanTiempo.textContent = segundos + 's';
+  }, 1000);
+
+  try{
+    const { data, error } = await sb.functions.invoke('enviar-minuta', { body: { reunion_id: reunionId } });
+    clearInterval(timer);
+    if(error || (data && data.ok === false)){
+      let msg = (data && data.error) || error.message || 'Error desconocido';
+      if(error && error.context && typeof error.context.json === 'function'){
+        try{ const body = await error.context.json(); if(body && body.error) msg = body.error; }catch(_e){}
+      }
+      progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo enviar la minuta:</strong> ' + escapeAttr(msg);
+      alert('Minuta guardada, pero no se pudo enviar el correo:\n\n' + msg + '\n\nPuedes reintentar el envío desde esta misma tarjeta.');
+    } else {
+      progresoDiv.innerHTML = '<strong style="color:var(--verde);">✅ Minuta enviada</strong> — ' + (data.enviados||0) + ' correo(s) despachados en ' + segundos + 's.';
+    }
+  }catch(e){
+    clearInterval(timer);
+    progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo enviar la minuta:</strong> ' + escapeAttr(e.message);
+    alert('Minuta guardada, pero no se pudo enviar el correo:\n\n' + e.message + '\n\nPuedes reintentar el envío desde esta misma tarjeta.');
+  }
+  await cargarListaReuniones(listWrap);
+}
+
 async function leerArchivoTranscripcion(file){
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   if(ext === 'docx'){
@@ -1304,6 +1336,26 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     retryWrap.appendChild(retryBtn);
     retryWrap.appendChild(progresoDiv);
     body.appendChild(retryWrap);
+  }
+
+  if(reunion.envio_pendiente){
+    const envioRetryWrap = document.createElement('div');
+    envioRetryWrap.style.cssText = 'padding:12px 20px;border-bottom:1px solid var(--gris-borde);';
+    const envioRetryBtn = document.createElement('button');
+    envioRetryBtn.type = 'button';
+    envioRetryBtn.className = 'add-proyecto-btn';
+    envioRetryBtn.style.cssText = 'margin:0;background:var(--verde);';
+    envioRetryBtn.textContent = '📧 Reintentar envío por correo';
+    const progresoEnvioRetryDiv = document.createElement('div');
+    progresoEnvioRetryDiv.style.cssText = 'display:none;margin-top:10px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;';
+    envioRetryBtn.addEventListener('click', async ()=>{
+      envioRetryBtn.disabled = true;
+      await enviarMinutaConProgreso(reunion.id, progresoEnvioRetryDiv, listWrap);
+      envioRetryBtn.disabled = false;
+    });
+    envioRetryWrap.appendChild(envioRetryBtn);
+    envioRetryWrap.appendChild(progresoEnvioRetryDiv);
+    body.appendChild(envioRetryWrap);
   }
 
   let minutaTextarea = null;
@@ -1440,6 +1492,8 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     guardarMinutaBtn.className = 'add-proyecto-btn';
     guardarMinutaBtn.style.background = 'var(--verde)';
     guardarMinutaBtn.textContent = '💾 Guardar minuta';
+    const progresoEnvioDiv = document.createElement('div');
+    progresoEnvioDiv.style.cssText = 'display:none;margin-top:12px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;';
     guardarMinutaBtn.addEventListener('click', async ()=>{
       const filas = Array.from(tbody.querySelectorAll('tr')).filter(fila=> fila.querySelector('[data-f="descripcion"]'));
       for(const fila of filas){
@@ -1468,18 +1522,20 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       const camposReunion = { titulo: tituloInput.value.trim() };
       if(minutaTextarea) camposReunion.minuta = minutaTextarea.value;
       const enviar = confirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar');
-      if(enviar) camposReunion.envio_pendiente = true;
       const { error: errReunion } = await sb.from('reuniones').update(camposReunion).eq('id', reunion.id);
       if(errReunion){
         alert('No se pudo guardar el título/minuta: ' + errReunion.message);
-      } else if(enviar){
-        alert('Minuta guardada y marcada para envío. Pide que se corra el GitHub Action "Enviar minuta por correo" para despacharla.');
-      } else {
-        alert('Minuta guardada.');
+        return;
       }
-      cargarListaReuniones(listWrap);
+      if(!enviar){
+        alert('Minuta guardada.');
+        cargarListaReuniones(listWrap);
+        return;
+      }
+      await enviarMinutaConProgreso(reunion.id, progresoEnvioDiv, listWrap);
     });
     body.appendChild(guardarMinutaBtn);
+    body.appendChild(progresoEnvioDiv);
   }
 
   return card;
