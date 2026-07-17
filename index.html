@@ -1002,7 +1002,12 @@ function renderTabs(){
   tabsEl.innerHTML = '';
   panelsEl.innerHTML = '';
 
-  PAISES.forEach((p, idx)=>{
+  const puedeVerTodosPaises = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
+  const paisesVisibles = puedeVerTodosPaises
+    ? PAISES
+    : PAISES.filter(p=> currentUserProfile && currentUserProfile.pais_code === p.code);
+
+  paisesVisibles.forEach((p, idx)=>{
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (idx===0 ? ' active' : '');
     btn.textContent = p.bandera + ' ' + p.nombre;
@@ -1017,15 +1022,16 @@ function renderTabs(){
     panelsEl.appendChild(panel);
   });
 
+  const sinPaisesVisibles = paisesVisibles.length === 0;
   const dashBtn = document.createElement('button');
-  dashBtn.className = 'tab-btn';
+  dashBtn.className = 'tab-btn' + (sinPaisesVisibles ? ' active' : '');
   dashBtn.textContent = '📊 Dashboard';
   dashBtn.dataset.pais = 'DASHBOARD';
   dashBtn.addEventListener('click', ()=> selectTab('DASHBOARD'));
   tabsEl.appendChild(dashBtn);
 
   const dashPanel = document.createElement('div');
-  dashPanel.className = 'tab-panel';
+  dashPanel.className = 'tab-panel' + (sinPaisesVisibles ? ' active' : '');
   dashPanel.id = 'panel-DASHBOARD';
   dashPanel.appendChild(renderDashboardPublico());
   panelsEl.appendChild(dashPanel);
@@ -2147,7 +2153,19 @@ function renderDashboardPublico(){
   const chartsWrap = document.createElement('div');
   chartsWrap.id = 'dashboard-publico-charts';
 
-  const opciones = [{ code:'ALL', nombre:'Consolidado', bandera:'🌎' }, ...PAISES];
+  const puedeVerTodosPaises = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
+  const opciones = puedeVerTodosPaises
+    ? [{ code:'ALL', nombre:'Consolidado', bandera:'🌎' }, ...PAISES]
+    : PAISES.filter(p=> currentUserProfile && currentUserProfile.pais_code === p.code);
+
+  if(opciones.length === 0){
+    const aviso = document.createElement('div');
+    aviso.className = 'sin-proyectos';
+    aviso.textContent = 'Tu cuenta no tiene un país asignado — contacta a Riesgo Regional.';
+    wrap.appendChild(aviso);
+    return wrap;
+  }
+
   opciones.forEach((o, idx)=>{
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -2162,7 +2180,7 @@ function renderDashboardPublico(){
   });
   wrap.appendChild(filtroBar);
   wrap.appendChild(chartsWrap);
-  renderDashboardCharts(chartsWrap, 'ALL');
+  renderDashboardCharts(chartsWrap, opciones[0].code);
   if(window.twemoji) twemoji.parse(filtroBar, { folder:'svg', ext:'.svg' });
 
   return wrap;
