@@ -252,6 +252,10 @@
   .field textarea{resize:none;min-height:38px;overflow-y:hidden;}
   img.emoji{height:1em;width:1em;vertical-align:-0.15em;margin:0 .06em;}
   .field input:focus, .field textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
+  .permisos-checks{display:flex;flex-direction:column;gap:7px;padding:7px 9px;background:#FAFDF9;border:1px solid var(--gris-borde);border-radius:5px;}
+  .permisos-checks label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--gris-texto);margin-bottom:0;cursor:pointer;}
+  .permisos-checks input[type="checkbox"]{accent-color:var(--verde);width:15px;height:15px;flex:0 0 auto;cursor:pointer;}
+  table.coreo td input[type="checkbox"]{accent-color:var(--verde);width:15px;height:15px;cursor:pointer;}
 
   table.coreo{width:calc(100% - 40px);margin:8px 20px 16px 20px;border-collapse:collapse;font-size:12.5px;}
   table.coreo th{background:#fff;color:var(--azul-claro);text-align:left;padding:6px 6px;font-weight:600;border-bottom:1px solid var(--gris-borde);font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;}
@@ -2109,16 +2113,12 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         </select>
       </div>
       <div class="field">
-        <label>&nbsp;</label>
-        <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;">
-          <input type="checkbox" class="nuevo-regional"> Es Riesgo Regional
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:4px;">
-          <input type="checkbox" class="nuevo-admin"> Es Administrador (Administración del sistema)
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:4px;">
-          <input type="checkbox" class="nuevo-lider"> Es Líder (acceso a Acuerdos de reuniones)
-        </label>
+        <label>Permisos</label>
+        <div class="permisos-checks">
+          <label><input type="checkbox" class="nuevo-regional"> Es Riesgo Regional</label>
+          <label><input type="checkbox" class="nuevo-admin"> Es Administrador (Administración del sistema)</label>
+          <label><input type="checkbox" class="nuevo-lider"> Es Líder (acceso a Acuerdos de reuniones)</label>
+        </div>
       </div>
     </div>
     <button type="button" class="add-proyecto-btn" style="margin:0;">+ Preautorizar correo</button>
