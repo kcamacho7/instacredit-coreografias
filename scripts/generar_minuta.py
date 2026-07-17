@@ -21,6 +21,10 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 SCHEMA = {
     "type": "object",
     "properties": {
+        "titulo": {
+            "type": "string",
+            "description": "Título corto (5-8 palabras) que describa el tema principal de la reunión, en español, basado en el contenido de la transcripción.",
+        },
         "minuta": {
             "type": "string",
             "description": "Resumen ejecutivo de la reunión en español, 3-6 párrafos cortos.",
@@ -40,7 +44,7 @@ SCHEMA = {
             },
         },
     },
-    "required": ["minuta", "acuerdos"],
+    "required": ["titulo", "minuta", "acuerdos"],
     "additionalProperties": False,
 }
 
@@ -78,8 +82,9 @@ def procesar_reunion(reunion):
     prompt = (
         "Eres un asistente que arma minutas de reuniones de Riesgo Regional de Instacredit "
         "(Costa Rica, Nicaragua, Panamá, El Salvador). Lee la siguiente transcripción y extrae:\n"
-        "1. Una minuta ejecutiva breve.\n"
-        "2. La lista de acuerdos/compromisos tomados, cada uno con su responsable y, si se mencionó, "
+        "1. Un título corto que resuma el tema principal de la reunión.\n"
+        "2. Una minuta ejecutiva breve.\n"
+        "3. La lista de acuerdos/compromisos tomados, cada uno con su responsable y, si se mencionó, "
         "una fecha compromiso. Si un acuerdo no tiene responsable claro, usa el nombre de quien lo propuso "
         "o dejalo como 'Por asignar'. No inventes fechas ni correos que no estén en el texto.\n\n"
         "Fecha de hoy (para interpretar plazos relativos como 'la próxima semana'): " + hoy_cr() + "\n\n"
@@ -112,7 +117,11 @@ def procesar_reunion(reunion):
             "estado": "Pendiente",
         })
     sb_insert("acuerdos_reunion", filas)
-    sb_patch("reuniones", reunion["id"], {"minuta": data.get("minuta") or "", "estado": "procesada"})
+    sb_patch("reuniones", reunion["id"], {
+        "titulo": data.get("titulo") or reunion.get("titulo") or "Reunión sin título",
+        "minuta": data.get("minuta") or "",
+        "estado": "procesada",
+    })
     print("  Minuta generada con %d acuerdo(s)." % len(filas))
 
 

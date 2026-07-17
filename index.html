@@ -1089,27 +1089,21 @@ async function cargarModuloAcuerdos(acWrap){
   const addCard = document.createElement('div');
   addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-top:16px;';
   addCard.innerHTML = `
-    <div class="field-grid" style="padding:0 0 10px 0;">
-      <div class="field"><label>Título de la reunión</label><input type="text" class="nueva-reunion-titulo" placeholder="Ej: Comité de riesgo semanal"></div>
-      <div class="field"><label>Fecha</label><input type="date" class="nueva-reunion-fecha"></div>
-    </div>
     <div class="field" style="padding:0 0 10px 0;">
       <label>Transcripción</label>
-      <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Pega aquí la transcripción completa de la reunión..."></textarea>
+      <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Pega aquí la transcripción completa de la reunión... El título lo genera la IA a partir del contenido, y la fecha queda como la de hoy (fecha de carga)."></textarea>
     </div>
     <button type="button" class="add-proyecto-btn" style="margin:0;">+ Crear reunión</button>
   `;
   addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
   addCard.querySelector('button').addEventListener('click', async ()=>{
-    const titulo = addCard.querySelector('.nueva-reunion-titulo').value.trim();
-    const fecha = addCard.querySelector('.nueva-reunion-fecha').value || null;
     const transcripcion = addCard.querySelector('.nueva-reunion-transcripcion').value.trim();
     if(!transcripcion){ alert('Pega la transcripción de la reunión.'); return; }
-    const { error } = await sb.from('reuniones').insert([{ titulo, fecha, transcripcion, estado: 'pendiente_procesar' }]);
+    const fecha = new Date().toISOString().slice(0,10);
+    const { error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar' }]);
     if(error){ alert('Error: ' + error.message); return; }
-    addCard.querySelector('.nueva-reunion-titulo').value = '';
     addCard.querySelector('.nueva-reunion-transcripcion').value = '';
-    alert('Reunión creada. Pide que se corra el GitHub Action "Generar minuta con IA" para procesarla.');
+    alert('Reunión creada. El título y la minuta los define la IA. Pide que se corra el GitHub Action "Generar minuta con IA" para procesarla.');
     cargarListaReuniones(listWrap);
   });
   acWrap.appendChild(addCard);
