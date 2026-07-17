@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="config.js"></script>
 <style>
   .pin-bar{background:#FFF6E0;border:1px solid #E8D48A;border-radius:6px;padding:10px 16px;margin:16px 0 0 0;display:flex;align-items:center;gap:10px;font-size:13px;}
@@ -1090,23 +1091,78 @@ async function cargarModuloAcuerdos(acWrap){
   addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-top:16px;';
   addCard.innerHTML = `
     <div class="field" style="padding:0 0 10px 0;">
+      <label>Subir archivo de transcripción (.txt, .vtt, .srt, .docx)</label>
+      <input type="file" class="nueva-reunion-archivo" accept=".txt,.vtt,.srt,.docx">
+      <div class="nueva-reunion-archivo-estado" style="font-size:12px;color:var(--azul-claro);margin-top:4px;"></div>
+    </div>
+    <div class="field" style="padding:0 0 10px 0;">
       <label>Transcripción</label>
-      <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Pega aquí la transcripción completa de la reunión... El título lo genera la IA a partir del contenido, y la fecha queda como la de hoy (fecha de carga)."></textarea>
+      <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Se llena sola al subir el archivo, o puedes pegar el texto aquí directamente. El título lo genera la IA a partir del contenido, y la fecha queda como la de hoy (fecha de carga)."></textarea>
     </div>
     <button type="button" class="add-proyecto-btn" style="margin:0;">+ Crear reunión</button>
   `;
   addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
+
+  const inputArchivo = addCard.querySelector('.nueva-reunion-archivo');
+  const estadoArchivo = addCard.querySelector('.nueva-reunion-archivo-estado');
+  const textareaTranscripcion = addCard.querySelector('.nueva-reunion-transcripcion');
+
+  inputArchivo.addEventListener('change', async ()=>{
+    const file = inputArchivo.files[0];
+    if(!file) return;
+    estadoArchivo.textContent = 'Leyendo ' + file.name + '…';
+    try{
+      const texto = await leerArchivoTranscripcion(file);
+      textareaTranscripcion.value = texto;
+      autoGrow(textareaTranscripcion);
+      estadoArchivo.textContent = '✓ ' + file.name + ' cargado — revisa el texto abajo antes de crear la reunión.';
+      estadoArchivo.style.color = 'var(--verde)';
+    }catch(e){
+      estadoArchivo.textContent = 'No se pudo leer el archivo: ' + e.message + '. Pega el texto manualmente.';
+      estadoArchivo.style.color = 'var(--rojo)';
+    }
+  });
+
   addCard.querySelector('button').addEventListener('click', async ()=>{
-    const transcripcion = addCard.querySelector('.nueva-reunion-transcripcion').value.trim();
-    if(!transcripcion){ alert('Pega la transcripción de la reunión.'); return; }
+    const transcripcion = textareaTranscripcion.value.trim();
+    if(!transcripcion){ alert('Sube un archivo o pega la transcripción de la reunión.'); return; }
     const fecha = new Date().toISOString().slice(0,10);
     const { error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar' }]);
     if(error){ alert('Error: ' + error.message); return; }
-    addCard.querySelector('.nueva-reunion-transcripcion').value = '';
+    textareaTranscripcion.value = '';
+    inputArchivo.value = '';
+    estadoArchivo.textContent = '';
     alert('Reunión creada. El título y la minuta los define la IA. Pide que se corra el GitHub Action "Generar minuta con IA" para procesarla.');
     cargarListaReuniones(listWrap);
   });
   acWrap.appendChild(addCard);
+}
+
+async function leerArchivoTranscripcion(file){
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if(ext === 'docx'){
+    if(!window.mammoth) throw new Error('el lector de .docx no cargó, intenta con .txt o .vtt');
+    const arrayBuffer = await file.arrayBuffer();
+    const resultado = await mammoth.extractRawText({ arrayBuffer });
+    return resultado.value.trim();
+  }
+  const texto = await file.text();
+  if(ext === 'vtt' || ext === 'srt'){
+    return texto
+      .split(/\r?\n/)
+      .filter(linea=>{
+        const l = linea.trim();
+        if(!l) return false;
+        if(/^WEBVTT/i.test(l)) return false;
+        if(/^NOTE/i.test(l)) return false;
+        if(/^\d+$/.test(l)) return false;
+        if(/-->/.test(l)) return false;
+        return true;
+      })
+      .join('\n')
+      .trim();
+  }
+  return texto.trim();
 }
 
 async function cargarListaReuniones(listWrap){
