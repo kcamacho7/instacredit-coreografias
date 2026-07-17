@@ -2318,7 +2318,7 @@ async function cargarControlAcuerdos(wrap){
   body.appendChild(cargando);
 
   const [{ data: reuniones }, { data: acuerdos }, { data: perfiles }] = await Promise.all([
-    sb.from('reuniones').select('id'),
+    sb.from('reuniones').select('id,fecha'),
     sb.from('acuerdos_reunion').select('responsable_email,responsable_nombre'),
     sb.from('perfiles_usuario').select('email,nombre'),
   ]);
@@ -2338,51 +2338,92 @@ async function cargarControlAcuerdos(wrap){
   const filasUsuarios = [...conteoPorEmail.values()].sort((a, b)=> b.cantidad - a.cantidad);
 
   const resumen = document.createElement('div');
-  resumen.style.cssText = 'display:flex;gap:20px;flex-wrap:wrap;padding:14px 20px;';
+  resumen.className = 'dashboard-kpis';
   resumen.innerHTML = `
-    <div style="background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:12px 20px;min-width:160px;">
-      <div style="font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;">Reuniones registradas</div>
-      <div style="font-size:26px;font-weight:800;color:var(--azul);">${totalReuniones}</div>
-    </div>
-    <div style="background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:12px 20px;min-width:160px;">
-      <div style="font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;">Usuarios con acuerdos</div>
-      <div style="font-size:26px;font-weight:800;color:var(--azul);">${filasUsuarios.length}</div>
-    </div>
-    <div style="background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:12px 20px;min-width:160px;">
-      <div style="font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;">Total de acuerdos</div>
-      <div style="font-size:26px;font-weight:800;color:var(--azul);">${(acuerdos||[]).length}</div>
-    </div>
+    <div class="kpi-stat"><div class="valor">${totalReuniones}</div><div class="etiqueta">Reuniones registradas</div></div>
+    <div class="kpi-stat"><div class="valor" style="color:var(--verde);">${filasUsuarios.length}</div><div class="etiqueta">Usuarios con acuerdos</div></div>
+    <div class="kpi-stat"><div class="valor" style="color:var(--azul-claro);">${(acuerdos||[]).length}</div><div class="etiqueta">Total de acuerdos</div></div>
   `;
   body.appendChild(resumen);
 
-  if(filasUsuarios.length === 0){
+  if(totalReuniones === 0 && filasUsuarios.length === 0){
     const vacio = document.createElement('div');
     vacio.className = 'sin-proyectos';
-    vacio.textContent = 'Sin acuerdos con responsable asignado todavía.';
+    vacio.textContent = 'Sin reuniones ni acuerdos registrados todavía.';
     body.appendChild(vacio);
-  } else {
-    const table = document.createElement('table');
-    table.className = 'coreo';
-    table.innerHTML = '<tr><th style="width:40%;">Usuario</th><th style="width:40%;">Correo</th><th style="width:20%;">Acuerdos</th></tr>';
-    const tbody = document.createElement('tbody');
-    filasUsuarios.forEach(u=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${escapeAttr(u.nombre || '—')}</td>
-        <td>${escapeAttr(u.email)}</td>
-        <td style="font-weight:700;color:var(--azul);">${u.cantidad}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    body.appendChild(table);
+    return;
   }
+
+  const gridChart = document.createElement('div');
+  gridChart.className = 'dashboard-grid';
+  const alturaUsuarios = Math.max(220, filasUsuarios.length * 26);
+  gridChart.innerHTML = `
+    <div class="dashboard-card full">
+      <h4>Reuniones por semana</h4>
+      <div class="subtitulo">Cantidad de reuniones creadas cada semana (lunes a domingo)</div>
+      ${totalReuniones > 0 ? '<canvas id="chart-reuniones-semana"></canvas>' : '<div class="sin-proyectos">Sin reuniones registradas todavía.</div>'}
+    </div>
+    <div class="dashboard-card full">
+      <h4>Acuerdos por usuario</h4>
+      <div class="subtitulo">Cantidad de acuerdos asignados a cada responsable</div>
+      ${filasUsuarios.length > 0 ? '<canvas id="chart-acuerdos-usuario" style="max-height:' + alturaUsuarios + 'px;"></canvas>' : '<div class="sin-proyectos">Sin acuerdos con responsable asignado todavía.</div>'}
+    </div>
+  `;
+  body.appendChild(gridChart);
 
   if(sinResponsable > 0){
     const aviso = document.createElement('div');
-    aviso.style.cssText = 'padding:8px 20px;font-size:12px;color:var(--azul-claro);';
-    aviso.textContent = sinResponsable + ' acuerdo(s) todavía sin responsable asignado.';
+    aviso.style.cssText = 'padding:0 20px 14px 20px;font-size:12px;color:var(--azul-claro);';
+    aviso.textContent = sinResponsable + ' acuerdo(s) todavía sin responsable asignado (no incluidos en el gráfico).';
     body.appendChild(aviso);
+  }
+
+  function lunesDeLaSemana(fechaStr){
+    const d = new Date(fechaStr + 'T00:00:00');
+    const dia = d.getDay();
+    const offset = dia === 0 ? -6 : 1 - dia;
+    d.setDate(d.getDate() + offset);
+    return d;
+  }
+  const conteoPorSemana = new Map();
+  (reuniones || []).forEach(r=>{
+    if(!r.fecha) return;
+    const lunes = lunesDeLaSemana(r.fecha);
+    const key = lunes.toISOString().slice(0, 10);
+    conteoPorSemana.set(key, (conteoPorSemana.get(key) || 0) + 1);
+  });
+  const semanasOrdenadas = [...conteoPorSemana.keys()].sort();
+  const etiquetaSemana = (key)=>{
+    const inicio = new Date(key + 'T00:00:00');
+    const fin = new Date(inicio); fin.setDate(fin.getDate() + 6);
+    const fmt = (d)=> d.toLocaleDateString('es-CR', { day:'2-digit', month:'short' });
+    return fmt(inicio) + ' – ' + fmt(fin);
+  };
+
+  if(document.getElementById('chart-reuniones-semana')){
+    new Chart(document.getElementById('chart-reuniones-semana'), {
+      type: 'bar',
+      data: {
+        labels: semanasOrdenadas.map(etiquetaSemana),
+        datasets: [{ label: 'Reuniones', data: semanasOrdenadas.map(k=> conteoPorSemana.get(k)), backgroundColor: '#002554', borderRadius: 4 }]
+      },
+      options: { scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }, plugins: { legend: { display:false } } }
+    });
+  }
+
+  if(document.getElementById('chart-acuerdos-usuario')){
+    new Chart(document.getElementById('chart-acuerdos-usuario'), {
+      type: 'bar',
+      data: {
+        labels: filasUsuarios.map(u=> u.nombre || u.email),
+        datasets: [{ label: 'Acuerdos', data: filasUsuarios.map(u=> u.cantidad), backgroundColor: '#4C9C2E', borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y',
+        scales: { x: { beginAtZero:true, ticks:{ precision:0 } } },
+        plugins: { legend: { display:false } }
+      }
+    });
   }
 }
 
