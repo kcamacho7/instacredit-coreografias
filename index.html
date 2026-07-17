@@ -227,6 +227,16 @@
   .proyecto-card.open .proyecto-card-body{display:block;}
   .kpi-def{padding:4px 20px 10px 20px;font-size:12px;color:var(--azul-claro);border-bottom:1px solid var(--gris-borde);}
 
+  .reunion-card{border:1px solid var(--gris-borde);border-radius:8px;overflow:hidden;margin-bottom:16px;}
+  .reunion-card + .reunion-card{border-top:1px solid var(--gris-borde) !important;}
+  .reunion-card-header{background:var(--azul);border-top:none;padding:14px 20px;}
+  .reunion-card-header .nombre-input{color:#fff;font-size:16px;font-weight:800;}
+  .reunion-card-header .nombre-input:focus{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.5);}
+  .reunion-card-header .nombre-input::placeholder{color:rgba(255,255,255,.6);}
+  .reunion-card-header .proyecto-toggle{color:#fff;font-size:14px;}
+  .reunion-card-header .btn-eliminar-proyecto{border-color:rgba(255,255,255,.6);color:#fff;}
+  .reunion-card-header .btn-eliminar-proyecto:hover{background:rgba(255,255,255,.15);}
+
   .field-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 20px 6px 20px;}
   .field label{display:block;font-size:10.5px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
   .field input[type="text"], .field input[type="date"], .field input[type="time"], .field textarea{
@@ -1248,11 +1258,11 @@ async function cargarListaReuniones(listWrap){
 function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   const emailsConCuenta = new Set(perfiles.filter(p=>p.user_id).map(p=>(p.email||'').toLowerCase()));
   const card = document.createElement('div');
-  card.className = 'proyecto-card';
+  card.className = 'proyecto-card reunion-card';
   const estadoLabel = { pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' }[reunion.estado] || reunion.estado;
 
   const headerRow = document.createElement('div');
-  headerRow.className = 'proyecto-card-header';
+  headerRow.className = 'proyecto-card-header reunion-card-header';
   headerRow.innerHTML = `
     <button type="button" class="proyecto-toggle" title="Mostrar/ocultar detalle">▶</button>
     <input type="text" class="nombre-input reunion-titulo-input" value="${escapeAttr(reunion.titulo || '')}" placeholder="(sin título)">
