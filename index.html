@@ -1556,7 +1556,56 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   });
   body.appendChild(addAcuerdoBtn);
 
-  if(acuerdos.length > 0){
+  const participantesWrap = document.createElement('div');
+  participantesWrap.style.cssText = 'padding:14px 20px;border-top:1px solid var(--gris-borde);margin-top:10px;';
+  participantesWrap.innerHTML = '<label style="display:block;font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Participantes adicionales (sin acuerdos, pero reciben la minuta)</label>';
+  const participantes = Array.isArray(reunion.participantes) ? reunion.participantes : [];
+  if(participantes.length === 0){
+    const vacio = document.createElement('div');
+    vacio.style.cssText = 'font-size:12.5px;color:var(--azul-claro);margin-bottom:8px;';
+    vacio.textContent = 'Nadie agregado todavía.';
+    participantesWrap.appendChild(vacio);
+  } else {
+    const lista = document.createElement('div');
+    lista.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;';
+    participantes.forEach((p, idx)=>{
+      const chip = document.createElement('span');
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:#F0F3F7;border:1px solid var(--gris-borde);border-radius:20px;padding:5px 6px 5px 12px;font-size:12.5px;color:var(--gris-texto);';
+      chip.innerHTML = '<span>' + escapeAttr(p.nombre ? p.nombre + ' — ' : '') + escapeAttr(p.email) + '</span>';
+      const btnQuitar = document.createElement('button');
+      btnQuitar.type = 'button';
+      btnQuitar.textContent = '×';
+      btnQuitar.title = 'Quitar';
+      btnQuitar.style.cssText = 'background:none;border:none;color:var(--rojo);font-size:15px;font-weight:700;cursor:pointer;line-height:1;padding:0 4px;';
+      btnQuitar.addEventListener('click', async ()=>{
+        const nuevos = participantes.filter((_, i)=> i !== idx);
+        const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
+        if(error){ alert('Error: ' + error.message); return; }
+        cargarListaReuniones(listWrap);
+      });
+      chip.appendChild(btnQuitar);
+      lista.appendChild(chip);
+    });
+    participantesWrap.appendChild(lista);
+  }
+  const addParticipanteBtn = document.createElement('button');
+  addParticipanteBtn.type = 'button';
+  addParticipanteBtn.className = 'add-row-btn';
+  addParticipanteBtn.textContent = '+ Agregar participante';
+  addParticipanteBtn.addEventListener('click', async ()=>{
+    const email = (prompt('Correo del participante:') || '').trim().toLowerCase();
+    if(!email || !email.includes('@')){ if(email) alert('Pon un correo válido.'); return; }
+    if(participantes.some(p=>(p.email||'').toLowerCase()===email)){ alert('Ese correo ya está en la lista de participantes.'); return; }
+    const nombre = (prompt('Nombre (opcional):') || '').trim();
+    const nuevos = [...participantes, { email, nombre }];
+    const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
+    if(error){ alert('Error: ' + error.message); return; }
+    cargarListaReuniones(listWrap);
+  });
+  participantesWrap.appendChild(addParticipanteBtn);
+  body.appendChild(participantesWrap);
+
+  if(acuerdos.length > 0 || participantes.length > 0){
     const guardarMinutaBtn = document.createElement('button');
     guardarMinutaBtn.type = 'button';
     guardarMinutaBtn.className = 'add-proyecto-btn';

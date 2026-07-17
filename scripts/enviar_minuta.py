@@ -205,11 +205,25 @@ def enviar_reunion(reunion):
     pdf_regional = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
     enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_regional, nombre_archivo)
 
+    participantes = reunion.get("participantes") or []
+    enviados_participantes = 0
+    for p in participantes:
+        email = (p.get("email") or "").strip().lower()
+        if not email or email in por_responsable:
+            continue
+        html_participante = plantilla_html(
+            titulo, fecha_texto, hora_texto,
+            "Participaste en esta reunión. No se te asignó ningún acuerdo directamente, pero aquí tienes el resumen completo.",
+            resumen,
+        )
+        enviar_correo([email], "📋 Minuta — " + titulo, html_participante, pdf_regional, nombre_archivo)
+        enviados_participantes += 1
+
     sb_patch("reuniones", reunion["id"], {
         "envio_pendiente": False,
         "envio_enviado_at": datetime.now(timezone.utc).isoformat(),
     })
-    print("Minuta '%s' enviada a %d responsable(s) + regional." % (titulo, len(por_responsable)))
+    print("Minuta '%s' enviada a %d responsable(s) + regional + %d participante(s)." % (titulo, len(por_responsable), enviados_participantes))
 
 
 def main():
