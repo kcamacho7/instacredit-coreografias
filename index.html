@@ -2664,6 +2664,22 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
   }
   if(error || !data || data.length === 0) return;
 
+  const reunionIds = [...new Set(data.map(a=>a.reunion_id).filter(Boolean))];
+  const { data: reunionesRel } = await sb.from('reuniones').select('id,titulo,fecha').in('id', reunionIds);
+  const reunionesPorId = new Map((reunionesRel||[]).map(r=>[r.id, r]));
+
+  const grupos = new Map();
+  data.forEach(ac=>{
+    const key = ac.reunion_id || '__sin_reunion__';
+    if(!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key).push(ac);
+  });
+  const gruposOrdenados = [...grupos.entries()].sort((a, b)=>{
+    const fa = (reunionesPorId.get(a[0]) || {}).fecha || '';
+    const fb = (reunionesPorId.get(b[0]) || {}).fecha || '';
+    return fb.localeCompare(fa);
+  });
+
   const block = document.createElement('div');
   block.className = 'area-block';
   block.innerHTML = `
@@ -2673,61 +2689,86 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
     </div>
   `;
   const body = document.createElement('div');
-  body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones' + (esVistaRegional ? ', asignados a cualquier usuario de este país' : ' y te fueron asignados a ti directamente') + '.</div>';
-  const table = document.createElement('table');
-  table.className = 'coreo';
-  table.innerHTML = '<tr><th style="width:5%;">#</th><th style="width:' + (esVistaRegional?'30%':'36%') + ';">Acuerdo</th><th style="width:18%;">Responsable</th>' +
-    (esVistaRegional ? '<th style="width:18%;">Correo</th>' : '') +
-    '<th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>';
-  const tbody = document.createElement('tbody');
-  table.appendChild(tbody);
+  body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones' + (esVistaRegional ? ', asignados a cualquier usuario de este país' : ' y te fueron asignados a ti directamente') + ', agrupados por reunión.</div>';
 
-  data.forEach((ac, i)=>{
-    const accion = { fecha: ac.fecha || '', historialFechas: ac.historialFechas, ajustesUsuario: ac.ajustesUsuario };
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td><textarea data-f="descripcion" rows="1">${escapeAttr(ac.descripcion)}</textarea></td>
-      <td><textarea data-f="responsable_nombre" rows="1">${escapeAttr(ac.responsable_nombre)}</textarea></td>
-      ${esVistaRegional ? '<td style="font-size:12px;color:var(--azul-claro);">' + escapeAttr(ac.responsable_email) + '</td>' : ''}
-      <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
-      <td>
-        <select data-f="estado" class="estado">
-          <option value="Pendiente" ${ac.estado==='Pendiente'?'selected':''}>Pendiente</option>
-          <option value="En curso" ${ac.estado==='En curso'?'selected':''}>En curso</option>
-          <option value="Cumplida" ${ac.estado==='Cumplida'?'selected':''}>Cumplida</option>
-          <option value="Vencida" ${ac.estado==='Vencida'?'selected':''}>Vencida</option>
-        </select>
-      </td>
-      <td class="row-actions"><button type="button" class="btn-comentario" title="Ver/agregar resultado">💬</button></td>
+  gruposOrdenados.forEach(([reunionId, acuerdosGrupo])=>{
+    const reunionRel = reunionesPorId.get(reunionId);
+    const card = document.createElement('div');
+    card.className = 'proyecto-card reunion-card';
+    const headerRow = document.createElement('div');
+    headerRow.className = 'proyecto-card-header reunion-card-header';
+    headerRow.innerHTML = `
+      <button type="button" class="proyecto-toggle" title="Mostrar/ocultar acuerdos">▶</button>
+      <span style="flex:1;font-weight:800;color:#fff;font-size:15px;">${escapeAttr(reunionRel ? (reunionRel.titulo || '(sin título)') : '(reunión eliminada)')}</span>
+      <span style="font-size:12px;color:var(--azul-claro);white-space:nowrap;">${reunionRel && reunionRel.fecha ? escapeAttr(reunionRel.fecha) : ''}</span>
     `;
-    tr.querySelectorAll('textarea').forEach(wireAutoGrow);
+    headerRow.querySelector('.proyecto-toggle').addEventListener('click', ()=>{
+      card.classList.toggle('open');
+      if(card.classList.contains('open')) cardBody.querySelectorAll('textarea').forEach(autoGrow);
+    });
+    card.appendChild(headerRow);
 
-    const guardarCampo = async (campo, valor)=>{
-      const { error: errGuardar } = await sb.from('acuerdos_reunion').update({ [campo]: valor }).eq('id', ac.id);
-      if(errGuardar) alert('Error al guardar: ' + errGuardar.message);
-    };
-    tr.querySelector('[data-f="descripcion"]').addEventListener('input', (e)=>{ ac.descripcion = e.target.value; });
-    tr.querySelector('[data-f="descripcion"]').addEventListener('change', (e)=> guardarCampo('descripcion', e.target.value));
-    tr.querySelector('[data-f="responsable_nombre"]').addEventListener('change', (e)=> guardarCampo('responsable_nombre', e.target.value));
-    tr.querySelector('[data-f="estado"]').addEventListener('change', (e)=>{ guardarCampo('estado', e.target.value); if(refrescarComentario) refrescarComentario(); });
+    const cardBody = document.createElement('div');
+    cardBody.className = 'proyecto-card-body';
+    card.appendChild(cardBody);
 
-    const fechaInput = tr.querySelector('[data-f="fecha"]');
-    wireFechaAccionDefinitiva(fechaInput, accion, ()=>{
-      guardarCampo('fecha', accion.fecha);
-      guardarCampo('historialFechas', accion.historialFechas || []);
-      guardarCampo('ajustesUsuario', accion.ajustesUsuario || 0);
+    const table = document.createElement('table');
+    table.className = 'coreo';
+    table.innerHTML = '<tr><th style="width:5%;">#</th><th style="width:' + (esVistaRegional?'30%':'36%') + ';">Acuerdo</th><th style="width:18%;">Responsable</th>' +
+      (esVistaRegional ? '<th style="width:18%;">Correo</th>' : '') +
+      '<th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>';
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    acuerdosGrupo.forEach((ac, i)=>{
+      const accion = { fecha: ac.fecha || '', historialFechas: ac.historialFechas, ajustesUsuario: ac.ajustesUsuario };
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td><textarea data-f="descripcion" rows="1">${escapeAttr(ac.descripcion)}</textarea></td>
+        <td><textarea data-f="responsable_nombre" rows="1">${escapeAttr(ac.responsable_nombre)}</textarea></td>
+        ${esVistaRegional ? '<td style="font-size:12px;color:var(--azul-claro);">' + escapeAttr(ac.responsable_email) + '</td>' : ''}
+        <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
+        <td>
+          <select data-f="estado" class="estado">
+            <option value="Pendiente" ${ac.estado==='Pendiente'?'selected':''}>Pendiente</option>
+            <option value="En curso" ${ac.estado==='En curso'?'selected':''}>En curso</option>
+            <option value="Cumplida" ${ac.estado==='Cumplida'?'selected':''}>Cumplida</option>
+            <option value="Vencida" ${ac.estado==='Vencida'?'selected':''}>Vencida</option>
+          </select>
+        </td>
+        <td class="row-actions"><button type="button" class="btn-comentario" title="Ver/agregar resultado">💬</button></td>
+      `;
+      tr.querySelectorAll('textarea').forEach(wireAutoGrow);
+
+      const guardarCampo = async (campo, valor)=>{
+        const { error: errGuardar } = await sb.from('acuerdos_reunion').update({ [campo]: valor }).eq('id', ac.id);
+        if(errGuardar) alert('Error al guardar: ' + errGuardar.message);
+      };
+      tr.querySelector('[data-f="descripcion"]').addEventListener('input', (e)=>{ ac.descripcion = e.target.value; });
+      tr.querySelector('[data-f="descripcion"]').addEventListener('change', (e)=> guardarCampo('descripcion', e.target.value));
+      tr.querySelector('[data-f="responsable_nombre"]').addEventListener('change', (e)=> guardarCampo('responsable_nombre', e.target.value));
+      tr.querySelector('[data-f="estado"]').addEventListener('change', (e)=>{ guardarCampo('estado', e.target.value); if(refrescarComentario) refrescarComentario(); });
+
+      const fechaInput = tr.querySelector('[data-f="fecha"]');
+      wireFechaAccionDefinitiva(fechaInput, accion, ()=>{
+        guardarCampo('fecha', accion.fecha);
+        guardarCampo('historialFechas', accion.historialFechas || []);
+        guardarCampo('ajustesUsuario', accion.ajustesUsuario || 0);
+      });
+
+      const resultadoAccion = { resultado: ac.resultado, estado: ac.estado };
+      const filaResultado = crearFilaResultado(esVistaRegional ? 7 : 6, resultadoAccion, ()=> guardarCampo('resultado', resultadoAccion.resultado));
+      const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, resultadoAccion);
+
+      tbody.appendChild(tr);
+      tbody.appendChild(filaResultado);
     });
 
-    const resultadoAccion = { resultado: ac.resultado, estado: ac.estado };
-    const filaResultado = crearFilaResultado(esVistaRegional ? 7 : 6, resultadoAccion, ()=> guardarCampo('resultado', resultadoAccion.resultado));
-    const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, resultadoAccion);
-
-    tbody.appendChild(tr);
-    tbody.appendChild(filaResultado);
+    cardBody.appendChild(table);
+    body.appendChild(card);
   });
 
-  body.appendChild(table);
   block.appendChild(body);
   wrap.appendChild(block);
   wireColapsarSeccion(block.querySelector('.area-header'), body, 'acuerdos-reunion-' + paisCode + (esVistaRegional ? '-regional' : ''));
