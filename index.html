@@ -1364,6 +1364,11 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       if(e.target.value === '__nuevo__'){
         const nuevoEmail = (prompt('Correo a preautorizar:') || '').trim().toLowerCase();
         if(!nuevoEmail || !nuevoEmail.includes('@')){ e.target.value = ac.responsable_email || ''; return; }
+        if(emailsEnLista.has(nuevoEmail)){
+          alert('Ese correo ya existe en la lista de usuarios. Selecciónalo directamente del desplegable.');
+          e.target.value = ac.responsable_email || '';
+          return;
+        }
         const nuevoNombre = (prompt('Nombre completo (opcional):') || '').trim();
         const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre }]);
         if(errPre){ alert('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
@@ -1380,18 +1385,29 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     });
     tbody.appendChild(tr);
     if(ac.responsable_email && !emailsConCuenta.has(ac.responsable_email.toLowerCase())){
+      const yaPreautorizado = emailsEnLista.has(ac.responsable_email.toLowerCase());
       const trPre = document.createElement('tr');
-      trPre.innerHTML = `<td colspan="6" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
-        <span style="color:#8a6d1f;">${escapeAttr(ac.responsable_email)} no tiene cuenta en el sistema todavía.</span>
-        <button type="button" class="btn-preautorizar" style="margin-left:8px;background:var(--verde);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">Preautorizar a esta persona</button>
-      </td>`;
-      trPre.querySelector('.btn-preautorizar').addEventListener('click', async ()=>{
-        const nombre = (prompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
-        const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre }]);
-        if(error){ alert('Error: ' + error.message); return; }
-        alert('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
-        cargarListaReuniones(listWrap);
-      });
+      trPre.innerHTML = yaPreautorizado
+        ? `<td colspan="6" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
+            <span style="color:#8a6d1f;">${escapeAttr(ac.responsable_email)} ya está preautorizado, pendiente de que la persona se registre.</span>
+          </td>`
+        : `<td colspan="6" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
+            <span style="color:#8a6d1f;">${escapeAttr(ac.responsable_email)} no tiene cuenta en el sistema todavía.</span>
+            <button type="button" class="btn-preautorizar" style="margin-left:8px;background:var(--verde);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">Preautorizar a esta persona</button>
+          </td>`;
+      if(!yaPreautorizado){
+        trPre.querySelector('.btn-preautorizar').addEventListener('click', async ()=>{
+          if(emailsEnLista.has(ac.responsable_email.toLowerCase())){
+            alert('Ese correo ya existe en la lista de usuarios.');
+            return;
+          }
+          const nombre = (prompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
+          const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre }]);
+          if(error){ alert('Error: ' + error.message); return; }
+          alert('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
+          cargarListaReuniones(listWrap);
+        });
+      }
       tbody.appendChild(trPre);
     }
   });
@@ -2024,6 +2040,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     const esRegional = addCard.querySelector('.nuevo-regional').checked;
     const esLider = addCard.querySelector('.nuevo-lider').checked;
     if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
+    if((data||[]).some(u=>(u.email||'').toLowerCase()===email)){ alert('Ese correo ya existe en la lista de usuarios.'); return; }
     const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, es_regional: esRegional, es_lider: esLider }]);
     if(err){ alert('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
