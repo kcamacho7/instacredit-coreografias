@@ -950,6 +950,23 @@ function renderTabs(){
     rgPanel.id = 'panel-RG';
     rgPanel.appendChild(renderRegionalTareas());
     panelsEl.appendChild(rgPanel);
+
+    const acBtn = document.createElement('button');
+    acBtn.className = 'tab-btn tab-btn-regional';
+    acBtn.innerHTML = '<img src="assets/isotipo_instacredit.png" alt="" style="height:1em;width:auto;vertical-align:-0.15em;margin-right:.35em;"> Acuerdos de reuniones';
+    acBtn.dataset.pais = 'ACUERDOS';
+    acBtn.addEventListener('click', ()=> selectTab('ACUERDOS'));
+    tabsEl.appendChild(acBtn);
+
+    const acPanel = document.createElement('div');
+    acPanel.className = 'tab-panel';
+    acPanel.id = 'panel-ACUERDOS';
+    const acWrap = document.createElement('div');
+    acWrap.style.paddingTop = '20px';
+    acWrap.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> sube transcripciones de reuniones para que la IA arme la minuta y proponga acuerdos con responsable y fecha. Los acuerdos de personas que ya tienen cuenta en el sistema aparecen automáticamente al final de su país. Después de crear una reunión, hay que correr el GitHub Action "Generar minuta con IA" para procesarla.</div>';
+    acPanel.appendChild(acWrap);
+    panelsEl.appendChild(acPanel);
+    cargarModuloAcuerdos(acWrap);
   }
 
   const regionalBtn = document.createElement('button');
@@ -986,6 +1003,173 @@ function renderRegionalTareas(){
   wrap.appendChild(info);
   wrap.appendChild(renderProyectosEspeciales('RG', true));
   return wrap;
+}
+
+async function cargarModuloAcuerdos(acWrap){
+  const listWrap = document.createElement('div');
+  acWrap.appendChild(listWrap);
+  await cargarListaReuniones(listWrap);
+
+  const addCard = document.createElement('div');
+  addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-top:16px;';
+  addCard.innerHTML = `
+    <div class="field-grid" style="padding:0 0 10px 0;">
+      <div class="field"><label>Título de la reunión</label><input type="text" class="nueva-reunion-titulo" placeholder="Ej: Comité de riesgo semanal"></div>
+      <div class="field"><label>Fecha</label><input type="date" class="nueva-reunion-fecha"></div>
+    </div>
+    <div class="field" style="padding:0 0 10px 0;">
+      <label>Transcripción</label>
+      <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Pega aquí la transcripción completa de la reunión..."></textarea>
+    </div>
+    <button type="button" class="add-proyecto-btn" style="margin:0;">+ Crear reunión</button>
+  `;
+  addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
+  addCard.querySelector('button').addEventListener('click', async ()=>{
+    const titulo = addCard.querySelector('.nueva-reunion-titulo').value.trim();
+    const fecha = addCard.querySelector('.nueva-reunion-fecha').value || null;
+    const transcripcion = addCard.querySelector('.nueva-reunion-transcripcion').value.trim();
+    if(!transcripcion){ alert('Pega la transcripción de la reunión.'); return; }
+    const { error } = await sb.from('reuniones').insert([{ titulo, fecha, transcripcion, estado: 'pendiente_procesar' }]);
+    if(error){ alert('Error: ' + error.message); return; }
+    addCard.querySelector('.nueva-reunion-titulo').value = '';
+    addCard.querySelector('.nueva-reunion-transcripcion').value = '';
+    alert('Reunión creada. Pide que se corra el GitHub Action "Generar minuta con IA" para procesarla.');
+    cargarListaReuniones(listWrap);
+  });
+  acWrap.appendChild(addCard);
+}
+
+async function cargarListaReuniones(listWrap){
+  listWrap.innerHTML = '<div class="sin-proyectos">Cargando reuniones…</div>';
+  const { data: reuniones, error } = await sb.from('reuniones').select('*').order('creado_at', { ascending: false });
+  if(error){ listWrap.innerHTML = '<div class="sin-proyectos">Error: ' + error.message + '</div>'; return; }
+  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,user_id');
+  const emailsConCuenta = new Set((perfiles||[]).filter(p=>p.user_id).map(p=>(p.email||'').toLowerCase()));
+
+  listWrap.innerHTML = '';
+  if(!reuniones || reuniones.length === 0){
+    listWrap.innerHTML = '<div class="sin-proyectos">Sin reuniones registradas todavía.</div>';
+    return;
+  }
+
+  for(const reunion of reuniones){
+    const { data: acuerdos } = await sb.from('acuerdos_reunion').select('*').eq('reunion_id', reunion.id).order('creado_at', { ascending: true });
+    listWrap.appendChild(renderReunionCard(reunion, acuerdos || [], emailsConCuenta, listWrap));
+  }
+}
+
+function renderReunionCard(reunion, acuerdos, emailsConCuenta, listWrap){
+  const card = document.createElement('div');
+  card.className = 'proyecto-card';
+  const estadoLabel = { pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' }[reunion.estado] || reunion.estado;
+
+  const headerRow = document.createElement('div');
+  headerRow.className = 'proyecto-card-header';
+  headerRow.innerHTML = `
+    <button type="button" class="proyecto-toggle" title="Mostrar/ocultar detalle">▶</button>
+    <span style="flex:1;font-weight:800;color:var(--azul);">${escapeAttr(reunion.titulo || '(sin título)')} ${reunion.fecha ? '— ' + escapeAttr(reunion.fecha) : ''} <span style="font-weight:400;font-size:12px;color:var(--azul-claro);">${estadoLabel}</span></span>
+    <button type="button" class="btn-eliminar-proyecto">Eliminar reunión</button>
+  `;
+  headerRow.querySelector('.proyecto-toggle').addEventListener('click', ()=>{
+    card.classList.toggle('open');
+    if(card.classList.contains('open')) body.querySelectorAll('textarea').forEach(autoGrow);
+  });
+  headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar esta reunión y todos sus acuerdos? Esta acción no se puede deshacer.')) return;
+    await sb.from('reuniones').delete().eq('id', reunion.id);
+    cargarListaReuniones(listWrap);
+  });
+  card.appendChild(headerRow);
+
+  const body = document.createElement('div');
+  body.className = 'proyecto-card-body';
+  card.appendChild(body);
+
+  if(reunion.minuta){
+    const minutaDiv = document.createElement('div');
+    minutaDiv.style.cssText = 'padding:12px 20px;font-size:13px;white-space:pre-wrap;color:var(--gris-texto);border-bottom:1px solid var(--gris-borde);';
+    minutaDiv.textContent = reunion.minuta;
+    body.appendChild(minutaDiv);
+  }
+
+  const table = document.createElement('table');
+  table.className = 'coreo';
+  table.innerHTML = '<tr><th style="width:26%;">Acuerdo</th><th style="width:16%;">Responsable</th><th style="width:18%;">Correo</th><th style="width:12%;">Fecha</th><th style="width:12%;">Estado</th><th style="width:16%;">&nbsp;</th></tr>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  if(acuerdos.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--azul-claro);padding:12px;">Sin acuerdos todavía.</td></tr>';
+  }
+  acuerdos.forEach(ac=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><textarea rows="1" data-f="descripcion">${escapeAttr(ac.descripcion)}</textarea></td>
+      <td><input type="text" data-f="responsable_nombre" value="${escapeAttr(ac.responsable_nombre)}"></td>
+      <td><input type="text" data-f="responsable_email" value="${escapeAttr(ac.responsable_email)}"></td>
+      <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
+      <td>
+        <select data-f="estado">
+          <option value="Pendiente" ${ac.estado==='Pendiente'?'selected':''}>Pendiente</option>
+          <option value="En curso" ${ac.estado==='En curso'?'selected':''}>En curso</option>
+          <option value="Cumplida" ${ac.estado==='Cumplida'?'selected':''}>Cumplida</option>
+          <option value="Vencida" ${ac.estado==='Vencida'?'selected':''}>Vencida</option>
+        </select>
+      </td>
+      <td class="row-actions" style="white-space:nowrap;width:auto;">
+        <button type="button" class="btn-guardar-acuerdo" title="Guardar" style="background:none;border:none;color:var(--verde);cursor:pointer;font-size:13px;">💾</button>
+        <button type="button" class="btn-eliminar-acuerdo" title="Eliminar">×</button>
+      </td>
+    `;
+    tr.querySelectorAll('textarea').forEach(wireAutoGrow);
+    tr.querySelector('.btn-guardar-acuerdo').addEventListener('click', async ()=>{
+      const email = tr.querySelector('[data-f="responsable_email"]').value.trim().toLowerCase();
+      const { error } = await sb.from('acuerdos_reunion').update({
+        descripcion: tr.querySelector('[data-f="descripcion"]').value,
+        responsable_nombre: tr.querySelector('[data-f="responsable_nombre"]').value,
+        responsable_email: email,
+        fecha: tr.querySelector('[data-f="fecha"]').value || null,
+        estado: tr.querySelector('[data-f="estado"]').value,
+      }).eq('id', ac.id);
+      if(error){ alert('Error: ' + error.message); return; }
+      alert('Acuerdo guardado.');
+      cargarListaReuniones(listWrap);
+    });
+    tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
+      if(!confirm('¿Eliminar este acuerdo?')) return;
+      await sb.from('acuerdos_reunion').delete().eq('id', ac.id);
+      cargarListaReuniones(listWrap);
+    });
+    tbody.appendChild(tr);
+    if(ac.responsable_email && !emailsConCuenta.has(ac.responsable_email.toLowerCase())){
+      const trPre = document.createElement('tr');
+      trPre.innerHTML = `<td colspan="6" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
+        <span style="color:#8a6d1f;">${escapeAttr(ac.responsable_email)} no tiene cuenta en el sistema todavía.</span>
+        <button type="button" class="btn-preautorizar" style="margin-left:8px;background:var(--verde);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">Preautorizar a esta persona</button>
+      </td>`;
+      trPre.querySelector('.btn-preautorizar').addEventListener('click', async ()=>{
+        const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase() }]);
+        if(error){ alert('Error: ' + error.message); return; }
+        alert('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
+        cargarListaReuniones(listWrap);
+      });
+      tbody.appendChild(trPre);
+    }
+  });
+  body.appendChild(table);
+
+  const addAcuerdoBtn = document.createElement('button');
+  addAcuerdoBtn.type = 'button';
+  addAcuerdoBtn.className = 'add-row-btn';
+  addAcuerdoBtn.textContent = '+ Agregar acuerdo manual';
+  addAcuerdoBtn.addEventListener('click', async ()=>{
+    const { error } = await sb.from('acuerdos_reunion').insert([{ reunion_id: reunion.id, descripcion: '', responsable_nombre: '', responsable_email: '', estado: 'Pendiente' }]);
+    if(error){ alert('Error: ' + error.message); return; }
+    cargarListaReuniones(listWrap);
+  });
+  body.appendChild(addAcuerdoBtn);
+
+  return card;
 }
 
 function renderRegional(){
@@ -2130,7 +2314,81 @@ function renderPais(paisCode){
 
   wrap.appendChild(renderProyectosEspeciales(paisCode, isUnlocked));
 
+  if(currentUserProfile && !currentUserProfile.es_regional && currentUserProfile.pais_code === paisCode){
+    const acuerdosWrap = document.createElement('div');
+    wrap.appendChild(acuerdosWrap);
+    cargarAcuerdosDelResponsable(acuerdosWrap);
+  }
+
   return wrap;
+}
+
+async function cargarAcuerdosDelResponsable(wrap){
+  const email = (currentUser.email || '').toLowerCase();
+  const { data, error } = await sb.from('acuerdos_reunion').select('*').eq('responsable_email', email).order('creado_at', { ascending: true });
+  if(error || !data || data.length === 0) return;
+
+  const block = document.createElement('div');
+  block.className = 'area-block';
+  block.innerHTML = `
+    <div class="area-header">
+      <h2>Acuerdos de reunión</h2>
+      <span>Acuerdos personales asignados a ti</span>
+    </div>
+    <div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones y te fueron asignados a ti directamente.</div>
+  `;
+  const table = document.createElement('table');
+  table.className = 'coreo';
+  table.innerHTML = '<tr><th style="width:5%;">#</th><th style="width:36%;">Acuerdo</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  data.forEach((ac, i)=>{
+    const accion = { fecha: ac.fecha || '', historialFechas: ac.historialFechas, ajustesUsuario: ac.ajustesUsuario };
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><textarea data-f="descripcion" rows="1">${escapeAttr(ac.descripcion)}</textarea></td>
+      <td><textarea data-f="responsable_nombre" rows="1">${escapeAttr(ac.responsable_nombre)}</textarea></td>
+      <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
+      <td>
+        <select data-f="estado" class="estado">
+          <option value="Pendiente" ${ac.estado==='Pendiente'?'selected':''}>Pendiente</option>
+          <option value="En curso" ${ac.estado==='En curso'?'selected':''}>En curso</option>
+          <option value="Cumplida" ${ac.estado==='Cumplida'?'selected':''}>Cumplida</option>
+          <option value="Vencida" ${ac.estado==='Vencida'?'selected':''}>Vencida</option>
+        </select>
+      </td>
+      <td class="row-actions"><button type="button" class="btn-comentario" title="Ver/agregar resultado">💬</button></td>
+    `;
+    tr.querySelectorAll('textarea').forEach(wireAutoGrow);
+
+    const guardarCampo = async (campo, valor)=>{
+      const { error: errGuardar } = await sb.from('acuerdos_reunion').update({ [campo]: valor }).eq('id', ac.id);
+      if(errGuardar) alert('Error al guardar: ' + errGuardar.message);
+    };
+    tr.querySelector('[data-f="descripcion"]').addEventListener('input', (e)=>{ ac.descripcion = e.target.value; });
+    tr.querySelector('[data-f="descripcion"]').addEventListener('change', (e)=> guardarCampo('descripcion', e.target.value));
+    tr.querySelector('[data-f="responsable_nombre"]').addEventListener('change', (e)=> guardarCampo('responsable_nombre', e.target.value));
+    tr.querySelector('[data-f="estado"]').addEventListener('change', (e)=>{ guardarCampo('estado', e.target.value); if(refrescarComentario) refrescarComentario(); });
+
+    const fechaInput = tr.querySelector('[data-f="fecha"]');
+    wireFechaAccionDefinitiva(fechaInput, accion, ()=>{
+      guardarCampo('fecha', accion.fecha);
+      guardarCampo('historialFechas', accion.historialFechas || []);
+      guardarCampo('ajustesUsuario', accion.ajustesUsuario || 0);
+    });
+
+    const resultadoAccion = { resultado: ac.resultado, estado: ac.estado };
+    const filaResultado = crearFilaResultado(6, resultadoAccion, ()=> guardarCampo('resultado', resultadoAccion.resultado));
+    const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, resultadoAccion);
+
+    tbody.appendChild(tr);
+    tbody.appendChild(filaResultado);
+  });
+
+  block.appendChild(table);
+  wrap.appendChild(block);
 }
 
 function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
