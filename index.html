@@ -1089,16 +1089,24 @@ function renderTabs(){
   regionalPanel.appendChild(renderRegional());
   panelsEl.appendChild(regionalPanel);
 
+  const tabGuardada = sessionStorage.getItem(ACTIVE_TAB_KEY);
+  if(tabGuardada && tabsEl.querySelector('.tab-btn[data-pais="' + tabGuardada + '"]')){
+    selectTab(tabGuardada);
+  }
+
   const activePanel = panelsEl.querySelector('.tab-panel.active');
   if(activePanel) activePanel.querySelectorAll('textarea').forEach(autoGrow);
   if(window.twemoji) twemoji.parse(tabsEl, { folder:'svg', ext:'.svg' });
 }
+
+const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab';
 
 function selectTab(code){
   document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.pais===code));
   document.querySelectorAll('.tab-panel').forEach(p=> p.classList.toggle('active', p.id==='panel-'+code));
   const activePanel = document.getElementById('panel-' + code);
   if(activePanel) activePanel.querySelectorAll('textarea').forEach(autoGrow);
+  sessionStorage.setItem(ACTIVE_TAB_KEY, code);
 }
 
 function renderRegionalTareas(){
