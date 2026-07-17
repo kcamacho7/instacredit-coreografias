@@ -239,7 +239,7 @@
 
   .field-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 20px 6px 20px;}
   .field label{display:block;font-size:10.5px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
-  .field input[type="text"], .field input[type="date"], .field input[type="time"], .field textarea{
+  .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="email"], .field select, .field textarea{
     width:100%;
     font-family:'Inter Tight',sans-serif;
     font-size:13px;
@@ -248,10 +248,12 @@
     border-radius:5px;
     padding:7px 9px;
     background:#FAFDF9;
+    box-sizing:border-box;
+    height:34px;
   }
-  .field textarea{resize:none;min-height:38px;overflow-y:hidden;}
+  .field textarea{resize:none;min-height:38px;height:auto;overflow-y:hidden;}
   img.emoji{height:1em;width:1em;vertical-align:-0.15em;margin:0 .06em;}
-  .field input:focus, .field textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--verde);background:#fff;}
   .permisos-checks{display:flex;flex-direction:column;gap:7px;padding:7px 9px;background:#FAFDF9;border:1px solid var(--gris-borde);border-radius:5px;}
   .permisos-checks label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--gris-texto);margin-bottom:0;cursor:pointer;}
   .permisos-checks input[type="checkbox"]{accent-color:var(--verde);width:15px;height:15px;flex:0 0 auto;cursor:pointer;}
