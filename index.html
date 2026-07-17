@@ -2524,6 +2524,18 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
         <canvas id="chart-por-kpi"></canvas>
       </div>
       <div class="dashboard-card full">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <h4 style="margin:0;">Acciones por estado</h4>
+            <div class="subtitulo">Consolidado, o filtrado por responsable</div>
+          </div>
+          <select id="filtro-usuario-estado" style="font-family:'Inter Tight',sans-serif;font-size:12.5px;border:1px solid var(--gris-borde);border-radius:5px;padding:6px 9px;background:#FAFDF9;color:var(--gris-texto);">
+            <option value="">Consolidado (todos)</option>
+          </select>
+        </div>
+        <canvas id="chart-por-estado-usuario"></canvas>
+      </div>
+      <div class="dashboard-card full">
         <div id="header-vencidas" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
           <div>
             <h4>⚠️ Acciones vencidas</h4>
@@ -2627,6 +2639,30 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
     },
     options: { indexAxis:'y', scales: { x: { stacked:true, beginAtZero:true, ticks:{ precision:0 } }, y: { stacked:true, ticks:{ font:{ size:10.5 } } } }, plugins: { legend: { position:'bottom', labels:{ boxWidth:12, font:{ size:11 } } } } }
   });
+
+  // Acciones por estado, consolidado o filtrado por responsable
+  const responsables = [...new Set(acciones.map(a=> a.responsable).filter(Boolean))].sort((a,b)=> a.localeCompare(b));
+  const selectUsuario = document.getElementById('filtro-usuario-estado');
+  responsables.forEach(r=>{
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    selectUsuario.appendChild(opt);
+  });
+
+  let chartPorEstadoUsuario = null;
+  function dibujarChartPorEstadoUsuario(responsableFiltro){
+    const base = responsableFiltro ? acciones.filter(a=> a.responsable === responsableFiltro) : acciones;
+    const conteo = ESTADOS.map(e=> base.filter(a=> a.estado===e).length);
+    if(chartPorEstadoUsuario) chartPorEstadoUsuario.destroy();
+    chartPorEstadoUsuario = new Chart(document.getElementById('chart-por-estado-usuario'), {
+      type: 'bar',
+      data: { labels: ESTADOS, datasets: [{ label:'Acciones', data: conteo, backgroundColor: ESTADOS.map(e=>CHART_COLORS[e]), borderRadius: 4 }] },
+      options: { scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }, plugins: { legend: { display:false } } }
+    });
+  }
+  dibujarChartPorEstadoUsuario('');
+  selectUsuario.addEventListener('change', ()=> dibujarChartPorEstadoUsuario(selectUsuario.value));
 }
 
 async function loadBitacora(listWrap){
