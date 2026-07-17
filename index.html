@@ -1119,8 +1119,7 @@ async function cargarListaReuniones(listWrap){
   listWrap.innerHTML = '<div class="sin-proyectos">Cargando reuniones…</div>';
   const { data: reuniones, error } = await sb.from('reuniones').select('*').order('creado_at', { ascending: false });
   if(error){ listWrap.innerHTML = '<div class="sin-proyectos">Error: ' + error.message + '</div>'; return; }
-  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,user_id');
-  const emailsConCuenta = new Set((perfiles||[]).filter(p=>p.user_id).map(p=>(p.email||'').toLowerCase()));
+  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,user_id,pais_code,es_regional,es_lider');
 
   listWrap.innerHTML = '';
   if(!reuniones || reuniones.length === 0){
@@ -1130,11 +1129,12 @@ async function cargarListaReuniones(listWrap){
 
   for(const reunion of reuniones){
     const { data: acuerdos } = await sb.from('acuerdos_reunion').select('*').eq('reunion_id', reunion.id).order('creado_at', { ascending: true });
-    listWrap.appendChild(renderReunionCard(reunion, acuerdos || [], emailsConCuenta, listWrap));
+    listWrap.appendChild(renderReunionCard(reunion, acuerdos || [], perfiles || [], listWrap));
   }
 }
 
-function renderReunionCard(reunion, acuerdos, emailsConCuenta, listWrap){
+function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
+  const emailsConCuenta = new Set(perfiles.filter(p=>p.user_id).map(p=>(p.email||'').toLowerCase()));
   const card = document.createElement('div');
   card.className = 'proyecto-card';
   const estadoLabel = { pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' }[reunion.estado] || reunion.estado;
@@ -1177,12 +1177,21 @@ function renderReunionCard(reunion, acuerdos, emailsConCuenta, listWrap){
   if(acuerdos.length === 0){
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--azul-claro);padding:12px;">Sin acuerdos todavía.</td></tr>';
   }
+  const opcionesResponsables = '<option value="">— Selecciona responsable —</option>' + perfiles.map(p=>
+    '<option value="' + escapeAttr((p.email||'').toLowerCase()) + '">' + escapeAttr(p.email) +
+    (p.pais_code ? ' — ' + escapeAttr(p.pais_code) : '') + (p.es_regional ? ' (Regional)' : '') + (p.es_lider ? ' (Líder)' : '') +
+    '</option>'
+  ).join('');
+
   acuerdos.forEach(ac=>{
     const tr = document.createElement('tr');
+    const sinResponsable = !ac.responsable_email;
     tr.innerHTML = `
       <td><textarea rows="1" data-f="descripcion">${escapeAttr(ac.descripcion)}</textarea></td>
       <td><input type="text" data-f="responsable_nombre" value="${escapeAttr(ac.responsable_nombre)}"></td>
-      <td><input type="text" data-f="responsable_email" value="${escapeAttr(ac.responsable_email)}"></td>
+      <td>${sinResponsable
+        ? '<select data-f="responsable_email" class="responsable-select" style="border-color:var(--rojo);">' + opcionesResponsables + '</select>'
+        : '<input type="text" data-f="responsable_email" value="' + escapeAttr(ac.responsable_email) + '">'}</td>
       <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
       <td>
         <select data-f="estado">
@@ -1193,24 +1202,15 @@ function renderReunionCard(reunion, acuerdos, emailsConCuenta, listWrap){
         </select>
       </td>
       <td class="row-actions" style="white-space:nowrap;width:auto;">
-        <button type="button" class="btn-guardar-acuerdo" title="Guardar" style="background:none;border:none;color:var(--verde);cursor:pointer;font-size:13px;">💾</button>
         <button type="button" class="btn-eliminar-acuerdo" title="Eliminar">×</button>
       </td>
     `;
     tr.querySelectorAll('textarea').forEach(wireAutoGrow);
-    tr.querySelector('.btn-guardar-acuerdo').addEventListener('click', async ()=>{
-      const email = tr.querySelector('[data-f="responsable_email"]').value.trim().toLowerCase();
-      const { error } = await sb.from('acuerdos_reunion').update({
-        descripcion: tr.querySelector('[data-f="descripcion"]').value,
-        responsable_nombre: tr.querySelector('[data-f="responsable_nombre"]').value,
-        responsable_email: email,
-        fecha: tr.querySelector('[data-f="fecha"]').value || null,
-        estado: tr.querySelector('[data-f="estado"]').value,
-      }).eq('id', ac.id);
-      if(error){ alert('Error: ' + error.message); return; }
-      alert('Acuerdo guardado.');
-      cargarListaReuniones(listWrap);
-    });
+    if(sinResponsable){
+      tr.querySelector('.responsable-select').addEventListener('change', (e)=>{
+        e.target.style.borderColor = e.target.value ? '' : 'var(--rojo)';
+      });
+    }
     tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
       if(!confirm('¿Eliminar este acuerdo?')) return;
       await sb.from('acuerdos_reunion').delete().eq('id', ac.id);
@@ -1244,6 +1244,49 @@ function renderReunionCard(reunion, acuerdos, emailsConCuenta, listWrap){
     cargarListaReuniones(listWrap);
   });
   body.appendChild(addAcuerdoBtn);
+
+  if(acuerdos.length > 0){
+    const guardarMinutaBtn = document.createElement('button');
+    guardarMinutaBtn.type = 'button';
+    guardarMinutaBtn.className = 'add-proyecto-btn';
+    guardarMinutaBtn.style.background = 'var(--verde)';
+    guardarMinutaBtn.textContent = '💾 Guardar minuta';
+    guardarMinutaBtn.addEventListener('click', async ()=>{
+      const filas = Array.from(tbody.querySelectorAll('tr')).filter(fila=> fila.querySelector('[data-f="descripcion"]'));
+      for(const fila of filas){
+        const campoResp = fila.querySelector('[data-f="responsable_email"]');
+        if(!campoResp.value.trim()){
+          alert('Todos los acuerdos necesitan un responsable asignado antes de guardar la minuta. Revisa la fila marcada en rojo.');
+          campoResp.style.borderColor = 'var(--rojo)';
+          campoResp.focus();
+          return;
+        }
+      }
+      for(let i=0;i<filas.length;i++){
+        const fila = filas[i];
+        const ac = acuerdos[i];
+        const email = fila.querySelector('[data-f="responsable_email"]').value.trim().toLowerCase();
+        const { error: errGuardar } = await sb.from('acuerdos_reunion').update({
+          descripcion: fila.querySelector('[data-f="descripcion"]').value,
+          responsable_nombre: fila.querySelector('[data-f="responsable_nombre"]').value,
+          responsable_email: email,
+          fecha: fila.querySelector('[data-f="fecha"]').value || null,
+          estado: fila.querySelector('[data-f="estado"]').value,
+        }).eq('id', ac.id);
+        if(errGuardar){ alert('Error al guardar: ' + errGuardar.message); return; }
+      }
+      const enviar = confirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar');
+      if(enviar){
+        const { error: errEnvio } = await sb.from('reuniones').update({ envio_pendiente: true }).eq('id', reunion.id);
+        if(errEnvio){ alert('No se pudo marcar el envío: ' + errEnvio.message); }
+        else alert('Minuta guardada y marcada para envío. Pide que se corra el GitHub Action "Enviar minuta por correo" para despacharla.');
+      } else {
+        alert('Minuta guardada.');
+      }
+      cargarListaReuniones(listWrap);
+    });
+    body.appendChild(guardarMinutaBtn);
+  }
 
   return card;
 }
