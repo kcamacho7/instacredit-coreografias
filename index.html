@@ -2319,7 +2319,7 @@ async function cargarControlAcuerdos(wrap){
 
   const [{ data: reuniones }, { data: acuerdos }, { data: perfiles }] = await Promise.all([
     sb.from('reuniones').select('id,fecha'),
-    sb.from('acuerdos_reunion').select('responsable_email,responsable_nombre'),
+    sb.from('acuerdos_reunion').select('responsable_email,responsable_nombre,estado'),
     sb.from('perfiles_usuario').select('email,nombre'),
   ]);
   cargando.remove();
@@ -2367,6 +2367,18 @@ async function cargarControlAcuerdos(wrap){
       <h4>Acuerdos por usuario</h4>
       <div class="subtitulo">Cantidad de acuerdos asignados a cada responsable</div>
       ${filasUsuarios.length > 0 ? '<canvas id="chart-acuerdos-usuario" style="max-height:' + alturaUsuarios + 'px;"></canvas>' : '<div class="sin-proyectos">Sin acuerdos con responsable asignado todavía.</div>'}
+    </div>
+    <div class="dashboard-card full">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h4 style="margin:0;">Acuerdos por estado</h4>
+          <div class="subtitulo">Consolidado, o filtrado por responsable</div>
+        </div>
+        <select id="filtro-usuario-acuerdo-estado" style="font-family:'Inter Tight',sans-serif;font-size:12.5px;border:1px solid var(--gris-borde);border-radius:5px;padding:6px 9px;background:#FAFDF9;color:var(--gris-texto);">
+          <option value="">Consolidado (todos)</option>
+        </select>
+      </div>
+      ${(acuerdos||[]).length > 0 ? '<canvas id="chart-acuerdos-por-estado"></canvas>' : '<div class="sin-proyectos">Sin acuerdos registrados todavía.</div>'}
     </div>
   `;
   body.appendChild(gridChart);
@@ -2424,6 +2436,31 @@ async function cargarControlAcuerdos(wrap){
         plugins: { legend: { display:false } }
       }
     });
+  }
+
+  if(document.getElementById('chart-acuerdos-por-estado')){
+    const ESTADOS = ['Pendiente','En curso','Cumplida','Vencida'];
+    const selectUsuarioAcuerdo = document.getElementById('filtro-usuario-acuerdo-estado');
+    filasUsuarios.forEach(u=>{
+      const opt = document.createElement('option');
+      opt.value = u.email;
+      opt.textContent = u.nombre || u.email;
+      selectUsuarioAcuerdo.appendChild(opt);
+    });
+
+    let chartAcuerdosPorEstado = null;
+    function dibujarChartAcuerdosPorEstado(emailFiltro){
+      const base = emailFiltro ? (acuerdos||[]).filter(a=> (a.responsable_email||'').trim().toLowerCase() === emailFiltro) : (acuerdos||[]);
+      const conteo = ESTADOS.map(e=> base.filter(a=> (a.estado || 'Pendiente') === e).length);
+      if(chartAcuerdosPorEstado) chartAcuerdosPorEstado.destroy();
+      chartAcuerdosPorEstado = new Chart(document.getElementById('chart-acuerdos-por-estado'), {
+        type: 'bar',
+        data: { labels: ESTADOS, datasets: [{ label:'Acuerdos', data: conteo, backgroundColor: ESTADOS.map(e=>CHART_COLORS[e]), borderRadius: 4 }] },
+        options: { scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }, plugins: { legend: { display:false } } }
+      });
+    }
+    dibujarChartAcuerdosPorEstado('');
+    selectUsuarioAcuerdo.addEventListener('change', ()=> dibujarChartAcuerdosPorEstado(selectUsuarioAcuerdo.value));
   }
 }
 
