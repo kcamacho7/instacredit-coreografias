@@ -1070,7 +1070,7 @@ function renderTabs(){
     acPanel.id = 'panel-ACUERDOS';
     const acWrap = document.createElement('div');
     acWrap.style.paddingTop = '20px';
-    acWrap.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> sube transcripciones de reuniones para que la IA arme la minuta y proponga acuerdos con responsable y fecha. Los acuerdos de personas que ya tienen cuenta en el sistema aparecen automáticamente al final de su país. Después de crear una reunión, hay que correr el GitHub Action "Generar minuta con IA" para procesarla.</div>';
+    acWrap.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> sube el archivo (o pega el texto) de una transcripción y la IA arma la minuta al instante, con título y acuerdos sugeridos (responsable, fecha y correo, tomados de la lista de usuarios cuando reconoce el nombre). Revisa y ajusta cada acuerdo, y al "Guardar minuta" puedes enviarla por correo a cada responsable y a Riesgo Regional en el mismo paso, con un PDF adjunto del detalle completo. Los acuerdos de personas con cuenta en el sistema aparecen también, agrupados por reunión, al final de su país (o en "KPI y tareas Regional" si son acuerdos de un usuario regional).</div>';
     acPanel.appendChild(acWrap);
     panelsEl.appendChild(acPanel);
     cargarModuloAcuerdos(acWrap);
