@@ -648,7 +648,7 @@ function validarAntesDeGuardar(code){
 async function saveActiveCountry(){
   const activeBtn = document.querySelector('.tab-btn.active');
   const code = activeBtn.dataset.pais;
-  const puedeEditar = currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.pais_code === code);
+  const puedeEditar = currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin || currentUserProfile.pais_code === code);
   if(!puedeEditar){
     alert('No tienes permiso para editar ' + code + '. Inicia sesión con la cuenta asignada a ese país.');
     return;
@@ -807,7 +807,7 @@ async function cargarPerfilUsuario(){
   }
   const { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
   currentUserProfile = data || null;
-  regionalUnlocked = (currentUserProfile && currentUserProfile.es_regional) || sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+  regionalUnlocked = (currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin)) || sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
 }
 
 async function checkSesionInicial(){
@@ -877,8 +877,8 @@ function renderAuthBar(){
       : null;
     const status = document.createElement('span');
     status.className = 'auth-status';
-    const etiquetaAcceso = currentUserProfile && currentUserProfile.es_regional
-      ? '<span class="pais-asignado">Riesgo Regional — edita los 4 países</span>'
+    const etiquetaAcceso = currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin)
+      ? '<span class="pais-asignado">' + (currentUserProfile.es_regional ? 'Riesgo Regional' : 'Administrador') + ' — edita los 4 países</span>'
       : (paisNombre ? '<span class="pais-asignado">' + paisNombre + '</span>' : '<span class="sin-pais">sin país asignado, contacta a Riesgo Regional</span>');
     status.innerHTML = 'Sesión: ' + escapeAttr(currentUser.email) + ' — ' + etiquetaAcceso;
     bar.appendChild(status);
@@ -1031,9 +1031,10 @@ function renderTabs(){
   panelsEl.appendChild(dashPanel);
 
   const puedeVerAcuerdos = regionalUnlocked || !!(currentUserProfile && currentUserProfile.es_lider);
+  const esRegionalExclusivo = !!(currentUserProfile && currentUserProfile.es_regional);
   let grupoRegionalEmpujado = false;
 
-  if(regionalUnlocked){
+  if(esRegionalExclusivo){
     const rgBtn = document.createElement('button');
     rgBtn.className = 'tab-btn tab-btn-regional tab-btn-regional-push';
     grupoRegionalEmpujado = true;
@@ -1071,7 +1072,7 @@ function renderTabs(){
 
   const regionalBtn = document.createElement('button');
   regionalBtn.className = 'tab-btn tab-btn-regional' + (grupoRegionalEmpujado ? '' : ' tab-btn-regional-push');
-  regionalBtn.textContent = '🔒 Riesgo Regional';
+  regionalBtn.textContent = '🔒 Administración del sistema';
   regionalBtn.dataset.pais = 'REGIONAL';
   regionalBtn.addEventListener('click', ()=> selectTab('REGIONAL'));
   tabsEl.appendChild(regionalBtn);
@@ -1102,6 +1103,9 @@ function renderRegionalTareas(){
   info.innerHTML = '<span>🔒 Sección privada de Riesgo Regional — solo tu usuario la ve, los gerentes de país no tienen acceso. Úsala para documentar tus propios proyectos y tareas de seguimiento.</span>';
   wrap.appendChild(info);
   wrap.appendChild(renderProyectosEspeciales('RG', true));
+  const acuerdosWrap = document.createElement('div');
+  wrap.appendChild(acuerdosWrap);
+  cargarAcuerdosDelResponsable(acuerdosWrap, 'RG');
   return wrap;
 }
 
@@ -1549,7 +1553,7 @@ function renderRegional(){
     const pinBar = document.createElement('div');
     pinBar.className = 'pin-bar';
     pinBar.innerHTML = `
-      <span>🔒 Esta pestaña es solo para Riesgo Regional. Ingresa el PIN regional:</span>
+      <span>🔒 Esta pestaña es solo para Administración del sistema. Ingresa el PIN:</span>
       <input type="password" placeholder="PIN" maxlength="6">
       <button type="button">Desbloquear</button>
     `;
@@ -2013,7 +2017,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
   } else {
     const table = document.createElement('table');
     table.className = 'coreo';
-    table.innerHTML = '<tr><th style="width:16%;">Correo</th><th style="width:14%;">Nombre</th><th style="width:12%;">Estado</th><th style="width:14%;">País asignado</th><th style="width:8%;">Regional</th><th style="width:8%;">Líder</th><th style="width:28%;">&nbsp;</th></tr>';
+    table.innerHTML = '<tr><th style="width:15%;">Correo</th><th style="width:13%;">Nombre</th><th style="width:10%;">Estado</th><th style="width:13%;">País asignado</th><th style="width:7%;">Regional</th><th style="width:7%;">Admin</th><th style="width:7%;">Líder</th><th style="width:28%;">&nbsp;</th></tr>';
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
 
@@ -2021,13 +2025,14 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       const tr = document.createElement('tr');
       const opciones = '<option value="">Sin asignar</option>' + PAISES.map(p=>
         '<option value="' + p.code + '"' + (u.pais_code===p.code ? ' selected' : '') + '>' + p.nombre + '</option>'
-      ).join('');
+      ).join('') + '<option value="RG"' + (u.pais_code==='RG' ? ' selected' : '') + '>Regional</option>';
       tr.innerHTML = `
         <td>${escapeAttr(u.email)}</td>
         <td><input type="text" class="nombre-usuario" value="${escapeAttr(u.nombre || '')}" placeholder="Nombre completo" style="width:100%;"></td>
         <td>${u.user_id ? '<span style="color:var(--verde);font-weight:700;">Registrado</span>' : '<span style="color:var(--azul-claro);">Pendiente de registro</span>'}</td>
         <td><select class="estado">${opciones}</select></td>
         <td style="text-align:center;"><input type="checkbox" class="es-regional" ${u.es_regional ? 'checked' : ''}></td>
+        <td style="text-align:center;"><input type="checkbox" class="es-admin" ${u.es_admin ? 'checked' : ''}></td>
         <td style="text-align:center;"><input type="checkbox" class="es-lider" ${u.es_lider ? 'checked' : ''}></td>
         <td style="white-space:nowrap;">
           <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-right:6px;">Guardar</button>
@@ -2042,9 +2047,10 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       btnGuardar.addEventListener('click', async ()=>{
         const nuevoPais = tr.querySelector('select').value || null;
         const esRegional = tr.querySelector('.es-regional').checked;
+        const esAdmin = tr.querySelector('.es-admin').checked;
         const esLider = tr.querySelector('.es-lider').checked;
         const nombre = tr.querySelector('.nombre-usuario').value.trim();
-        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_lider: esLider, nombre }).eq('id', u.id);
+        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, nombre }).eq('id', u.id);
         if(err){ alert('Error: ' + err.message); return; }
         if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
         alert('Cambios guardados para ' + escapeAttr(u.email) + '.');
@@ -2085,12 +2091,16 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         <select class="nuevo-pais">
           <option value="">Sin asignar</option>
           ${PAISES.map(p=> '<option value="' + p.code + '">' + p.nombre + '</option>').join('')}
+          <option value="RG">Regional</option>
         </select>
       </div>
       <div class="field">
         <label>&nbsp;</label>
         <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;">
           <input type="checkbox" class="nuevo-regional"> Es Riesgo Regional
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:4px;">
+          <input type="checkbox" class="nuevo-admin"> Es Administrador (Administración del sistema)
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:4px;">
           <input type="checkbox" class="nuevo-lider"> Es Líder (acceso a Acuerdos de reuniones)
@@ -2104,10 +2114,11 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     const nombre = addCard.querySelector('.nuevo-nombre').value.trim();
     const pais = addCard.querySelector('.nuevo-pais').value || null;
     const esRegional = addCard.querySelector('.nuevo-regional').checked;
+    const esAdmin = addCard.querySelector('.nuevo-admin').checked;
     const esLider = addCard.querySelector('.nuevo-lider').checked;
     if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
     if((data||[]).some(u=>(u.email||'').toLowerCase()===email)){ alert('Ese correo ya existe en la lista de usuarios.'); return; }
-    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, es_regional: esRegional, es_lider: esLider }]);
+    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider }]);
     if(err){ alert('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
   });
@@ -2475,7 +2486,7 @@ async function loadBitacoraProyectos(listWrap){
 
 function renderPais(paisCode){
   const wrap = document.createElement('div');
-  const isUnlocked = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.pais_code === paisCode));
+  const isUnlocked = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin || currentUserProfile.pais_code === paisCode));
 
   const pinBar = document.createElement('div');
   pinBar.className = 'pin-bar' + (isUnlocked ? ' unlocked' : '');
@@ -2697,7 +2708,7 @@ function renderPais(paisCode){
 
   wrap.appendChild(renderProyectosEspeciales(paisCode, isUnlocked));
 
-  if(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.pais_code === paisCode)){
+  if(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin || currentUserProfile.pais_code === paisCode)){
     const acuerdosWrap = document.createElement('div');
     wrap.appendChild(acuerdosWrap);
     cargarAcuerdosDelResponsable(acuerdosWrap, paisCode);
@@ -2707,11 +2718,13 @@ function renderPais(paisCode){
 }
 
 async function cargarAcuerdosDelResponsable(wrap, paisCode){
-  const esVistaRegional = !!(currentUserProfile && currentUserProfile.es_regional);
+  const esVistaRegional = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
   let data, error;
   if(esVistaRegional){
-    const { data: usuariosPais } = await sb.from('perfiles_usuario').select('email').eq('pais_code', paisCode);
-    const emails = (usuariosPais || []).map(u=>(u.email||'').toLowerCase()).filter(Boolean);
+    const { data: usuariosPais } = await sb.from('perfiles_usuario').select('email,es_regional').eq('pais_code', paisCode);
+    let candidatos = usuariosPais || [];
+    if(paisCode !== 'RG') candidatos = candidatos.filter(u=>!u.es_regional);
+    const emails = candidatos.map(u=>(u.email||'').toLowerCase()).filter(Boolean);
     if(emails.length === 0) return;
     ({ data, error } = await sb.from('acuerdos_reunion').select('*').in('responsable_email', emails).order('creado_at', { ascending: true }));
   } else {
@@ -2741,11 +2754,11 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
   block.innerHTML = `
     <div class="area-header">
       <h2>Acuerdos de reunión</h2>
-      <span class="header-right"><span>${esVistaRegional ? 'Acuerdos asignados a los usuarios de este país' : 'Acuerdos personales asignados a ti'}</span><button type="button" class="btn-colapsar-seccion"></button></span>
+      <span class="header-right"><span>${esVistaRegional ? (paisCode === 'RG' ? 'Acuerdos asignados a Riesgo Regional' : 'Acuerdos asignados a los usuarios de este país') : 'Acuerdos personales asignados a ti'}</span><button type="button" class="btn-colapsar-seccion"></button></span>
     </div>
   `;
   const body = document.createElement('div');
-  body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones' + (esVistaRegional ? ', asignados a cualquier usuario de este país' : ' y te fueron asignados a ti directamente') + ', agrupados por reunión.</div>';
+  body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones' + (esVistaRegional ? (paisCode === 'RG' ? ', asignados a usuarios de Riesgo Regional' : ', asignados a cualquier usuario de este país') : ' y te fueron asignados a ti directamente') + ', agrupados por reunión.</div>';
 
   gruposOrdenados.forEach(([reunionId, acuerdosGrupo])=>{
     const reunionRel = reunionesPorId.get(reunionId);
