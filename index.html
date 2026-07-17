@@ -2288,7 +2288,102 @@ function renderDashboardPublico(){
   renderDashboardCharts(chartsWrap, opciones[0].code);
   if(window.twemoji) twemoji.parse(filtroBar, { folder:'svg', ext:'.svg' });
 
+  if(puedeVerTodosPaises){
+    const controlWrap = document.createElement('div');
+    wrap.appendChild(controlWrap);
+    cargarControlAcuerdos(controlWrap);
+  }
+
   return wrap;
+}
+
+async function cargarControlAcuerdos(wrap){
+  const block = document.createElement('div');
+  block.className = 'area-block proyecto-area';
+  block.innerHTML = `
+    <div class="area-header">
+      <h2>Control de acuerdos</h2>
+      <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+    </div>
+  `;
+  const body = document.createElement('div');
+  body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> resumen de reuniones registradas y acuerdos por responsable, en todas las reuniones del sistema.</div>';
+  block.appendChild(body);
+  wrap.appendChild(block);
+  wireColapsarSeccion(block.querySelector('.area-header'), body, 'control-acuerdos');
+
+  const cargando = document.createElement('div');
+  cargando.className = 'sin-proyectos';
+  cargando.textContent = 'Cargando…';
+  body.appendChild(cargando);
+
+  const [{ data: reuniones }, { data: acuerdos }, { data: perfiles }] = await Promise.all([
+    sb.from('reuniones').select('id'),
+    sb.from('acuerdos_reunion').select('responsable_email,responsable_nombre'),
+    sb.from('perfiles_usuario').select('email,nombre'),
+  ]);
+  cargando.remove();
+
+  const totalReuniones = (reuniones || []).length;
+
+  const nombrePorEmail = new Map((perfiles || []).map(p=> [(p.email||'').toLowerCase(), p.nombre]));
+  const conteoPorEmail = new Map();
+  let sinResponsable = 0;
+  (acuerdos || []).forEach(a=>{
+    const email = (a.responsable_email || '').trim().toLowerCase();
+    if(!email){ sinResponsable++; return; }
+    if(!conteoPorEmail.has(email)) conteoPorEmail.set(email, { email, nombre: nombrePorEmail.get(email) || a.responsable_nombre || '', cantidad: 0 });
+    conteoPorEmail.get(email).cantidad++;
+  });
+  const filasUsuarios = [...conteoPorEmail.values()].sort((a, b)=> b.cantidad - a.cantidad);
+
+  const resumen = document.createElement('div');
+  resumen.style.cssText = 'display:flex;gap:20px;flex-wrap:wrap;padding:14px 20px;';
+  resumen.innerHTML = `
+    <div style="background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:12px 20px;min-width:160px;">
+      <div style="font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;">Reuniones registradas</div>
+      <div style="font-size:26px;font-weight:800;color:var(--azul);">${totalReuniones}</div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:12px 20px;min-width:160px;">
+      <div style="font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;">Usuarios con acuerdos</div>
+      <div style="font-size:26px;font-weight:800;color:var(--azul);">${filasUsuarios.length}</div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:12px 20px;min-width:160px;">
+      <div style="font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;">Total de acuerdos</div>
+      <div style="font-size:26px;font-weight:800;color:var(--azul);">${(acuerdos||[]).length}</div>
+    </div>
+  `;
+  body.appendChild(resumen);
+
+  if(filasUsuarios.length === 0){
+    const vacio = document.createElement('div');
+    vacio.className = 'sin-proyectos';
+    vacio.textContent = 'Sin acuerdos con responsable asignado todavía.';
+    body.appendChild(vacio);
+  } else {
+    const table = document.createElement('table');
+    table.className = 'coreo';
+    table.innerHTML = '<tr><th style="width:40%;">Usuario</th><th style="width:40%;">Correo</th><th style="width:20%;">Acuerdos</th></tr>';
+    const tbody = document.createElement('tbody');
+    filasUsuarios.forEach(u=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeAttr(u.nombre || '—')}</td>
+        <td>${escapeAttr(u.email)}</td>
+        <td style="font-weight:700;color:var(--azul);">${u.cantidad}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
+  }
+
+  if(sinResponsable > 0){
+    const aviso = document.createElement('div');
+    aviso.style.cssText = 'padding:8px 20px;font-size:12px;color:var(--azul-claro);';
+    aviso.textContent = sinResponsable + ' acuerdo(s) todavía sin responsable asignado.';
+    body.appendChild(aviso);
+  }
 }
 
 async function renderDashboardCharts(dashWrap, paisFiltro){
