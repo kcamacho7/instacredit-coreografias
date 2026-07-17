@@ -425,6 +425,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 const STORAGE_KEY = 'instacredit_coreografias_v1';
 let state = {};
 const openAccordions = new Set();
+const reunionesAbiertas = new Set();
 let currentUser = null;
 let currentUserProfile = null;
 let authModo = 'login';
@@ -1315,6 +1316,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   const emailsConCuenta = new Set(perfiles.filter(p=>p.user_id).map(p=>(p.email||'').toLowerCase()));
   const card = document.createElement('div');
   card.className = 'proyecto-card reunion-card';
+  if(reunionesAbiertas.has(reunion.id)) card.classList.add('open');
   const estadoLabel = { pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' }[reunion.estado] || reunion.estado;
 
   const headerRow = document.createElement('div');
@@ -1329,7 +1331,12 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   tituloInput.addEventListener('click', (e)=> e.stopPropagation());
   headerRow.querySelector('.proyecto-toggle').addEventListener('click', ()=>{
     card.classList.toggle('open');
-    if(card.classList.contains('open')) body.querySelectorAll('textarea').forEach(autoGrow);
+    if(card.classList.contains('open')){
+      reunionesAbiertas.add(reunion.id);
+      body.querySelectorAll('textarea').forEach(autoGrow);
+    } else {
+      reunionesAbiertas.delete(reunion.id);
+    }
   });
   headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
     if(!confirm('¿Eliminar esta reunión y todos sus acuerdos? Esta acción no se puede deshacer.')) return;
