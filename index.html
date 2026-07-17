@@ -2524,21 +2524,30 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
         <canvas id="chart-por-kpi"></canvas>
       </div>
       <div class="dashboard-card full">
-        <h4>⚠️ Acciones vencidas</h4>
-        <div class="subtitulo">Fecha de compromiso ya superada y sin cumplir. Se actualiza sola todos los días.</div>
-        <table class="coreo">
-          <tr>
-            <th style="width:14%;cursor:pointer;" data-sort="pais">País <span class="orden-flecha" data-flecha="pais"></span></th>
-            <th style="width:22%;">KPI / Proyecto</th>
-            <th style="width:34%;">Acción</th>
-            <th style="width:16%;">Responsable</th>
-            <th style="width:14%;cursor:pointer;" data-sort="fecha">Fecha <span class="orden-flecha" data-flecha="fecha"></span></th>
-          </tr>
-          <tbody id="tbody-vencidas">${filasVencidas}</tbody>
-        </table>
+        <div id="header-vencidas" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+          <div>
+            <h4>⚠️ Acciones vencidas</h4>
+            <div class="subtitulo">Fecha de compromiso ya superada y sin cumplir. Se actualiza sola todos los días.</div>
+          </div>
+          <button type="button" class="btn-colapsar-seccion" style="background:var(--azul);color:#fff;border:1px solid var(--azul);flex:0 0 auto;"></button>
+        </div>
+        <div id="body-vencidas">
+          <table class="coreo">
+            <tr>
+              <th style="width:14%;cursor:pointer;" data-sort="pais">País <span class="orden-flecha" data-flecha="pais"></span></th>
+              <th style="width:22%;">KPI / Proyecto</th>
+              <th style="width:34%;">Acción</th>
+              <th style="width:16%;">Responsable</th>
+              <th style="width:14%;cursor:pointer;" data-sort="fecha">Fecha <span class="orden-flecha" data-flecha="fecha"></span></th>
+            </tr>
+            <tbody id="tbody-vencidas">${filasVencidas}</tbody>
+          </table>
+        </div>
       </div>
     </div>
   `;
+
+  wireColapsarSeccion(dashWrap.querySelector('#header-vencidas'), dashWrap.querySelector('#body-vencidas'), 'dashboard-vencidas');
 
   const actualizarFlechasVencidas = ()=>{
     dashWrap.querySelectorAll('.orden-flecha').forEach(sp=>{
