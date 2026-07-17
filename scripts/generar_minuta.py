@@ -1,5 +1,6 @@
 import json
 import os
+import unicodedata
 from datetime import datetime, timezone, timedelta
 
 import anthropic
@@ -71,6 +72,26 @@ def hoy_cr():
     return datetime.now(timezone(timedelta(hours=-6))).date().isoformat()
 
 
+def normalizar(s):
+    s = (s or "").lower().strip()
+    s = unicodedata.normalize("NFD", s)
+    return "".join(c for c in s if unicodedata.category(c) != "Mn")
+
+
+def buscar_email_por_nombre(nombre_ia, perfiles):
+    norm = normalizar(nombre_ia)
+    if not norm:
+        return ""
+    for p in perfiles:
+        if normalizar(p.get("nombre")) == norm:
+            return (p.get("email") or "").lower()
+    primer_token = norm.split(" ")[0]
+    candidatos = [p for p in perfiles if normalizar(p.get("nombre")).split(" ")[0:1] == [primer_token]]
+    if len(candidatos) == 1:
+        return (candidatos[0].get("email") or "").lower()
+    return ""
+
+
 def procesar_reunion(reunion):
     print("Procesando reunión %s (%s)..." % (reunion["id"], reunion.get("titulo") or "sin título"))
     transcripcion = reunion.get("transcripcion") or ""
@@ -106,13 +127,17 @@ def procesar_reunion(reunion):
     texto = next(b.text for b in response.content if b.type == "text")
     data = json.loads(texto)
 
+    perfiles = sb_get("perfiles_usuario", {"select": "email,nombre"})
+
     filas = []
     for a in data.get("acuerdos", []):
+        nombre_ia = a.get("responsable_nombre") or ""
+        email = buscar_email_por_nombre(nombre_ia, perfiles) or (a.get("responsable_email_tentativo") or "").strip().lower()
         filas.append({
             "reunion_id": reunion["id"],
             "descripcion": a.get("descripcion") or "",
-            "responsable_nombre": a.get("responsable_nombre") or "",
-            "responsable_email": (a.get("responsable_email_tentativo") or "").strip().lower(),
+            "responsable_nombre": nombre_ia,
+            "responsable_email": email,
             "fecha": a.get("fecha") or None,
             "estado": "Pendiente",
         })

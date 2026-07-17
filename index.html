@@ -1230,7 +1230,7 @@ async function cargarListaReuniones(listWrap){
   listWrap.innerHTML = '<div class="sin-proyectos">Cargando reuniones…</div>';
   const { data: reuniones, error } = await sb.from('reuniones').select('*').order('creado_at', { ascending: false });
   if(error){ listWrap.innerHTML = '<div class="sin-proyectos">Error: ' + error.message + '</div>'; return; }
-  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,user_id,pais_code,es_regional,es_lider');
+  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,nombre,user_id,pais_code,es_regional,es_lider');
 
   listWrap.innerHTML = '';
   if(!reuniones || reuniones.length === 0){
@@ -1319,11 +1319,23 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   if(acuerdos.length === 0){
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--azul-claro);padding:12px;">Sin acuerdos todavía.</td></tr>';
   }
-  const opcionesResponsables = '<option value="">— Selecciona responsable —</option>' + perfiles.map(p=>
-    '<option value="' + escapeAttr((p.email||'').toLowerCase()) + '">' + escapeAttr(p.email) +
-    (p.pais_code ? ' — ' + escapeAttr(p.pais_code) : '') + (p.es_regional ? ' (Regional)' : '') + (p.es_lider ? ' (Líder)' : '') +
-    '</option>'
-  ).join('');
+  const emailsEnLista = new Set(perfiles.map(p=>(p.email||'').toLowerCase()));
+  function opcionesResponsablesPara(emailActual){
+    const actual = (emailActual || '').toLowerCase();
+    let opts = '<option value="">— Selecciona responsable —</option>';
+    if(actual && !emailsEnLista.has(actual)){
+      opts += '<option value="' + escapeAttr(actual) + '" selected>' + escapeAttr(emailActual) + ' (sin cuenta)</option>';
+    }
+    opts += perfiles.map(p=>{
+      const email = (p.email||'').toLowerCase();
+      return '<option value="' + escapeAttr(email) + '"' + (email===actual ? ' selected' : '') + '>' +
+        (p.nombre ? escapeAttr(p.nombre) + ' — ' : '') + escapeAttr(p.email) +
+        (p.pais_code ? ' — ' + escapeAttr(p.pais_code) : '') + (p.es_regional ? ' (Regional)' : '') + (p.es_lider ? ' (Líder)' : '') +
+        '</option>';
+    }).join('');
+    opts += '<option value="__nuevo__">+ Agregar correo nuevo…</option>';
+    return opts;
+  }
 
   acuerdos.forEach(ac=>{
     const tr = document.createElement('tr');
@@ -1331,9 +1343,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     tr.innerHTML = `
       <td><textarea rows="1" data-f="descripcion">${escapeAttr(ac.descripcion)}</textarea></td>
       <td><input type="text" data-f="responsable_nombre" value="${escapeAttr(ac.responsable_nombre)}"></td>
-      <td>${sinResponsable
-        ? '<select data-f="responsable_email" class="responsable-select" style="border-color:var(--rojo);">' + opcionesResponsables + '</select>'
-        : '<input type="text" data-f="responsable_email" value="' + escapeAttr(ac.responsable_email) + '">'}</td>
+      <td><select data-f="responsable_email" class="responsable-select" ${sinResponsable ? 'style="border-color:var(--rojo);"' : ''}>${opcionesResponsablesPara(ac.responsable_email)}</select></td>
       <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
       <td>
         <select data-f="estado">
@@ -1348,11 +1358,20 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       </td>
     `;
     tr.querySelectorAll('textarea').forEach(wireAutoGrow);
-    if(sinResponsable){
-      tr.querySelector('.responsable-select').addEventListener('change', (e)=>{
-        e.target.style.borderColor = e.target.value ? '' : 'var(--rojo)';
-      });
-    }
+    const selectResponsable = tr.querySelector('.responsable-select');
+    selectResponsable.addEventListener('change', async (e)=>{
+      if(e.target.value === '__nuevo__'){
+        const nuevoEmail = (prompt('Correo a preautorizar:') || '').trim().toLowerCase();
+        if(!nuevoEmail || !nuevoEmail.includes('@')){ e.target.value = ac.responsable_email || ''; return; }
+        const nuevoNombre = (prompt('Nombre completo (opcional):') || '').trim();
+        const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre }]);
+        if(errPre){ alert('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
+        await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail }).eq('id', ac.id);
+        cargarListaReuniones(listWrap);
+        return;
+      }
+      e.target.style.borderColor = e.target.value ? '' : 'var(--rojo)';
+    });
     tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
       if(!confirm('¿Eliminar este acuerdo?')) return;
       await sb.from('acuerdos_reunion').delete().eq('id', ac.id);
@@ -1910,7 +1929,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
   } else {
     const table = document.createElement('table');
     table.className = 'coreo';
-    table.innerHTML = '<tr><th style="width:24%;">Correo</th><th style="width:12%;">Estado</th><th style="width:16%;">País asignado</th><th style="width:9%;">Regional</th><th style="width:9%;">Líder</th><th style="width:30%;">&nbsp;</th></tr>';
+    table.innerHTML = '<tr><th style="width:16%;">Correo</th><th style="width:14%;">Nombre</th><th style="width:12%;">Estado</th><th style="width:14%;">País asignado</th><th style="width:8%;">Regional</th><th style="width:8%;">Líder</th><th style="width:28%;">&nbsp;</th></tr>';
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
 
@@ -1921,6 +1940,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       ).join('');
       tr.innerHTML = `
         <td>${escapeAttr(u.email)}</td>
+        <td><input type="text" class="nombre-usuario" value="${escapeAttr(u.nombre || '')}" placeholder="Nombre completo" style="width:100%;"></td>
         <td>${u.user_id ? '<span style="color:var(--verde);font-weight:700;">Registrado</span>' : '<span style="color:var(--azul-claro);">Pendiente de registro</span>'}</td>
         <td><select class="estado">${opciones}</select></td>
         <td style="text-align:center;"><input type="checkbox" class="es-regional" ${u.es_regional ? 'checked' : ''}></td>
@@ -1939,7 +1959,8 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         const nuevoPais = tr.querySelector('select').value || null;
         const esRegional = tr.querySelector('.es-regional').checked;
         const esLider = tr.querySelector('.es-lider').checked;
-        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_lider: esLider }).eq('id', u.id);
+        const nombre = tr.querySelector('.nombre-usuario').value.trim();
+        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_lider: esLider, nombre }).eq('id', u.id);
         if(err){ alert('Error: ' + err.message); return; }
         if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
         alert('Cambios guardados para ' + escapeAttr(u.email) + '.');
@@ -1972,6 +1993,10 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         <input type="email" class="nuevo-email" placeholder="correo@instacredit.com">
       </div>
       <div class="field">
+        <label>Nombre completo</label>
+        <input type="text" class="nuevo-nombre" placeholder="Ej. Juan Pérez">
+      </div>
+      <div class="field">
         <label>País que podrá editar</label>
         <select class="nuevo-pais">
           <option value="">Sin asignar</option>
@@ -1992,11 +2017,12 @@ async function loadMantenimientoUsuarios(usuariosWrap){
   `;
   addCard.querySelector('button').addEventListener('click', async ()=>{
     const email = addCard.querySelector('.nuevo-email').value.trim().toLowerCase();
+    const nombre = addCard.querySelector('.nuevo-nombre').value.trim();
     const pais = addCard.querySelector('.nuevo-pais').value || null;
     const esRegional = addCard.querySelector('.nuevo-regional').checked;
     const esLider = addCard.querySelector('.nuevo-lider').checked;
     if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
-    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, pais_code: pais, es_regional: esRegional, es_lider: esLider }]);
+    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, es_regional: esRegional, es_lider: esLider }]);
     if(err){ alert('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
   });
