@@ -1182,14 +1182,19 @@ async function procesarConIA(reunionId, progresoDiv, listWrap){
     const { data, error } = await sb.functions.invoke('generar-minuta', { body: { reunion_id: reunionId } });
     clearInterval(timer);
     if(error || (data && data.ok === false)){
-      const msg = (data && data.error) || (error && error.message) || 'Error desconocido';
+      let msg = (data && data.error) || error.message || 'Error desconocido';
+      if(error && error.context && typeof error.context.json === 'function'){
+        try{ const body = await error.context.json(); if(body && body.error) msg = body.error; }catch(_e){}
+      }
       progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo procesar la minuta:</strong> ' + escapeAttr(msg);
+      alert('No se pudo procesar la minuta con IA:\n\n' + msg);
     } else {
       progresoDiv.innerHTML = '<strong style="color:var(--verde);">✅ Minuta lista</strong> — se generaron ' + (data.acuerdos||0) + ' acuerdo(s) en ' + segundos + 's.';
     }
   }catch(e){
     clearInterval(timer);
     progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo procesar la minuta:</strong> ' + escapeAttr(e.message);
+    alert('No se pudo procesar la minuta con IA:\n\n' + e.message);
   }
   await cargarListaReuniones(listWrap);
 }
