@@ -1385,7 +1385,8 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
         <button type="button" class="btn-preautorizar" style="margin-left:8px;background:var(--verde);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">Preautorizar a esta persona</button>
       </td>`;
       trPre.querySelector('.btn-preautorizar').addEventListener('click', async ()=>{
-        const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase() }]);
+        const nombre = (prompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
+        const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre }]);
         if(error){ alert('Error: ' + error.message); return; }
         alert('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
         cargarListaReuniones(listWrap);
