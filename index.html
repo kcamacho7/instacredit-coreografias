@@ -1095,12 +1095,8 @@ function renderRegionalTareas(){
 }
 
 async function cargarModuloAcuerdos(acWrap){
-  const listWrap = document.createElement('div');
-  acWrap.appendChild(listWrap);
-  await cargarListaReuniones(listWrap);
-
   const addCard = document.createElement('div');
-  addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-top:16px;';
+  addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-bottom:20px;';
   addCard.innerHTML = `
     <div class="field" style="padding:0 0 10px 0;">
       <label>Subir archivo de transcripción</label>
@@ -1115,14 +1111,22 @@ async function cargarModuloAcuerdos(acWrap){
       <label>Transcripción</label>
       <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Se llena sola al subir el archivo, o puedes pegar el texto aquí directamente. El título lo genera la IA a partir del contenido, y la fecha queda como la de hoy (fecha de carga)."></textarea>
     </div>
-    <button type="button" class="add-proyecto-btn" style="margin:0;">+ Crear reunión</button>
+    <button type="button" class="add-proyecto-btn" style="margin:0;">+ Crear reunión y analizar con IA</button>
+    <div class="nueva-reunion-progreso" style="display:none;margin-top:12px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;"></div>
   `;
   addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
+  acWrap.appendChild(addCard);
+
+  const listWrap = document.createElement('div');
+  acWrap.appendChild(listWrap);
+  await cargarListaReuniones(listWrap);
 
   const inputArchivo = addCard.querySelector('.nueva-reunion-archivo');
   const nombreArchivo = addCard.querySelector('.nueva-reunion-archivo-nombre');
   const estadoArchivo = addCard.querySelector('.nueva-reunion-archivo-estado');
   const textareaTranscripcion = addCard.querySelector('.nueva-reunion-transcripcion');
+  const crearBtn = addCard.querySelector('button');
+  const progresoDiv = addCard.querySelector('.nueva-reunion-progreso');
 
   inputArchivo.addEventListener('change', async ()=>{
     const file = inputArchivo.files[0];
@@ -1144,22 +1148,50 @@ async function cargarModuloAcuerdos(acWrap){
     }
   });
 
-  addCard.querySelector('button').addEventListener('click', async ()=>{
+  crearBtn.addEventListener('click', async ()=>{
     const transcripcion = textareaTranscripcion.value.trim();
     if(!transcripcion){ alert('Sube un archivo o pega la transcripción de la reunión.'); return; }
     const fecha = new Date().toISOString().slice(0,10);
-    const { error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar' }]);
-    if(error){ alert('Error: ' + error.message); return; }
+    crearBtn.disabled = true;
+    const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar' }]).select().single();
+    if(error){ alert('Error: ' + error.message); crearBtn.disabled = false; return; }
     textareaTranscripcion.value = '';
     inputArchivo.value = '';
     nombreArchivo.textContent = 'Ningún archivo seleccionado — formatos .txt, .vtt, .srt, .docx';
     nombreArchivo.style.color = '';
     nombreArchivo.style.fontWeight = '';
     estadoArchivo.textContent = '';
-    alert('Reunión creada. El título y la minuta los define la IA. Pide que se corra el GitHub Action "Generar minuta con IA" para procesarla.');
-    cargarListaReuniones(listWrap);
+    await cargarListaReuniones(listWrap);
+    await procesarConIA(nueva.id, progresoDiv, listWrap);
+    crearBtn.disabled = false;
   });
-  acWrap.appendChild(addCard);
+}
+
+async function procesarConIA(reunionId, progresoDiv, listWrap){
+  progresoDiv.style.display = 'block';
+  const inicio = Date.now();
+  let segundos = 0;
+  progresoDiv.innerHTML = '<strong style="color:var(--azul);">🤖 Analizando la transcripción con IA…</strong> <span class="progreso-tiempo">0s</span>';
+  const spanTiempo = progresoDiv.querySelector('.progreso-tiempo');
+  const timer = setInterval(()=>{
+    segundos = Math.round((Date.now() - inicio) / 1000);
+    if(spanTiempo) spanTiempo.textContent = segundos + 's';
+  }, 1000);
+
+  try{
+    const { data, error } = await sb.functions.invoke('generar-minuta', { body: { reunion_id: reunionId } });
+    clearInterval(timer);
+    if(error || (data && data.ok === false)){
+      const msg = (data && data.error) || (error && error.message) || 'Error desconocido';
+      progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo procesar la minuta:</strong> ' + escapeAttr(msg);
+    } else {
+      progresoDiv.innerHTML = '<strong style="color:var(--verde);">✅ Minuta lista</strong> — se generaron ' + (data.acuerdos||0) + ' acuerdo(s) en ' + segundos + 's.';
+    }
+  }catch(e){
+    clearInterval(timer);
+    progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo procesar la minuta:</strong> ' + escapeAttr(e.message);
+  }
+  await cargarListaReuniones(listWrap);
 }
 
 async function leerArchivoTranscripcion(file){
@@ -1234,6 +1266,26 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   const body = document.createElement('div');
   body.className = 'proyecto-card-body';
   card.appendChild(body);
+
+  if(reunion.estado === 'pendiente_procesar' || reunion.estado === 'error'){
+    const retryWrap = document.createElement('div');
+    retryWrap.style.cssText = 'padding:12px 20px;border-bottom:1px solid var(--gris-borde);';
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.className = 'add-proyecto-btn';
+    retryBtn.style.margin = '0';
+    retryBtn.textContent = '🔄 Procesar con IA';
+    const progresoDiv = document.createElement('div');
+    progresoDiv.style.cssText = 'display:none;margin-top:10px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;';
+    retryBtn.addEventListener('click', async ()=>{
+      retryBtn.disabled = true;
+      await procesarConIA(reunion.id, progresoDiv, listWrap);
+      retryBtn.disabled = false;
+    });
+    retryWrap.appendChild(retryBtn);
+    retryWrap.appendChild(progresoDiv);
+    body.appendChild(retryWrap);
+  }
 
   if(reunion.minuta){
     const minutaDiv = document.createElement('div');

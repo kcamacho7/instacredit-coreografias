@@ -92,7 +92,7 @@ def procesar_reunion(reunion):
     )
 
     response = client.messages.create(
-        model="claude-sonnet-5",
+        model="claude-haiku-4-5",
         max_tokens=8000,
         output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
         messages=[{"role": "user", "content": prompt}],
