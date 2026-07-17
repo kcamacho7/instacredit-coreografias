@@ -282,6 +282,17 @@
   }
   .add-row-btn:hover{background:#F0F7EE;}
 
+  .file-upload-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;}
+  input.nueva-reunion-archivo{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+  }
+  .file-upload-btn{
+    font-family:'Inter Tight',sans-serif;background:var(--azul);color:#fff;border:none;border-radius:6px;
+    padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-block;
+  }
+  .file-upload-btn:hover{background:var(--verde);}
+  .nueva-reunion-archivo-nombre{font-size:12.5px;color:var(--gris-texto);opacity:.7;}
+
   select.estado{
     background:#fff;
   }
@@ -1091,9 +1102,13 @@ async function cargarModuloAcuerdos(acWrap){
   addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-top:16px;';
   addCard.innerHTML = `
     <div class="field" style="padding:0 0 10px 0;">
-      <label>Subir archivo de transcripción (.txt, .vtt, .srt, .docx)</label>
-      <input type="file" class="nueva-reunion-archivo" accept=".txt,.vtt,.srt,.docx">
-      <div class="nueva-reunion-archivo-estado" style="font-size:12px;color:var(--azul-claro);margin-top:4px;"></div>
+      <label>Subir archivo de transcripción</label>
+      <div class="file-upload-row">
+        <label class="file-upload-btn" for="nuevaReunionArchivoInput">📎 Elegir archivo</label>
+        <input type="file" id="nuevaReunionArchivoInput" class="nueva-reunion-archivo" accept=".txt,.vtt,.srt,.docx">
+        <span class="nueva-reunion-archivo-nombre">Ningún archivo seleccionado — formatos .txt, .vtt, .srt, .docx</span>
+      </div>
+      <div class="nueva-reunion-archivo-estado" style="font-size:12px;margin-top:6px;"></div>
     </div>
     <div class="field" style="padding:0 0 10px 0;">
       <label>Transcripción</label>
@@ -1104,13 +1119,18 @@ async function cargarModuloAcuerdos(acWrap){
   addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
 
   const inputArchivo = addCard.querySelector('.nueva-reunion-archivo');
+  const nombreArchivo = addCard.querySelector('.nueva-reunion-archivo-nombre');
   const estadoArchivo = addCard.querySelector('.nueva-reunion-archivo-estado');
   const textareaTranscripcion = addCard.querySelector('.nueva-reunion-transcripcion');
 
   inputArchivo.addEventListener('change', async ()=>{
     const file = inputArchivo.files[0];
     if(!file) return;
+    nombreArchivo.textContent = file.name;
+    nombreArchivo.style.color = 'var(--azul)';
+    nombreArchivo.style.fontWeight = '700';
     estadoArchivo.textContent = 'Leyendo ' + file.name + '…';
+    estadoArchivo.style.color = 'var(--azul-claro)';
     try{
       const texto = await leerArchivoTranscripcion(file);
       textareaTranscripcion.value = texto;
@@ -1131,6 +1151,9 @@ async function cargarModuloAcuerdos(acWrap){
     if(error){ alert('Error: ' + error.message); return; }
     textareaTranscripcion.value = '';
     inputArchivo.value = '';
+    nombreArchivo.textContent = 'Ningún archivo seleccionado — formatos .txt, .vtt, .srt, .docx';
+    nombreArchivo.style.color = '';
+    nombreArchivo.style.fontWeight = '';
     estadoArchivo.textContent = '';
     alert('Reunión creada. El título y la minuta los define la IA. Pide que se corra el GitHub Action "Generar minuta con IA" para procesarla.');
     cargarListaReuniones(listWrap);
