@@ -1408,12 +1408,12 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
 
   const table = document.createElement('table');
   table.className = 'coreo';
-  table.innerHTML = '<tr><th style="width:26%;">Acuerdo</th><th style="width:16%;">Responsable</th><th style="width:18%;">Correo</th><th style="width:12%;">Fecha</th><th style="width:12%;">Estado</th><th style="width:16%;">&nbsp;</th></tr>';
+  table.innerHTML = '<tr><th style="width:4%;"><input type="checkbox" class="check-todos-acuerdos" title="Seleccionar todos"></th><th style="width:23%;">Acuerdo</th><th style="width:15%;">Responsable</th><th style="width:17%;">Correo</th><th style="width:11%;">Fecha</th><th style="width:11%;">Estado</th><th style="width:16%;">&nbsp;</th></tr>';
   const tbody = document.createElement('tbody');
   table.appendChild(tbody);
 
   if(acuerdos.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--azul-claro);padding:12px;">Sin acuerdos todavía.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--azul-claro);padding:12px;">Sin acuerdos todavía.</td></tr>';
   }
   const emailsEnLista = new Set(perfiles.map(p=>(p.email||'').toLowerCase()));
   function opcionesResponsablesPara(emailActual){
@@ -1437,6 +1437,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     const tr = document.createElement('tr');
     const sinResponsable = !ac.responsable_email;
     tr.innerHTML = `
+      <td style="text-align:center;"><input type="checkbox" class="check-acuerdo" data-id="${escapeAttr(ac.id)}"></td>
       <td><textarea rows="1" data-f="descripcion">${escapeAttr(ac.descripcion)}</textarea></td>
       <td><input type="text" data-f="responsable_nombre" value="${escapeAttr(ac.responsable_nombre)}"></td>
       <td><select data-f="responsable_email" class="responsable-select" ${sinResponsable ? 'style="border-color:var(--rojo);"' : ''}>${opcionesResponsablesPara(ac.responsable_email)}</select></td>
@@ -1472,6 +1473,9 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
         return;
       }
       e.target.style.borderColor = e.target.value ? '' : 'var(--rojo)';
+      ac.responsable_email = e.target.value;
+      const { error: errGuardarEmail } = await sb.from('acuerdos_reunion').update({ responsable_email: e.target.value }).eq('id', ac.id);
+      if(errGuardarEmail) alert('No se pudo guardar el responsable: ' + errGuardarEmail.message);
     });
     tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
       if(!confirm('¿Eliminar este acuerdo?')) return;
@@ -1483,10 +1487,10 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       const yaPreautorizado = emailsEnLista.has(ac.responsable_email.toLowerCase());
       const trPre = document.createElement('tr');
       trPre.innerHTML = yaPreautorizado
-        ? `<td colspan="6" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
+        ? `<td colspan="7" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
             <span style="color:#8a6d1f;">${escapeAttr(ac.responsable_email)} ya está preautorizado, pendiente de que la persona se registre.</span>
           </td>`
-        : `<td colspan="6" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
+        : `<td colspan="7" style="background:#FFF6E0;padding:8px 10px;font-size:12px;">
             <span style="color:#8a6d1f;">${escapeAttr(ac.responsable_email)} no tiene cuenta en el sistema todavía.</span>
             <button type="button" class="btn-preautorizar" style="margin-left:8px;background:var(--verde);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">Preautorizar a esta persona</button>
           </td>`;
@@ -1507,6 +1511,39 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     }
   });
   body.appendChild(table);
+
+  const checkTodos = table.querySelector('.check-todos-acuerdos');
+  const eliminarSeleccionadosBtn = document.createElement('button');
+  eliminarSeleccionadosBtn.type = 'button';
+  eliminarSeleccionadosBtn.className = 'btn-eliminar-proyecto';
+  eliminarSeleccionadosBtn.style.cssText = 'display:none;margin:8px 20px 0 20px;';
+  body.appendChild(eliminarSeleccionadosBtn);
+
+  function actualizarBotonEliminarSeleccionados(){
+    const marcados = tbody.querySelectorAll('.check-acuerdo:checked').length;
+    eliminarSeleccionadosBtn.style.display = marcados > 0 ? 'inline-block' : 'none';
+    eliminarSeleccionadosBtn.textContent = '🗑️ Eliminar ' + marcados + ' acuerdo(s) seleccionado(s)';
+  }
+  tbody.querySelectorAll('.check-acuerdo').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      if(!chk.checked && checkTodos) checkTodos.checked = false;
+      actualizarBotonEliminarSeleccionados();
+    });
+  });
+  if(checkTodos){
+    checkTodos.addEventListener('change', ()=>{
+      tbody.querySelectorAll('.check-acuerdo').forEach(chk=> chk.checked = checkTodos.checked);
+      actualizarBotonEliminarSeleccionados();
+    });
+  }
+  eliminarSeleccionadosBtn.addEventListener('click', async ()=>{
+    const idsSeleccionados = Array.from(tbody.querySelectorAll('.check-acuerdo:checked')).map(chk=> chk.dataset.id);
+    if(idsSeleccionados.length === 0) return;
+    if(!confirm('¿Eliminar ' + idsSeleccionados.length + ' acuerdo(s) seleccionado(s)? Esta acción no se puede deshacer.')) return;
+    const { error } = await sb.from('acuerdos_reunion').delete().in('id', idsSeleccionados);
+    if(error){ alert('Error: ' + error.message); return; }
+    cargarListaReuniones(listWrap);
+  });
 
   const addAcuerdoBtn = document.createElement('button');
   addAcuerdoBtn.type = 'button';
