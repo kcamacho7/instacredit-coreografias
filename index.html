@@ -1254,9 +1254,12 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   headerRow.className = 'proyecto-card-header';
   headerRow.innerHTML = `
     <button type="button" class="proyecto-toggle" title="Mostrar/ocultar detalle">▶</button>
-    <span style="flex:1;font-weight:800;color:var(--azul);">${escapeAttr(reunion.titulo || '(sin título)')} ${reunion.fecha ? '— ' + escapeAttr(reunion.fecha) : ''} <span style="font-weight:400;font-size:12px;color:var(--azul-claro);">${estadoLabel}</span></span>
+    <input type="text" class="nombre-input reunion-titulo-input" value="${escapeAttr(reunion.titulo || '')}" placeholder="(sin título)">
+    <span style="font-size:12px;color:var(--azul-claro);white-space:nowrap;margin-right:12px;">${reunion.fecha ? escapeAttr(reunion.fecha) : ''} ${estadoLabel}</span>
     <button type="button" class="btn-eliminar-proyecto">Eliminar reunión</button>
   `;
+  const tituloInput = headerRow.querySelector('.reunion-titulo-input');
+  tituloInput.addEventListener('click', (e)=> e.stopPropagation());
   headerRow.querySelector('.proyecto-toggle').addEventListener('click', ()=>{
     card.classList.toggle('open');
     if(card.classList.contains('open')) body.querySelectorAll('textarea').forEach(autoGrow);
@@ -1292,11 +1295,19 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     body.appendChild(retryWrap);
   }
 
+  let minutaTextarea = null;
   if(reunion.minuta){
-    const minutaDiv = document.createElement('div');
-    minutaDiv.style.cssText = 'padding:12px 20px;font-size:13px;white-space:pre-wrap;color:var(--gris-texto);border-bottom:1px solid var(--gris-borde);';
-    minutaDiv.textContent = reunion.minuta;
-    body.appendChild(minutaDiv);
+    const minutaWrap = document.createElement('div');
+    minutaWrap.style.cssText = 'padding:12px 20px;border-bottom:1px solid var(--gris-borde);';
+    minutaWrap.innerHTML = '<label style="display:block;font-size:11px;font-weight:700;color:var(--azul-claro);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">Minuta</label>';
+    minutaTextarea = document.createElement('textarea');
+    minutaTextarea.className = 'reunion-minuta-textarea';
+    minutaTextarea.rows = 4;
+    minutaTextarea.style.cssText = 'width:100%;font-size:13px;white-space:pre-wrap;color:var(--gris-texto);border:1px solid var(--gris-borde);border-radius:6px;padding:8px 10px;';
+    minutaTextarea.value = reunion.minuta;
+    minutaWrap.appendChild(minutaTextarea);
+    body.appendChild(minutaWrap);
+    wireAutoGrow(minutaTextarea);
   }
 
   const table = document.createElement('table');
@@ -1406,11 +1417,16 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
         }).eq('id', ac.id);
         if(errGuardar){ alert('Error al guardar: ' + errGuardar.message); return; }
       }
+
+      const camposReunion = { titulo: tituloInput.value.trim() };
+      if(minutaTextarea) camposReunion.minuta = minutaTextarea.value;
       const enviar = confirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar');
-      if(enviar){
-        const { error: errEnvio } = await sb.from('reuniones').update({ envio_pendiente: true }).eq('id', reunion.id);
-        if(errEnvio){ alert('No se pudo marcar el envío: ' + errEnvio.message); }
-        else alert('Minuta guardada y marcada para envío. Pide que se corra el GitHub Action "Enviar minuta por correo" para despacharla.');
+      if(enviar) camposReunion.envio_pendiente = true;
+      const { error: errReunion } = await sb.from('reuniones').update(camposReunion).eq('id', reunion.id);
+      if(errReunion){
+        alert('No se pudo guardar el título/minuta: ' + errReunion.message);
+      } else if(enviar){
+        alert('Minuta guardada y marcada para envío. Pide que se corra el GitHub Action "Enviar minuta por correo" para despacharla.');
       } else {
         alert('Minuta guardada.');
       }
