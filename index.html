@@ -2631,18 +2631,27 @@ function renderPais(paisCode){
 
   wrap.appendChild(renderProyectosEspeciales(paisCode, isUnlocked));
 
-  if(currentUserProfile && !currentUserProfile.es_regional && currentUserProfile.pais_code === paisCode){
+  if(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.pais_code === paisCode)){
     const acuerdosWrap = document.createElement('div');
     wrap.appendChild(acuerdosWrap);
-    cargarAcuerdosDelResponsable(acuerdosWrap);
+    cargarAcuerdosDelResponsable(acuerdosWrap, paisCode);
   }
 
   return wrap;
 }
 
-async function cargarAcuerdosDelResponsable(wrap){
-  const email = (currentUser.email || '').toLowerCase();
-  const { data, error } = await sb.from('acuerdos_reunion').select('*').eq('responsable_email', email).order('creado_at', { ascending: true });
+async function cargarAcuerdosDelResponsable(wrap, paisCode){
+  const esVistaRegional = !!(currentUserProfile && currentUserProfile.es_regional);
+  let data, error;
+  if(esVistaRegional){
+    const { data: usuariosPais } = await sb.from('perfiles_usuario').select('email').eq('pais_code', paisCode);
+    const emails = (usuariosPais || []).map(u=>(u.email||'').toLowerCase()).filter(Boolean);
+    if(emails.length === 0) return;
+    ({ data, error } = await sb.from('acuerdos_reunion').select('*').in('responsable_email', emails).order('creado_at', { ascending: true }));
+  } else {
+    const email = (currentUser.email || '').toLowerCase();
+    ({ data, error } = await sb.from('acuerdos_reunion').select('*').eq('responsable_email', email).order('creado_at', { ascending: true }));
+  }
   if(error || !data || data.length === 0) return;
 
   const block = document.createElement('div');
@@ -2650,13 +2659,15 @@ async function cargarAcuerdosDelResponsable(wrap){
   block.innerHTML = `
     <div class="area-header">
       <h2>Acuerdos de reunión</h2>
-      <span>Acuerdos personales asignados a ti</span>
+      <span>${esVistaRegional ? 'Acuerdos asignados a los usuarios de este país' : 'Acuerdos personales asignados a ti'}</span>
     </div>
-    <div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones y te fueron asignados a ti directamente.</div>
+    <div class="area-owner"><strong>Qué es:</strong> compromisos que salieron de minutas de reuniones${esVistaRegional ? ', asignados a cualquier usuario de este país' : ' y te fueron asignados a ti directamente'}.</div>
   `;
   const table = document.createElement('table');
   table.className = 'coreo';
-  table.innerHTML = '<tr><th style="width:5%;">#</th><th style="width:36%;">Acuerdo</th><th style="width:20%;">Responsable</th><th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>';
+  table.innerHTML = '<tr><th style="width:5%;">#</th><th style="width:' + (esVistaRegional?'30%':'36%') + ';">Acuerdo</th><th style="width:18%;">Responsable</th>' +
+    (esVistaRegional ? '<th style="width:18%;">Correo</th>' : '') +
+    '<th style="width:16%;">Fecha compromiso</th><th style="width:16%;">Estado</th><th class="row-actions">&nbsp;</th></tr>';
   const tbody = document.createElement('tbody');
   table.appendChild(tbody);
 
@@ -2667,6 +2678,7 @@ async function cargarAcuerdosDelResponsable(wrap){
       <td>${i+1}</td>
       <td><textarea data-f="descripcion" rows="1">${escapeAttr(ac.descripcion)}</textarea></td>
       <td><textarea data-f="responsable_nombre" rows="1">${escapeAttr(ac.responsable_nombre)}</textarea></td>
+      ${esVistaRegional ? '<td style="font-size:12px;color:var(--azul-claro);">' + escapeAttr(ac.responsable_email) + '</td>' : ''}
       <td><input type="date" data-f="fecha" value="${escapeAttr(ac.fecha)}"></td>
       <td>
         <select data-f="estado" class="estado">
@@ -2697,7 +2709,7 @@ async function cargarAcuerdosDelResponsable(wrap){
     });
 
     const resultadoAccion = { resultado: ac.resultado, estado: ac.estado };
-    const filaResultado = crearFilaResultado(6, resultadoAccion, ()=> guardarCampo('resultado', resultadoAccion.resultado));
+    const filaResultado = crearFilaResultado(esVistaRegional ? 7 : 6, resultadoAccion, ()=> guardarCampo('resultado', resultadoAccion.resultado));
     const refrescarComentario = wireBtnComentario(tr.querySelector('.btn-comentario'), filaResultado, resultadoAccion);
 
     tbody.appendChild(tr);

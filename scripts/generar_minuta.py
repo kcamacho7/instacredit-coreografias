@@ -38,7 +38,7 @@ SCHEMA = {
                     "descripcion": {"type": "string", "description": "El acuerdo concreto tomado."},
                     "responsable_nombre": {"type": "string", "description": "Nombre de la persona responsable, tal como aparece en la transcripción."},
                     "responsable_email_tentativo": {"type": "string", "description": "Correo tentativo de la persona responsable si se menciona o se puede inferir del dominio @instacredit.com; texto vacío si no hay forma de saberlo."},
-                    "fecha": {"type": "string", "description": "Fecha compromiso en formato YYYY-MM-DD si se menciona una fecha o plazo relativo (ej. 'la próxima semana'); texto vacío si no se definió fecha."},
+                    "fecha": {"type": "string", "description": "Fecha compromiso en formato YYYY-MM-DD, calculada tomando la fecha de la reunión como referencia si se mencionó un plazo relativo (ej. 'la próxima semana'); texto vacío si no se definió fecha."},
                 },
                 "required": ["descripcion", "responsable_nombre", "responsable_email_tentativo", "fecha"],
                 "additionalProperties": False,
@@ -100,15 +100,21 @@ def procesar_reunion(reunion):
         print("  Sin transcripción, marcada como error.")
         return
 
+    fecha_reunion = reunion.get("fecha") or hoy_cr()
     prompt = (
         "Eres un asistente que arma minutas de reuniones de Riesgo Regional de Instacredit "
         "(Costa Rica, Nicaragua, Panamá, El Salvador). Lee la siguiente transcripción y extrae:\n"
         "1. Un título corto que resuma el tema principal de la reunión.\n"
         "2. Una minuta ejecutiva breve.\n"
-        "3. La lista de acuerdos/compromisos tomados, cada uno con su responsable y, si se mencionó, "
-        "una fecha compromiso. Si un acuerdo no tiene responsable claro, usa el nombre de quien lo propuso "
-        "o dejalo como 'Por asignar'. No inventes fechas ni correos que no estén en el texto.\n\n"
-        "Fecha de hoy (para interpretar plazos relativos como 'la próxima semana'): " + hoy_cr() + "\n\n"
+        "3. La lista de acuerdos/compromisos tomados, cada uno con su responsable y su fecha compromiso. "
+        "Usa la fecha de la reunión como punto de referencia para calcular cualquier plazo relativo que se "
+        "mencione (ej. 'el viernes', 'la próxima semana', 'en 15 días', 'a fin de mes') y conviértelo a una "
+        "fecha exacta YYYY-MM-DD posterior a la fecha de la reunión. Si de verdad no se mencionó ningún plazo "
+        "ni referencia de tiempo para un acuerdo, deja la fecha vacía — no inventes una fecha sin ninguna "
+        "pista en el texto. Si un acuerdo no tiene responsable claro, usa el nombre de quien lo propuso o "
+        "dejalo como 'Por asignar'. No inventes correos que no estén en el texto.\n\n"
+        "Fecha de la reunión (usa esta fecha, no la de hoy, como referencia para calcular plazos relativos): "
+        + fecha_reunion + "\n\n"
         "TRANSCRIPCIÓN:\n" + transcripcion
     )
 
