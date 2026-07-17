@@ -1006,9 +1006,13 @@ function renderTabs(){
   dashPanel.appendChild(renderDashboardPublico());
   panelsEl.appendChild(dashPanel);
 
+  const puedeVerAcuerdos = regionalUnlocked || !!(currentUserProfile && currentUserProfile.es_lider);
+  let grupoRegionalEmpujado = false;
+
   if(regionalUnlocked){
     const rgBtn = document.createElement('button');
     rgBtn.className = 'tab-btn tab-btn-regional tab-btn-regional-push';
+    grupoRegionalEmpujado = true;
     rgBtn.innerHTML = '<img src="assets/isotipo_instacredit.png" alt="" style="height:1em;width:auto;vertical-align:-0.15em;margin-right:.35em;"> KPI y tareas Regional';
     rgBtn.dataset.pais = 'RG';
     rgBtn.addEventListener('click', ()=> selectTab('RG'));
@@ -1019,9 +1023,12 @@ function renderTabs(){
     rgPanel.id = 'panel-RG';
     rgPanel.appendChild(renderRegionalTareas());
     panelsEl.appendChild(rgPanel);
+  }
 
+  if(puedeVerAcuerdos){
     const acBtn = document.createElement('button');
-    acBtn.className = 'tab-btn tab-btn-regional';
+    acBtn.className = 'tab-btn tab-btn-regional' + (grupoRegionalEmpujado ? '' : ' tab-btn-regional-push');
+    grupoRegionalEmpujado = true;
     acBtn.innerHTML = '<img src="assets/isotipo_instacredit.png" alt="" style="height:1em;width:auto;vertical-align:-0.15em;margin-right:.35em;"> Acuerdos de reuniones';
     acBtn.dataset.pais = 'ACUERDOS';
     acBtn.addEventListener('click', ()=> selectTab('ACUERDOS'));
@@ -1039,7 +1046,7 @@ function renderTabs(){
   }
 
   const regionalBtn = document.createElement('button');
-  regionalBtn.className = 'tab-btn tab-btn-regional' + (regionalUnlocked ? '' : ' tab-btn-regional-push');
+  regionalBtn.className = 'tab-btn tab-btn-regional' + (grupoRegionalEmpujado ? '' : ' tab-btn-regional-push');
   regionalBtn.textContent = '🔒 Riesgo Regional';
   regionalBtn.dataset.pais = 'REGIONAL';
   regionalBtn.addEventListener('click', ()=> selectTab('REGIONAL'));
@@ -1713,7 +1720,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
   } else {
     const table = document.createElement('table');
     table.className = 'coreo';
-    table.innerHTML = '<tr><th style="width:28%;">Correo</th><th style="width:14%;">Estado</th><th style="width:18%;">País asignado</th><th style="width:12%;">Regional</th><th style="width:28%;">&nbsp;</th></tr>';
+    table.innerHTML = '<tr><th style="width:24%;">Correo</th><th style="width:12%;">Estado</th><th style="width:16%;">País asignado</th><th style="width:9%;">Regional</th><th style="width:9%;">Líder</th><th style="width:30%;">&nbsp;</th></tr>';
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
 
@@ -1727,6 +1734,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         <td>${u.user_id ? '<span style="color:var(--verde);font-weight:700;">Registrado</span>' : '<span style="color:var(--azul-claro);">Pendiente de registro</span>'}</td>
         <td><select class="estado">${opciones}</select></td>
         <td style="text-align:center;"><input type="checkbox" class="es-regional" ${u.es_regional ? 'checked' : ''}></td>
+        <td style="text-align:center;"><input type="checkbox" class="es-lider" ${u.es_lider ? 'checked' : ''}></td>
         <td style="white-space:nowrap;">
           <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-right:6px;">Guardar</button>
           ${u.user_id ? '<button type="button" class="btn-eliminar-proyecto" style="border-color:var(--azul-claro);color:var(--azul-claro);margin-right:6px;">Restablecer contraseña</button>' : ''}
@@ -1740,7 +1748,8 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       btnGuardar.addEventListener('click', async ()=>{
         const nuevoPais = tr.querySelector('select').value || null;
         const esRegional = tr.querySelector('.es-regional').checked;
-        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional }).eq('id', u.id);
+        const esLider = tr.querySelector('.es-lider').checked;
+        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_lider: esLider }).eq('id', u.id);
         if(err){ alert('Error: ' + err.message); return; }
         if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
         alert('Cambios guardados para ' + escapeAttr(u.email) + '.');
@@ -1784,6 +1793,9 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;">
           <input type="checkbox" class="nuevo-regional"> Es Riesgo Regional
         </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:4px;">
+          <input type="checkbox" class="nuevo-lider"> Es Líder (acceso a Acuerdos de reuniones)
+        </label>
       </div>
     </div>
     <button type="button" class="add-proyecto-btn" style="margin:0;">+ Preautorizar correo</button>
@@ -1792,8 +1804,9 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     const email = addCard.querySelector('.nuevo-email').value.trim().toLowerCase();
     const pais = addCard.querySelector('.nuevo-pais').value || null;
     const esRegional = addCard.querySelector('.nuevo-regional').checked;
+    const esLider = addCard.querySelector('.nuevo-lider').checked;
     if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
-    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, pais_code: pais, es_regional: esRegional }]);
+    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, pais_code: pais, es_regional: esRegional, es_lider: esLider }]);
     if(err){ alert('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
   });
