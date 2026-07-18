@@ -364,6 +364,11 @@
   .confirm-box .btn-cancelar:hover{background:#EAEAEA;}
   .confirm-box .btn-aceptar{background:var(--verde);color:#fff;}
   .confirm-box .btn-aceptar:hover{background:#3f8425;}
+  .confirm-box input[type="text"]{
+    width:100%;font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:6px;
+    padding:9px 10px;font-size:13.5px;color:var(--gris-texto);box-sizing:border-box;margin-top:-8px;margin-bottom:20px;
+  }
+  .confirm-box input[type="text"]:focus{outline:none;border-color:var(--verde);}
 </style>
 </head>
 <body>
@@ -510,6 +515,33 @@ function mostrarConfirm(mensaje){
     document.addEventListener('keydown', onKey);
     document.body.appendChild(overlay);
     overlay.querySelector('.btn-aceptar').focus();
+  });
+}
+
+function mostrarPrompt(mensaje, valorInicial){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.id = 'confirm-overlay';
+    overlay.innerHTML = '<div class="confirm-box"><p></p><input type="text"><div class="confirm-btns"><button type="button" class="btn-cancelar">Cancelar</button><button type="button" class="btn-aceptar">Aceptar</button></div></div>';
+    overlay.querySelector('.confirm-box p').textContent = mensaje;
+    const input = overlay.querySelector('input');
+    input.value = valorInicial || '';
+    function cerrar(resultado){
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      resolve(resultado);
+    }
+    function onKey(e){
+      if(e.key === 'Escape') cerrar(null);
+      if(e.key === 'Enter'){ e.preventDefault(); cerrar(input.value); }
+    }
+    overlay.querySelector('.btn-cancelar').addEventListener('click', ()=> cerrar(null));
+    overlay.querySelector('.btn-aceptar').addEventListener('click', ()=> cerrar(input.value));
+    overlay.addEventListener('click', e=>{ if(e.target === overlay) cerrar(null); });
+    input.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    input.focus();
+    input.select();
   });
 }
 let currentUser = null;
@@ -1544,14 +1576,14 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     const selectResponsable = tr.querySelector('.responsable-select');
     selectResponsable.addEventListener('change', async (e)=>{
       if(e.target.value === '__nuevo__'){
-        const nuevoEmail = (prompt('Correo a preautorizar:') || '').trim().toLowerCase();
+        const nuevoEmail = (await mostrarPrompt('Correo a preautorizar:') || '').trim().toLowerCase();
         if(!nuevoEmail || !nuevoEmail.includes('@')){ e.target.value = ac.responsable_email || ''; return; }
         if(emailsEnLista.has(nuevoEmail)){
           mostrarAlerta('Ese correo ya existe en la lista de usuarios. Selecciónalo directamente del desplegable.');
           e.target.value = ac.responsable_email || '';
           return;
         }
-        const nuevoNombre = (prompt('Nombre completo (opcional):') || '').trim();
+        const nuevoNombre = (await mostrarPrompt('Nombre completo (opcional):') || '').trim();
         const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre }]);
         if(errPre){ mostrarAlerta('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
         await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail }).eq('id', ac.id);
@@ -1586,7 +1618,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
             mostrarAlerta('Ese correo ya existe en la lista de usuarios.');
             return;
           }
-          const nombre = (prompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
+          const nombre = (await mostrarPrompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
           const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre }]);
           if(error){ mostrarAlerta('Error: ' + error.message); return; }
           mostrarAlerta('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
@@ -1679,10 +1711,10 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   addParticipanteBtn.className = 'add-row-btn';
   addParticipanteBtn.textContent = '+ Agregar participante';
   addParticipanteBtn.addEventListener('click', async ()=>{
-    const email = (prompt('Correo del participante:') || '').trim().toLowerCase();
+    const email = (await mostrarPrompt('Correo del participante:') || '').trim().toLowerCase();
     if(!email || !email.includes('@')){ if(email) mostrarAlerta('Pon un correo válido.'); return; }
     if(participantes.some(p=>(p.email||'').toLowerCase()===email)){ mostrarAlerta('Ese correo ya está en la lista de participantes.'); return; }
-    const nombre = (prompt('Nombre (opcional):') || '').trim();
+    const nombre = (await mostrarPrompt('Nombre (opcional):') || '').trim();
     const nuevos = [...participantes, { email, nombre }];
     const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
     if(error){ mostrarAlerta('Error: ' + error.message); return; }
