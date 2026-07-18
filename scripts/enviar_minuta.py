@@ -208,7 +208,7 @@ def enviar_reunion(reunion):
 
     nota_organizador = (
         "En caso de considerar que debe ajustarse algo de la minuta favor contactarse con el organizador de la sesión. "
-        "En caso de no notificar cambios en los próximos 2 días, la minuta será definitiva."
+        "Si no se notifican cambios en los próximos 2 días, la minuta será definitiva."
     )
 
     por_responsable = {}
