@@ -321,9 +321,54 @@
     .toolbar, .tabs{position:static;}
     .tab-panel{display:block !important;}
   }
+
+  /* Alertas y confirmaciones de marca (reemplazo de mostrarAlerta()/await mostrarConfirm() nativos) */
+  #toast-stack{
+    position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;
+    max-width:380px;
+  }
+  .toast{
+    font-family:'Inter Tight',sans-serif;background:#fff;border-left:5px solid var(--azul);
+    border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);padding:14px 16px;font-size:13.5px;
+    color:var(--gris-texto);line-height:1.45;white-space:pre-line;display:flex;align-items:flex-start;gap:10px;
+    animation:toast-in .25s ease-out;
+  }
+  .toast.toast-exit{animation:toast-out .2s ease-in forwards;}
+  .toast.error{border-left-color:var(--rojo);}
+  .toast.success{border-left-color:var(--verde);}
+  .toast .toast-icon{font-size:16px;line-height:1;flex-shrink:0;margin-top:1px;}
+  .toast .toast-msg{flex:1;}
+  .toast .toast-cerrar{
+    background:none;border:none;color:var(--azul-claro);cursor:pointer;font-size:16px;line-height:1;
+    padding:0;flex-shrink:0;
+  }
+  .toast .toast-cerrar:hover{color:var(--azul);}
+  @keyframes toast-in{from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:translateX(0);}}
+  @keyframes toast-out{from{opacity:1;transform:translateX(0);}to{opacity:0;transform:translateX(30px);}}
+
+  #confirm-overlay{
+    position:fixed;inset:0;background:rgba(0,37,84,.55);z-index:9999;display:flex;
+    align-items:center;justify-content:center;padding:20px;animation:toast-in .15s ease-out;
+  }
+  .confirm-box{
+    font-family:'Inter Tight',sans-serif;background:#fff;border-radius:12px;max-width:420px;width:100%;
+    padding:24px 26px;box-shadow:0 10px 40px rgba(0,0,0,.25);border-top:5px solid var(--verde);
+  }
+  .confirm-box p{margin:0 0 20px 0;font-size:14px;color:var(--gris-texto);line-height:1.5;white-space:pre-line;}
+  .confirm-box .confirm-btns{display:flex;justify-content:flex-end;gap:10px;}
+  .confirm-box button{
+    font-family:'Inter Tight',sans-serif;border:none;border-radius:6px;padding:9px 18px;
+    font-size:13px;font-weight:700;cursor:pointer;
+  }
+  .confirm-box .btn-cancelar{background:var(--fondo);color:var(--azul);}
+  .confirm-box .btn-cancelar:hover{background:#EAEAEA;}
+  .confirm-box .btn-aceptar{background:var(--verde);color:#fff;}
+  .confirm-box .btn-aceptar:hover{background:#3f8425;}
 </style>
 </head>
 <body>
+
+<div id="toast-stack"></div>
 
 <div class="login-gate" id="loginGate">
   <div class="login-gate-card">
@@ -426,6 +471,47 @@ const STORAGE_KEY = 'instacredit_coreografias_v1';
 let state = {};
 const openAccordions = new Set();
 const reunionesAbiertas = new Set();
+
+function mostrarAlerta(mensaje, tipo){
+  tipo = tipo || (/^error/i.test(mensaje) ? 'error' : 'info');
+  const icono = tipo === 'error' ? '⚠️' : (tipo === 'success' ? '✅' : 'ℹ️');
+  const stack = document.getElementById('toast-stack');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + tipo;
+  toast.innerHTML = '<span class="toast-icon">' + icono + '</span><span class="toast-msg"></span><button type="button" class="toast-cerrar" aria-label="Cerrar">✕</button>';
+  toast.querySelector('.toast-msg').textContent = mensaje;
+  function cerrar(){
+    toast.classList.add('toast-exit');
+    setTimeout(()=> toast.remove(), 200);
+  }
+  toast.querySelector('.toast-cerrar').addEventListener('click', cerrar);
+  stack.appendChild(toast);
+  setTimeout(cerrar, 6000);
+}
+
+function mostrarConfirm(mensaje){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.id = 'confirm-overlay';
+    overlay.innerHTML = '<div class="confirm-box"><p></p><div class="confirm-btns"><button type="button" class="btn-cancelar">Cancelar</button><button type="button" class="btn-aceptar">Aceptar</button></div></div>';
+    overlay.querySelector('.confirm-box p').textContent = mensaje;
+    function cerrar(resultado){
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      resolve(resultado);
+    }
+    function onKey(e){
+      if(e.key === 'Escape') cerrar(false);
+      if(e.key === 'Enter') cerrar(true);
+    }
+    overlay.querySelector('.btn-cancelar').addEventListener('click', ()=> cerrar(false));
+    overlay.querySelector('.btn-aceptar').addEventListener('click', ()=> cerrar(true));
+    overlay.addEventListener('click', e=>{ if(e.target === overlay) cerrar(false); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    overlay.querySelector('.btn-aceptar').focus();
+  });
+}
 let currentUser = null;
 let currentUserProfile = null;
 let authModo = 'login';
@@ -657,13 +743,13 @@ async function saveActiveCountry(){
   const code = activeBtn.dataset.pais;
   const puedeEditar = currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin || currentUserProfile.pais_code === code);
   if(!puedeEditar){
-    alert('No tienes permiso para editar ' + code + '. Inicia sesión con la cuenta asignada a ese país.');
+    mostrarAlerta('No tienes permiso para editar ' + code + '. Inicia sesión con la cuenta asignada a ese país.');
     return;
   }
 
   const errorValidacion = validarAntesDeGuardar(code);
   if(errorValidacion){
-    alert(errorValidacion);
+    mostrarAlerta(errorValidacion);
     return;
   }
 
@@ -802,7 +888,7 @@ async function saveActiveCountry(){
     renderTabs();
     selectTab(code);
     document.getElementById('statusText').innerHTML = 'Guardado en la nube (' + code + ') — <b>' + now + '</b>';
-    alert('Los cambios de ' + code + ' se guardaron correctamente.');
+    mostrarAlerta('Los cambios de ' + code + ' se guardaron correctamente.');
   }
 }
 
@@ -994,7 +1080,7 @@ const seccionesRegionalColapsadas = new Set();
 async function attemptUnlockRegional(pin){
   const { data, error } = await sb.rpc('verificar_pin_regional', { p_pin: pin });
   if(error || data !== true){
-    alert('PIN incorrecto para Riesgo Regional.');
+    mostrarAlerta('PIN incorrecto para Riesgo Regional.');
     return;
   }
   regionalUnlocked = true;
@@ -1186,11 +1272,11 @@ async function cargarModuloAcuerdos(acWrap){
 
   crearBtn.addEventListener('click', async ()=>{
     const transcripcion = textareaTranscripcion.value.trim();
-    if(!transcripcion){ alert('Sube un archivo o pega la transcripción de la reunión.'); return; }
+    if(!transcripcion){ mostrarAlerta('Sube un archivo o pega la transcripción de la reunión.'); return; }
     const fecha = new Date().toISOString().slice(0,10);
     crearBtn.disabled = true;
     const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar' }]).select().single();
-    if(error){ alert('Error: ' + error.message); crearBtn.disabled = false; return; }
+    if(error){ mostrarAlerta('Error: ' + error.message); crearBtn.disabled = false; return; }
     textareaTranscripcion.value = '';
     inputArchivo.value = '';
     nombreArchivo.textContent = 'Ningún archivo seleccionado — formatos .txt, .vtt, .srt, .docx';
@@ -1223,14 +1309,14 @@ async function procesarConIA(reunionId, progresoDiv, listWrap){
         try{ const body = await error.context.json(); if(body && body.error) msg = body.error; }catch(_e){}
       }
       progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo procesar la minuta:</strong> ' + escapeAttr(msg);
-      alert('No se pudo procesar la minuta con IA:\n\n' + msg);
+      mostrarAlerta('No se pudo procesar la minuta con IA:\n\n' + msg);
     } else {
       progresoDiv.innerHTML = '<strong style="color:var(--verde);">✅ Minuta lista</strong> — se generaron ' + (data.acuerdos||0) + ' acuerdo(s) en ' + segundos + 's.';
     }
   }catch(e){
     clearInterval(timer);
     progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo procesar la minuta:</strong> ' + escapeAttr(e.message);
-    alert('No se pudo procesar la minuta con IA:\n\n' + e.message);
+    mostrarAlerta('No se pudo procesar la minuta con IA:\n\n' + e.message);
   }
   await cargarListaReuniones(listWrap);
 }
@@ -1255,14 +1341,14 @@ async function enviarMinutaConProgreso(reunionId, progresoDiv, listWrap){
         try{ const body = await error.context.json(); if(body && body.error) msg = body.error; }catch(_e){}
       }
       progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo enviar la minuta:</strong> ' + escapeAttr(msg);
-      alert('Minuta guardada, pero no se pudo enviar el correo:\n\n' + msg + '\n\nPuedes reintentar el envío desde esta misma tarjeta.');
+      mostrarAlerta('Minuta guardada, pero no se pudo enviar el correo:\n\n' + msg + '\n\nPuedes reintentar el envío desde esta misma tarjeta.');
     } else {
       progresoDiv.innerHTML = '<strong style="color:var(--verde);">✅ Minuta enviada</strong> — ' + (data.enviados||0) + ' correo(s) despachados en ' + segundos + 's.';
     }
   }catch(e){
     clearInterval(timer);
     progresoDiv.innerHTML = '<strong style="color:var(--rojo);">⚠️ No se pudo enviar la minuta:</strong> ' + escapeAttr(e.message);
-    alert('Minuta guardada, pero no se pudo enviar el correo:\n\n' + e.message + '\n\nPuedes reintentar el envío desde esta misma tarjeta.');
+    mostrarAlerta('Minuta guardada, pero no se pudo enviar el correo:\n\n' + e.message + '\n\nPuedes reintentar el envío desde esta misma tarjeta.');
   }
   await cargarListaReuniones(listWrap);
 }
@@ -1341,7 +1427,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     }
   });
   headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
-    if(!confirm('¿Eliminar esta reunión y todos sus acuerdos? Esta acción no se puede deshacer.')) return;
+    if(!await mostrarConfirm('¿Eliminar esta reunión y todos sus acuerdos? Esta acción no se puede deshacer.')) return;
     await sb.from('reuniones').delete().eq('id', reunion.id);
     cargarListaReuniones(listWrap);
   });
@@ -1461,13 +1547,13 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
         const nuevoEmail = (prompt('Correo a preautorizar:') || '').trim().toLowerCase();
         if(!nuevoEmail || !nuevoEmail.includes('@')){ e.target.value = ac.responsable_email || ''; return; }
         if(emailsEnLista.has(nuevoEmail)){
-          alert('Ese correo ya existe en la lista de usuarios. Selecciónalo directamente del desplegable.');
+          mostrarAlerta('Ese correo ya existe en la lista de usuarios. Selecciónalo directamente del desplegable.');
           e.target.value = ac.responsable_email || '';
           return;
         }
         const nuevoNombre = (prompt('Nombre completo (opcional):') || '').trim();
         const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre }]);
-        if(errPre){ alert('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
+        if(errPre){ mostrarAlerta('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
         await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail }).eq('id', ac.id);
         cargarListaReuniones(listWrap);
         return;
@@ -1475,10 +1561,10 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       e.target.style.borderColor = e.target.value ? '' : 'var(--rojo)';
       ac.responsable_email = e.target.value;
       const { error: errGuardarEmail } = await sb.from('acuerdos_reunion').update({ responsable_email: e.target.value }).eq('id', ac.id);
-      if(errGuardarEmail) alert('No se pudo guardar el responsable: ' + errGuardarEmail.message);
+      if(errGuardarEmail) mostrarAlerta('No se pudo guardar el responsable: ' + errGuardarEmail.message);
     });
     tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
-      if(!confirm('¿Eliminar este acuerdo?')) return;
+      if(!await mostrarConfirm('¿Eliminar este acuerdo?')) return;
       await sb.from('acuerdos_reunion').delete().eq('id', ac.id);
       cargarListaReuniones(listWrap);
     });
@@ -1497,13 +1583,13 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       if(!yaPreautorizado){
         trPre.querySelector('.btn-preautorizar').addEventListener('click', async ()=>{
           if(emailsEnLista.has(ac.responsable_email.toLowerCase())){
-            alert('Ese correo ya existe en la lista de usuarios.');
+            mostrarAlerta('Ese correo ya existe en la lista de usuarios.');
             return;
           }
           const nombre = (prompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
           const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre }]);
-          if(error){ alert('Error: ' + error.message); return; }
-          alert('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
+          if(error){ mostrarAlerta('Error: ' + error.message); return; }
+          mostrarAlerta('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
           cargarListaReuniones(listWrap);
         });
       }
@@ -1539,9 +1625,9 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   eliminarSeleccionadosBtn.addEventListener('click', async ()=>{
     const idsSeleccionados = Array.from(tbody.querySelectorAll('.check-acuerdo:checked')).map(chk=> chk.dataset.id);
     if(idsSeleccionados.length === 0) return;
-    if(!confirm('¿Eliminar ' + idsSeleccionados.length + ' acuerdo(s) seleccionado(s)? Esta acción no se puede deshacer.')) return;
+    if(!await mostrarConfirm('¿Eliminar ' + idsSeleccionados.length + ' acuerdo(s) seleccionado(s)? Esta acción no se puede deshacer.')) return;
     const { error } = await sb.from('acuerdos_reunion').delete().in('id', idsSeleccionados);
-    if(error){ alert('Error: ' + error.message); return; }
+    if(error){ mostrarAlerta('Error: ' + error.message); return; }
     cargarListaReuniones(listWrap);
   });
 
@@ -1551,7 +1637,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   addAcuerdoBtn.textContent = '+ Agregar acuerdo manual';
   addAcuerdoBtn.addEventListener('click', async ()=>{
     const { error } = await sb.from('acuerdos_reunion').insert([{ reunion_id: reunion.id, descripcion: '', responsable_nombre: '', responsable_email: '', estado: 'Pendiente' }]);
-    if(error){ alert('Error: ' + error.message); return; }
+    if(error){ mostrarAlerta('Error: ' + error.message); return; }
     cargarListaReuniones(listWrap);
   });
   body.appendChild(addAcuerdoBtn);
@@ -1580,7 +1666,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       btnQuitar.addEventListener('click', async ()=>{
         const nuevos = participantes.filter((_, i)=> i !== idx);
         const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
-        if(error){ alert('Error: ' + error.message); return; }
+        if(error){ mostrarAlerta('Error: ' + error.message); return; }
         cargarListaReuniones(listWrap);
       });
       chip.appendChild(btnQuitar);
@@ -1594,12 +1680,12 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   addParticipanteBtn.textContent = '+ Agregar participante';
   addParticipanteBtn.addEventListener('click', async ()=>{
     const email = (prompt('Correo del participante:') || '').trim().toLowerCase();
-    if(!email || !email.includes('@')){ if(email) alert('Pon un correo válido.'); return; }
-    if(participantes.some(p=>(p.email||'').toLowerCase()===email)){ alert('Ese correo ya está en la lista de participantes.'); return; }
+    if(!email || !email.includes('@')){ if(email) mostrarAlerta('Pon un correo válido.'); return; }
+    if(participantes.some(p=>(p.email||'').toLowerCase()===email)){ mostrarAlerta('Ese correo ya está en la lista de participantes.'); return; }
     const nombre = (prompt('Nombre (opcional):') || '').trim();
     const nuevos = [...participantes, { email, nombre }];
     const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
-    if(error){ alert('Error: ' + error.message); return; }
+    if(error){ mostrarAlerta('Error: ' + error.message); return; }
     cargarListaReuniones(listWrap);
   });
   participantesWrap.appendChild(addParticipanteBtn);
@@ -1618,7 +1704,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       for(const fila of filas){
         const campoResp = fila.querySelector('[data-f="responsable_email"]');
         if(!campoResp.value.trim()){
-          alert('Todos los acuerdos necesitan un responsable asignado antes de guardar la minuta. Revisa la fila marcada en rojo.');
+          mostrarAlerta('Todos los acuerdos necesitan un responsable asignado antes de guardar la minuta. Revisa la fila marcada en rojo.');
           campoResp.style.borderColor = 'var(--rojo)';
           campoResp.focus();
           return;
@@ -1635,19 +1721,19 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
           fecha: fila.querySelector('[data-f="fecha"]').value || null,
           estado: fila.querySelector('[data-f="estado"]').value,
         }).eq('id', ac.id);
-        if(errGuardar){ alert('Error al guardar: ' + errGuardar.message); return; }
+        if(errGuardar){ mostrarAlerta('Error al guardar: ' + errGuardar.message); return; }
       }
 
       const camposReunion = { titulo: tituloInput.value.trim() };
       if(minutaTextarea) camposReunion.minuta = minutaTextarea.value;
-      const enviar = confirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar');
+      const enviar = await mostrarConfirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar');
       const { error: errReunion } = await sb.from('reuniones').update(camposReunion).eq('id', reunion.id);
       if(errReunion){
-        alert('No se pudo guardar el título/minuta: ' + errReunion.message);
+        mostrarAlerta('No se pudo guardar el título/minuta: ' + errReunion.message);
         return;
       }
       if(!enviar){
-        alert('Minuta guardada.');
+        mostrarAlerta('Minuta guardada.');
         cargarListaReuniones(listWrap);
         return;
       }
@@ -1912,17 +1998,17 @@ async function loadFechasReunion(listWrap){
         [item.campoFecha]: fechaEl.value || null,
         [item.campoHora]: horaEl.value || null
       }).eq('id', item.id);
-      if(error){ alert('Error: ' + error.message); return; }
-      alert('Fecha/hora actualizada. El calendario se sincroniza automáticamente en la próxima corrida diaria.');
+      if(error){ mostrarAlerta('Error: ' + error.message); return; }
+      mostrarAlerta('Fecha/hora actualizada. El calendario se sincroniza automáticamente en la próxima corrida diaria.');
       loadFechasReunion(listWrap);
     });
     btnLimpiar.addEventListener('click', async ()=>{
-      if(!confirm('¿Limpiar esta fecha/hora de reunión (' + item.origen + ', ' + paisNombre + ')? El país podrá definir una nueva fecha desde su pestaña. El evento en el calendario se elimina en la próxima corrida diaria.')) return;
+      if(!await mostrarConfirm('¿Limpiar esta fecha/hora de reunión (' + item.origen + ', ' + paisNombre + ')? El país podrá definir una nueva fecha desde su pestaña. El evento en el calendario se elimina en la próxima corrida diaria.')) return;
       const { error } = await sb.from(item.tabla).update({
         [item.campoFecha]: null,
         [item.campoHora]: null
       }).eq('id', item.id);
-      if(error){ alert('Error: ' + error.message); return; }
+      if(error){ mostrarAlerta('Error: ' + error.message); return; }
       loadFechasReunion(listWrap);
     });
     tbody.appendChild(tr);
@@ -1980,14 +2066,14 @@ async function loadGestionAcciones(listWrap){
     btnCumplida.addEventListener('click', async ()=>{
       item.acciones[item.idx].estado = 'Cumplida';
       const { error } = await sb.from(item.tabla).update({ acciones: item.acciones }).eq('id', item.id);
-      if(error){ alert('Error: ' + error.message); return; }
+      if(error){ mostrarAlerta('Error: ' + error.message); return; }
       loadGestionAcciones(listWrap);
     });
     btnEliminar.addEventListener('click', async ()=>{
-      if(!confirm('¿Eliminar esta acción de forma permanente?')) return;
+      if(!await mostrarConfirm('¿Eliminar esta acción de forma permanente?')) return;
       item.acciones.splice(item.idx, 1);
       const { error } = await sb.from(item.tabla).update({ acciones: item.acciones }).eq('id', item.id);
-      if(error){ alert('Error: ' + error.message); return; }
+      if(error){ mostrarAlerta('Error: ' + error.message); return; }
       loadGestionAcciones(listWrap);
     });
     tbody.appendChild(tr);
@@ -2063,17 +2149,17 @@ async function loadCatalogoMantenimiento(catalogoWrap){
       btnGuardar.addEventListener('click', async ()=>{
         const nombre = card.querySelector('.edit-nombre').value.trim();
         const definicion = card.querySelector('.edit-def').value.trim();
-        if(!nombre){ alert('El nombre no puede estar vacío.'); return; }
+        if(!nombre){ mostrarAlerta('El nombre no puede estar vacío.'); return; }
         const { error: err } = await sb.from('kpis_catalogo').update({ nombre, definicion, updated_at: new Date().toISOString() }).eq('id', row.id);
-        if(err){ alert('Error: ' + err.message); return; }
+        if(err){ mostrarAlerta('Error: ' + err.message); return; }
         await loadKpiCatalog();
         renderTabs();
         selectTab('REGIONAL');
       });
       btnEliminar.addEventListener('click', async ()=>{
-        if(!confirm('¿Quitar "' + row.nombre + '" del catálogo de los 4 países? La información que los gerentes ya hayan registrado en este KPI NO se borra, solo deja de ser visible.')) return;
+        if(!await mostrarConfirm('¿Quitar "' + row.nombre + '" del catálogo de los 4 países? La información que los gerentes ya hayan registrado en este KPI NO se borra, solo deja de ser visible.')) return;
         const { error: err } = await sb.from('kpis_catalogo').update({ activo: false }).eq('id', row.id);
-        if(err){ alert('Error: ' + err.message); return; }
+        if(err){ mostrarAlerta('Error: ' + err.message); return; }
         await loadKpiCatalog();
         renderTabs();
         selectTab('REGIONAL');
@@ -2100,12 +2186,12 @@ async function loadCatalogoMantenimiento(catalogoWrap){
     addCard.querySelector('button').addEventListener('click', async ()=>{
       const nombre = addCard.querySelector('.nuevo-nombre').value.trim();
       const definicion = addCard.querySelector('.nuevo-def').value.trim();
-      if(!nombre){ alert('Ponle un nombre al nuevo KPI.'); return; }
+      if(!nombre){ mostrarAlerta('Ponle un nombre al nuevo KPI.'); return; }
       const maxOrden = kpisDeEstaArea.reduce((m,r)=> Math.max(m, r.orden||0), 0);
       const { error: err } = await sb.from('kpis_catalogo').insert([{
         area_id: area.id, kpi_id: slugKpiId(nombre), nombre, definicion, orden: maxOrden + 1, activo: true
       }]);
-      if(err){ alert('Error: ' + err.message); return; }
+      if(err){ mostrarAlerta('Error: ' + err.message); return; }
       await loadKpiCatalog();
       renderTabs();
       selectTab('REGIONAL');
@@ -2166,22 +2252,22 @@ async function loadMantenimientoUsuarios(usuariosWrap){
         const esLider = tr.querySelector('.es-lider').checked;
         const nombre = tr.querySelector('.nombre-usuario').value.trim();
         const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, nombre }).eq('id', u.id);
-        if(err){ alert('Error: ' + err.message); return; }
+        if(err){ mostrarAlerta('Error: ' + err.message); return; }
         if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
-        alert('Cambios guardados para ' + escapeAttr(u.email) + '.');
+        mostrarAlerta('Cambios guardados para ' + escapeAttr(u.email) + '.');
       });
       if(btnReset){
         btnReset.addEventListener('click', async ()=>{
-          if(!confirm('¿Enviar un correo a ' + u.email + ' con un enlace para crear una contraseña nueva?')) return;
+          if(!await mostrarConfirm('¿Enviar un correo a ' + u.email + ' con un enlace para crear una contraseña nueva?')) return;
           const { error: err } = await sb.auth.resetPasswordForEmail(u.email, { redirectTo: window.location.href.split('#')[0] });
-          if(err){ alert('Error: ' + err.message); return; }
-          alert('Enlace de restablecimiento enviado a ' + escapeAttr(u.email) + '.');
+          if(err){ mostrarAlerta('Error: ' + err.message); return; }
+          mostrarAlerta('Enlace de restablecimiento enviado a ' + escapeAttr(u.email) + '.');
         });
       }
       btnQuitar.addEventListener('click', async ()=>{
-        if(!confirm('¿Quitar el acceso de ' + u.email + '? ' + (u.user_id ? 'Su cuenta ya no podrá editar ningún país ni entrar a Regional.' : 'Se cancela la preautorización antes de que se haya registrado.'))) return;
+        if(!await mostrarConfirm('¿Quitar el acceso de ' + u.email + '? ' + (u.user_id ? 'Su cuenta ya no podrá editar ningún país ni entrar a Regional.' : 'Se cancela la preautorización antes de que se haya registrado.'))) return;
         const { error: err } = await sb.from('perfiles_usuario').delete().eq('id', u.id);
-        if(err){ alert('Error: ' + err.message); return; }
+        if(err){ mostrarAlerta('Error: ' + err.message); return; }
         loadMantenimientoUsuarios(usuariosWrap);
       });
       tbody.appendChild(tr);
@@ -2227,10 +2313,10 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     const esRegional = addCard.querySelector('.nuevo-regional').checked;
     const esAdmin = addCard.querySelector('.nuevo-admin').checked;
     const esLider = addCard.querySelector('.nuevo-lider').checked;
-    if(!email || !email.includes('@')){ alert('Pon un correo válido.'); return; }
-    if((data||[]).some(u=>(u.email||'').toLowerCase()===email)){ alert('Ese correo ya existe en la lista de usuarios.'); return; }
+    if(!email || !email.includes('@')){ mostrarAlerta('Pon un correo válido.'); return; }
+    if((data||[]).some(u=>(u.email||'').toLowerCase()===email)){ mostrarAlerta('Ese correo ya existe en la lista de usuarios.'); return; }
     const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider }]);
-    if(err){ alert('Error: ' + err.message); return; }
+    if(err){ mostrarAlerta('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
   });
   usuariosWrap.appendChild(addCard);
@@ -2720,9 +2806,9 @@ async function loadBitacora(listWrap){
   clearAllBtn.style.background = 'var(--rojo)';
   clearAllBtn.textContent = 'Vaciar toda la bitácora (' + data.length + ')';
   clearAllBtn.addEventListener('click', async ()=>{
-    if(!confirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
+    if(!await mostrarConfirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
     const { error: delAllErr } = await sb.from('kpis_adicionales_log').delete().not('id', 'is', null);
-    if(delAllErr){ alert('Error: ' + delAllErr.message); return; }
+    if(delAllErr){ mostrarAlerta('Error: ' + delAllErr.message); return; }
     loadBitacora(listWrap);
   });
   listWrap.appendChild(clearAllBtn);
@@ -2741,7 +2827,7 @@ async function loadBitacora(listWrap){
     `;
     headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
       const { error: delErr } = await sb.from('kpis_adicionales_log').delete().eq('id', row.id);
-      if(delErr){ alert('Error: ' + delErr.message); return; }
+      if(delErr){ mostrarAlerta('Error: ' + delErr.message); return; }
       loadBitacora(listWrap);
     });
     card.appendChild(headerRow);
@@ -2783,9 +2869,9 @@ async function loadBitacoraProyectos(listWrap){
   clearAllBtn.style.background = 'var(--rojo)';
   clearAllBtn.textContent = 'Vaciar toda la bitácora (' + data.length + ')';
   clearAllBtn.addEventListener('click', async ()=>{
-    if(!confirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
+    if(!await mostrarConfirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
     const { error: delAllErr } = await sb.from('proyectos_especiales_log').delete().not('id', 'is', null);
-    if(delAllErr){ alert('Error: ' + delAllErr.message); return; }
+    if(delAllErr){ mostrarAlerta('Error: ' + delAllErr.message); return; }
     loadBitacoraProyectos(listWrap);
   });
   listWrap.appendChild(clearAllBtn);
@@ -2803,7 +2889,7 @@ async function loadBitacoraProyectos(listWrap){
     `;
     headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
       const { error: delErr } = await sb.from('proyectos_especiales_log').delete().eq('id', row.id);
-      if(delErr){ alert('Error: ' + delErr.message); return; }
+      if(delErr){ mostrarAlerta('Error: ' + delErr.message); return; }
       loadBitacoraProyectos(listWrap);
     });
     card.appendChild(headerRow);
@@ -3153,7 +3239,7 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
 
       const guardarCampo = async (campo, valor)=>{
         const { error: errGuardar } = await sb.from('acuerdos_reunion').update({ [campo]: valor }).eq('id', ac.id);
-        if(errGuardar) alert('Error al guardar: ' + errGuardar.message);
+        if(errGuardar) mostrarAlerta('Error al guardar: ' + errGuardar.message);
       };
       tr.querySelector('[data-f="descripcion"]').addEventListener('input', (e)=>{ ac.descripcion = e.target.value; });
       tr.querySelector('[data-f="descripcion"]').addEventListener('change', (e)=> guardarCampo('descripcion', e.target.value));
@@ -3215,7 +3301,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       markDirty();
     });
     headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
-      if(!confirm('¿Eliminar el KPI adicional "' + (c.nombre || '(sin nombre)') + '"? Quedará registrado en la bitácora de Riesgo Regional con los últimos datos.')) return;
+      if(!await mostrarConfirm('¿Eliminar el KPI adicional "' + (c.nombre || '(sin nombre)') + '"? Quedará registrado en la bitácora de Riesgo Regional con los últimos datos.')) return;
       await sb.from('kpis_adicionales_log').insert([{
         original_id: c.id,
         pais_code: paisCode,
@@ -3452,7 +3538,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         markDirty();
       });
       headerRow.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
-        if(!confirm('¿Eliminar el proyecto especial "' + (proy.nombre || '(sin nombre)') + '"? Quedará registrado en la bitácora de Riesgo Regional con los últimos datos.')) return;
+        if(!await mostrarConfirm('¿Eliminar el proyecto especial "' + (proy.nombre || '(sin nombre)') + '"? Quedará registrado en la bitácora de Riesgo Regional con los últimos datos.')) return;
         await sb.from('proyectos_especiales_log').insert([{
           original_id: proy.id,
           pais_code: paisCode,
@@ -3649,7 +3735,7 @@ function crearBadgeHistorial(getHistorial){
     const hist = getHistorial() || [];
     if(!hist.length) return;
     const texto = hist.map((h,idx)=> (idx+1) + '. ' + h.fechaAnterior + (h.horaAnterior ? ' ' + h.horaAnterior : '') + ' → ' + h.fechaNueva + (h.horaNueva ? ' ' + h.horaNueva : '') + ' — ajustada por ' + (h.ajustadaPor || 'Riesgo Regional') + ' el ' + new Date(h.ajustadaEl).toLocaleString('es-CR')).join('\n');
-    alert('Historial de cambios de fecha:\n\n' + texto);
+    mostrarAlerta('Historial de cambios de fecha:\n\n' + texto);
   });
   const refrescar = ()=>{ btn.style.display = (getHistorial() && getHistorial().length) ? 'inline-block' : 'none'; };
   refrescar();
@@ -3666,20 +3752,20 @@ function wireFechaAccionDefinitiva(fechaAccionInput, accion, onDirty){
   aplicarClase();
   const { btn: badge, refrescar: refrescarBadge } = crearBadgeHistorial(()=> accion.historialFechas);
   colocarBadgeJuntoAInput(fechaAccionInput, badge);
-  fechaAccionInput.addEventListener('change', ()=>{
+  fechaAccionInput.addEventListener('change', async ()=>{
     if(yaAgotoAjuste()){
       fechaAccionInput.value = comprometida;
-      alert('Esta fecha de compromiso ya la ajustaste una vez (' + comprometida + ') y ahora es definitiva. Si necesitas cambiarla de nuevo, comunícate con Riesgo Regional.');
+      mostrarAlerta('Esta fecha de compromiso ya la ajustaste una vez (' + comprometida + ') y ahora es definitiva. Si necesitas cambiarla de nuevo, comunícate con Riesgo Regional.');
       return;
     }
     if(fechaAccionInput.value && fechaAccionInput.value < HOY && !regionalUnlocked){
       fechaAccionInput.value = '';
-      alert('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
+      mostrarAlerta('La fecha de compromiso debe ser una fecha futura (a partir de hoy).');
       return;
     }
     const esAjusteUsuario = !!comprometida && !regionalUnlocked && fechaAccionInput.value !== comprometida;
     if(esAjusteUsuario){
-      if(!confirm('Este es tu único ajuste permitido a esta fecha sin pasar por Riesgo Regional (de ' + comprometida + ' a ' + fechaAccionInput.value + '). Después de guardar, cualquier otro cambio deberá solicitarse a Riesgo Regional. ¿Continuar?')){
+      if(!await mostrarConfirm('Este es tu único ajuste permitido a esta fecha sin pasar por Riesgo Regional (de ' + comprometida + ' a ' + fechaAccionInput.value + '). Después de guardar, cualquier otro cambio deberá solicitarse a Riesgo Regional. ¿Continuar?')){
         fechaAccionInput.value = comprometida;
         return;
       }
@@ -3729,13 +3815,13 @@ function escapeAttr(v){
 }
 
 async function regionalMarcarCumplida(tabla, match, acciones, idx, btn){
-  if(!confirm('¿Marcar esta acción como cumplida? Riesgo Regional puede hacer esto sin necesitar el PIN del país.')) return;
+  if(!await mostrarConfirm('¿Marcar esta acción como cumplida? Riesgo Regional puede hacer esto sin necesitar el PIN del país.')) return;
   acciones[idx].estado = 'Cumplida';
   let q = sb.from(tabla).update({ acciones });
   Object.entries(match).forEach(([k,v])=>{ q = q.eq(k, v); });
   const { error } = await q;
   if(error){
-    alert('Error al marcar cumplida: ' + error.message);
+    mostrarAlerta('Error al marcar cumplida: ' + error.message);
     acciones[idx].estado = acciones[idx].estado === 'Cumplida' ? 'Pendiente' : acciones[idx].estado;
     return;
   }
@@ -3774,15 +3860,15 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
   const bloquear = ()=>{
     fechaInput.value = obj[fechaField];
     horaInput.value = obj[horaField];
-    alert('La ' + label + ' ya la ajustaste una vez (' + obj[fechaField] + (obj[horaField] ? ' ' + obj[horaField] : '') + ') y ahora es definitiva. Si necesitas cambiarla de nuevo, comunícate con Riesgo Regional.');
+    mostrarAlerta('La ' + label + ' ya la ajustaste una vez (' + obj[fechaField] + (obj[horaField] ? ' ' + obj[horaField] : '') + ') y ahora es definitiva. Si necesitas cambiarla de nuevo, comunícate con Riesgo Regional.');
   };
-  fechaInput.addEventListener('change', ()=>{
+  fechaInput.addEventListener('change', async ()=>{
     if(yaAgotoAjuste()){ bloquear(); return; }
     const fechaAnterior = obj[fechaField];
     const horaAnterior = obj[horaField];
     const esAjusteUsuario = comprometida && !regionalUnlocked && fechaInput.value !== fechaAnterior;
     if(esAjusteUsuario){
-      if(!confirm('Este es tu único ajuste permitido a la ' + label + ' sin pasar por Riesgo Regional (de ' + fechaAnterior + ' a ' + fechaInput.value + '). Después de guardar, cualquier otro cambio deberá solicitarse a Riesgo Regional. ¿Continuar?')){
+      if(!await mostrarConfirm('Este es tu único ajuste permitido a la ' + label + ' sin pasar por Riesgo Regional (de ' + fechaAnterior + ' a ' + fechaInput.value + '). Después de guardar, cualquier otro cambio deberá solicitarse a Riesgo Regional. ¿Continuar?')){
         fechaInput.value = fechaAnterior;
         return;
       }
