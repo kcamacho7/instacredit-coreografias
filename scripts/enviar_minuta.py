@@ -206,7 +206,10 @@ def enviar_reunion(reunion):
     resumen = resumen_corto(reunion.get("minuta"))
     nombre_archivo = "Minuta - " + re.sub(r'[\\/:*?"<>|]', "", titulo)[:60] + ".pdf"
 
-    nota_organizador = "En caso de considerar que debe ajustarse algo de la minuta favor contactarse con el organizador de la sesión."
+    nota_organizador = (
+        "En caso de considerar que debe ajustarse algo de la minuta favor contactarse con el organizador de la sesión. "
+        "En caso de no notificar cambios en los próximos 2 días, la minuta será definitiva."
+    )
 
     por_responsable = {}
     for a in acuerdos:

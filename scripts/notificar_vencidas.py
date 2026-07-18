@@ -176,11 +176,11 @@ def tabla_html(items):
         a = it["accion"]
         filas += """
           <tr>
-            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{azul};font-weight:700;white-space:nowrap;">{pais}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{origen}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{accion}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};white-space:nowrap;">{resp}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{rojo};font-weight:700;white-space:nowrap;">{fecha}</td>
+            <td style="padding:9px 8px;border-bottom:1px solid {borde};font-size:12px;color:{azul};font-weight:700;">{pais}</td>
+            <td style="padding:9px 8px;border-bottom:1px solid {borde};font-size:12px;color:{texto};">{origen}</td>
+            <td style="padding:9px 8px;border-bottom:1px solid {borde};font-size:12px;color:{texto};">{accion}</td>
+            <td style="padding:9px 8px;border-bottom:1px solid {borde};font-size:12px;color:{texto};">{resp}</td>
+            <td style="padding:9px 8px;border-bottom:1px solid {borde};font-size:12px;color:{rojo};font-weight:700;white-space:nowrap;">{fecha}</td>
           </tr>""".format(
             borde=GRIS_BORDE, azul=AZUL, texto=GRIS_TEXTO, rojo=ROJO,
             pais=esc(PAISES.get(it["pais"], it["pais"])),
@@ -190,16 +190,18 @@ def tabla_html(items):
             fecha=esc(a.get("fecha") or "—"),
         )
     return """
-    <table style="width:100%;border-collapse:collapse;background:#fff;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid {borde};">
+    <div style="width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:16px 0;">
+    <table style="min-width:520px;width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;border:1px solid {borde};">
       <tr>
-        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">País</th>
-        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">KPI / Proyecto</th>
-        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">Acción</th>
-        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">Responsable</th>
-        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">Fecha</th>
+        <th style="padding:8px;background:{azul};color:#fff;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;">País</th>
+        <th style="padding:8px;background:{azul};color:#fff;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;">KPI / Proyecto</th>
+        <th style="padding:8px;background:{azul};color:#fff;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;">Acción</th>
+        <th style="padding:8px;background:{azul};color:#fff;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;">Responsable</th>
+        <th style="padding:8px;background:{azul};color:#fff;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;">Fecha</th>
       </tr>
       {filas}
     </table>
+    </div>
     """.format(azul=AZUL, borde=GRIS_BORDE, filas=filas)
 
 
