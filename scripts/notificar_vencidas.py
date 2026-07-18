@@ -51,14 +51,17 @@ KPI_NOMBRE = {
 }
 
 LANDING_URL = "https://kcamacho7.github.io/instacredit-coreografias/"
+LOGO_URL = LANDING_URL + "assets/logo_claro.png"
+PRESTAMITO_URL = LANDING_URL + "assets/prestamito_maletin.png"
 
-VERDE = "#46A139"
-AZUL = "#1D2953"
-ROJO = "#EE232E"
-VERDE_CLARO = "#7CC36A"
-GRIS_TEXTO = "#333740"
+VERDE = "#4C9C2E"
+AZUL = "#002554"
+ROJO = "#EE212E"
+VERDE_CLARO = "#CEF0C4"
+AZUL_CLARO = "#677C98"
+GRIS_TEXTO = "#333333"
 GRIS_BORDE = "#D2D2D2"
-FONDO = "#F2F4F7"
+FONDO = "#F5FCF3"
 
 
 def esc(v):
@@ -173,11 +176,11 @@ def tabla_html(items):
         a = it["accion"]
         filas += """
           <tr>
-            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{azul};font-weight:700;white-space:nowrap;">{pais}</td>
-            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{origen}</td>
-            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{accion}</td>
-            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};white-space:nowrap;">{resp}</td>
-            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{rojo};font-weight:700;white-space:nowrap;">{fecha}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{azul};font-weight:700;white-space:nowrap;">{pais}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{origen}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{accion}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};white-space:nowrap;">{resp}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid {borde};font-size:12.5px;color:{rojo};font-weight:700;white-space:nowrap;">{fecha}</td>
           </tr>""".format(
             borde=GRIS_BORDE, azul=AZUL, texto=GRIS_TEXTO, rojo=ROJO,
             pais=esc(PAISES.get(it["pais"], it["pais"])),
@@ -187,21 +190,22 @@ def tabla_html(items):
             fecha=esc(a.get("fecha") or "—"),
         )
     return """
-    <table style="width:100%;border-collapse:collapse;background:#fff;margin:14px 0;">
+    <table style="width:100%;border-collapse:collapse;background:#fff;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid {borde};">
       <tr>
-        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">País</th>
-        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">KPI / Proyecto</th>
-        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Acción</th>
-        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Responsable</th>
-        <th style="padding:8px 10px;background:{azul};color:#fff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Fecha</th>
+        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">País</th>
+        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">KPI / Proyecto</th>
+        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">Acción</th>
+        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">Responsable</th>
+        <th style="padding:9px 12px;background:{azul};color:#fff;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;">Fecha</th>
       </tr>
       {filas}
     </table>
-    """.format(azul=AZUL, filas=filas)
+    """.format(azul=AZUL, borde=GRIS_BORDE, filas=filas)
 
 
-def plantilla_html(eyebrow, titulo, intro, secciones, boton_texto="Abrir el landing"):
+def plantilla_html(eyebrow, titulo, intro, secciones, boton_texto="Abrir el landing", acento=None):
     """secciones: lista de (subtitulo, tabla_html) o solo tabla_html si no hay subtitulo"""
+    acento = acento or VERDE
     bloques = ""
     for sub, tabla in secciones:
         if sub:
@@ -209,27 +213,37 @@ def plantilla_html(eyebrow, titulo, intro, secciones, boton_texto="Abrir el land
         bloques += tabla
 
     return """<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:{fondo};font-family:Arial,'Segoe UI',sans-serif;color:{texto};">
-  <div style="max-width:680px;margin:0 auto;background:{fondo};">
-    <div style="background:{azul};padding:26px 28px;">
-      <div style="color:{verde_claro};font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Riesgo Regional · Instacredit</div>
-      <div style="color:#fff;font-size:22px;font-weight:800;">{titulo}</div>
-    </div>
-    <div style="padding:24px 28px;">
-      <p style="font-size:14px;line-height:1.6;">{intro}</p>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:24px 12px;background:{fondo};font-family:Arial,'Segoe UI',sans-serif;color:{texto};">
+  <div style="max-width:660px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(0,37,84,.12);">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{azul};border-collapse:collapse;">
+      <tr>
+        <td style="padding:26px 8px 26px 28px;vertical-align:middle;">
+          <img src="{logo}" alt="Instacredit" height="22" style="display:block;margin-bottom:14px;border:0;">
+          <div style="color:{verde_claro};font-weight:700;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Riesgo Regional · Instacredit · {eyebrow}</div>
+          <div style="color:#fff;font-size:21px;font-weight:800;line-height:1.3;">{titulo}</div>
+        </td>
+        <td style="width:76px;padding:0 22px 0 0;text-align:right;vertical-align:bottom;">
+          <img src="{prestamito}" alt="Prestamito" width="70" style="display:block;border:0;">
+        </td>
+      </tr>
+    </table>
+    <div style="height:4px;background:{acento};"></div>
+    <div style="padding:26px 28px 8px 28px;">
+      <p style="font-size:14px;line-height:1.6;margin:0;">{intro}</p>
       {bloques}
-      <div style="margin-top:26px;">
-        <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 22px;border-radius:6px;display:inline-block;">{boton_texto}</a>
-      </div>
     </div>
-    <div style="padding:16px 28px;border-top:1px solid {borde};font-size:11.5px;color:#677C98;">
+    <div style="padding:6px 28px 26px 28px;">
+      <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 24px;border-radius:8px;display:inline-block;">{boton_texto}</a>
+    </div>
+    <div style="padding:16px 28px;border-top:1px solid {borde};background:{fondo};font-size:11.5px;color:{azul_claro};">
       ¡Apoyándote siempre! — Instacredit Riesgo Regional · Notificación automática, no responder a este correo.
     </div>
   </div>
 </body></html>""".format(
-        fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, texto=GRIS_TEXTO, borde=GRIS_BORDE,
-        titulo=esc(titulo), intro=intro, bloques=bloques, link=LANDING_URL, boton_texto=esc(boton_texto),
+        fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, azul_claro=AZUL_CLARO,
+        texto=GRIS_TEXTO, borde=GRIS_BORDE, logo=LOGO_URL, prestamito=PRESTAMITO_URL, acento=acento,
+        eyebrow=esc(eyebrow), titulo=esc(titulo), intro=intro, bloques=bloques, link=LANDING_URL, boton_texto=esc(boton_texto),
     )
 
 
@@ -289,6 +303,7 @@ def paso_diario(items, usuarios_por_pais):
                 "Acciones vencidas hoy — " + nombre_grupo(grupo),
                 "Estas acciones pasaron su fecha de compromiso y siguen sin cumplirse. Actualízalas cuanto antes desde el landing.",
                 [(None, tabla_html(its))],
+                acento=ROJO,
             )
             enviar_correo(destinatarios, "⚠ Acciones vencidas hoy — " + nombre_grupo(grupo), html_body)
 
@@ -297,6 +312,7 @@ def paso_diario(items, usuarios_por_pais):
         "Nuevas acciones vencidas hoy — todos los países",
         "Se marcaron como vencidas hoy en el sistema:",
         [(None, tabla_html(nuevas))],
+        acento=ROJO,
     )
     enviar_correo([REGIONAL_EMAIL], "⚠ Nuevas acciones vencidas hoy (%d)" % len(nuevas), html_regional)
 
@@ -328,6 +344,7 @@ def paso_recordatorio(items, usuarios_por_pais):
                 "Acciones que vencen mañana — " + nombre_grupo(grupo),
                 "Estas acciones tienen fecha de compromiso mañana. Actualiza su estado o resultado antes de que venzan.",
                 [(None, tabla_html(its))],
+                acento=VERDE,
             )
             enviar_correo(destinatarios, "⏰ Recordatorio — acciones que vencen mañana en " + nombre_grupo(grupo), html_body)
 
@@ -336,6 +353,7 @@ def paso_recordatorio(items, usuarios_por_pais):
         "Acciones que vencen mañana — todos los países",
         "Se les recordó hoy a los gerentes correspondientes:",
         [(None, tabla_html(por_vencer))],
+        acento=VERDE,
     )
     enviar_correo([REGIONAL_EMAIL], "⏰ Recordatorio — acciones que vencen mañana (%d)" % len(por_vencer), html_regional)
 
@@ -361,6 +379,7 @@ def paso_semanal(items, usuarios_por_pais):
                 "Resumen semanal — acciones vencidas de " + nombre_grupo(grupo),
                 "Todas las acciones vencidas al día de hoy (%d en total):" % len(its),
                 [(None, tabla_html(its))],
+                acento=AZUL,
             )
             enviar_correo(destinatarios, "📋 Resumen semanal — " + nombre_grupo(grupo), html_body)
 
@@ -370,6 +389,7 @@ def paso_semanal(items, usuarios_por_pais):
         "Resumen semanal consolidado — todos los países",
         "Total de acciones vencidas en la región: <strong>%d</strong>" % len(vencidas),
         secciones,
+        acento=AZUL,
     )
     enviar_correo([REGIONAL_EMAIL], "📋 Resumen semanal consolidado (%d vencidas)" % len(vencidas), html_regional)
     print("Resumen semanal enviado con %d acciones vencidas." % len(vencidas))
@@ -382,6 +402,7 @@ def paso_prueba(items, correo, pais_code):
         "Prueba — acciones vencidas de " + PAISES.get(pais_code, pais_code),
         "Este es un envío de prueba manual (no afecta el estado de notificación real). Acciones vencidas actuales de tu país (%d):" % len(vencidas),
         [(None, tabla_html(vencidas))],
+        acento=AZUL,
     )
     enviar_correo([correo], "🧪 Prueba — acciones vencidas de " + PAISES.get(pais_code, pais_code), html_body)
     print("Prueba enviada a %s con %d acciones vencidas." % (correo, len(vencidas)))

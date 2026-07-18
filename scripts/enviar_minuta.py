@@ -32,13 +32,16 @@ HEADERS = {
 }
 
 LANDING_URL = "https://kcamacho7.github.io/instacredit-coreografias/"
+LOGO_URL = LANDING_URL + "assets/logo_claro.png"
+PRESTAMITO_URL = LANDING_URL + "assets/prestamito_senalando.png"
 
-VERDE = "#46A139"
-AZUL = "#1D2953"
-VERDE_CLARO = "#7CC36A"
-GRIS_TEXTO = "#333740"
+VERDE = "#4C9C2E"
+AZUL = "#002554"
+VERDE_CLARO = "#CEF0C4"
+AZUL_CLARO = "#677C98"
+GRIS_TEXTO = "#333333"
 GRIS_BORDE = "#D2D2D2"
-FONDO = "#F2F4F7"
+FONDO = "#F5FCF3"
 
 
 def esc(v):
@@ -148,37 +151,51 @@ def enviar_correo(destinatarios, asunto, cuerpo_html, pdf_bytes, nombre_archivo)
             server.sendmail(SMTP_USER, destinatarios, msg.as_string())
 
 
-def plantilla_html(titulo, fecha_texto, hora_texto, intro, resumen):
+def plantilla_html(titulo, fecha_texto, hora_texto, intro, resumen, nota_final=None):
     cuando_texto = " · ".join(filter(None, [fecha_texto, hora_texto]))
-    resumen_html = ("<div style=\"background:#fff;border-left:4px solid {verde};padding:14px 18px;margin:14px 0;font-size:13.5px;line-height:1.6;white-space:pre-wrap;\">{resumen}</div>"
-                     .format(verde=VERDE, resumen=esc(resumen))) if resumen else ""
+    resumen_html = ("""<div style="background:{vc}22;border-left:4px solid {verde};border-radius:0 8px 8px 0;padding:14px 18px;margin:16px 0;font-size:13.5px;line-height:1.6;color:{texto};white-space:pre-wrap;">{resumen}</div>"""
+                     .format(vc=VERDE_CLARO, verde=VERDE, texto=GRIS_TEXTO, resumen=esc(resumen))) if resumen else ""
+    nota_html = ("""<div style="margin-top:16px;padding:13px 16px;background:#fff;border:1px solid {borde};border-radius:8px;font-size:12.5px;line-height:1.55;color:{azul};">💬 {nota}</div>"""
+                 .format(borde=GRIS_BORDE, azul=AZUL, nota=esc(nota_final))) if nota_final else ""
+    cuando_html = ('<div style="color:{vc};font-size:13px;margin-top:6px;">{c}</div>'.format(vc=VERDE_CLARO, c=esc(cuando_texto)) if cuando_texto else "")
     return """<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:{fondo};font-family:Arial,'Segoe UI',sans-serif;color:{texto};">
-  <div style="max-width:680px;margin:0 auto;background:{fondo};">
-    <div style="background:{azul};padding:26px 28px;">
-      <div style="color:{verde_claro};font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Riesgo Regional · Instacredit</div>
-      <div style="color:#fff;font-size:22px;font-weight:800;">{titulo}</div>
-      {cuando_html}
-    </div>
-    <div style="padding:24px 28px;">
-      <p style="font-size:14px;line-height:1.6;">{intro}</p>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:24px 12px;background:{fondo};font-family:Arial,'Segoe UI',sans-serif;color:{texto};">
+  <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(0,37,84,.12);">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{azul};border-collapse:collapse;">
+      <tr>
+        <td style="padding:26px 8px 26px 28px;vertical-align:middle;">
+          <img src="{logo}" alt="Instacredit" height="22" style="display:block;margin-bottom:14px;border:0;">
+          <div style="color:{verde_claro};font-weight:700;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Riesgo Regional · Instacredit</div>
+          <div style="color:#fff;font-size:21px;font-weight:800;line-height:1.3;">{titulo}</div>
+          {cuando_html}
+        </td>
+        <td style="width:76px;padding:0 22px 0 0;text-align:right;vertical-align:bottom;">
+          <img src="{prestamito}" alt="Prestamito" width="70" style="display:block;border:0;">
+        </td>
+      </tr>
+    </table>
+    <div style="height:4px;background:{verde};"></div>
+    <div style="padding:26px 28px 6px 28px;">
+      <p style="font-size:14px;line-height:1.6;margin:0;">{intro}</p>
       {resumen_html}
-      <p style="font-size:13.5px;line-height:1.6;background:#fff;border:1px dashed {borde};border-radius:6px;padding:12px 16px;">
+      <p style="font-size:13px;line-height:1.6;background:{fondo};border:1px dashed {borde};border-radius:8px;padding:12px 16px;margin:16px 0 0 0;">
         📎 En el archivo adjunto va el detalle completo de la sesión, con la minuta y todos los acuerdos asignados.
       </p>
-      <div style="margin-top:22px;">
-        <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 22px;border-radius:6px;display:inline-block;">Abrir el landing</a>
-      </div>
+      {nota_html}
     </div>
-    <div style="padding:16px 28px;border-top:1px solid {borde};font-size:11.5px;color:#677C98;">
+    <div style="padding:20px 28px 26px 28px;">
+      <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 24px;border-radius:8px;display:inline-block;">Abrir el landing</a>
+    </div>
+    <div style="padding:16px 28px;border-top:1px solid {borde};background:{fondo};font-size:11.5px;color:{azul_claro};">
       ¡Apoyándote siempre! — Instacredit Riesgo Regional · Notificación automática, no responder a este correo.
     </div>
   </div>
 </body></html>""".format(
-        fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, texto=GRIS_TEXTO, borde=GRIS_BORDE,
-        titulo=esc(titulo), intro=intro, resumen_html=resumen_html, link=LANDING_URL,
-        cuando_html=('<div style="color:{vc};font-size:13px;margin-top:6px;">{c}</div>'.format(vc=VERDE_CLARO, c=esc(cuando_texto)) if cuando_texto else ""),
+        fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, azul_claro=AZUL_CLARO,
+        texto=GRIS_TEXTO, borde=GRIS_BORDE, logo=LOGO_URL, prestamito=PRESTAMITO_URL,
+        titulo=esc(titulo), intro=intro, resumen_html=resumen_html, nota_html=nota_html,
+        link=LANDING_URL, cuando_html=cuando_html,
     )
 
 
@@ -189,6 +206,8 @@ def enviar_reunion(reunion):
     resumen = resumen_corto(reunion.get("minuta"))
     nombre_archivo = "Minuta - " + re.sub(r'[\\/:*?"<>|]', "", titulo)[:60] + ".pdf"
 
+    nota_organizador = "En caso de considerar que debe ajustarse algo de la minuta favor contactarse con el organizador de la sesión."
+
     por_responsable = {}
     for a in acuerdos:
         email = (a.get("responsable_email") or "").strip().lower()
@@ -197,11 +216,11 @@ def enviar_reunion(reunion):
         por_responsable.setdefault(email, []).append(a)
 
     for email, sus_acuerdos in por_responsable.items():
-        html_body = plantilla_html(titulo, fecha_texto, hora_texto, "Se te asignaron acuerdos en esta reunión.", resumen)
+        html_body = plantilla_html(titulo, fecha_texto, hora_texto, "Se te asignaron acuerdos en esta reunión.", resumen, nota_organizador)
         pdf_bytes = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), sus_acuerdos)
         enviar_correo([email], "📋 Minuta — " + titulo, html_body, pdf_bytes, nombre_archivo)
 
-    html_regional = plantilla_html(titulo, fecha_texto, hora_texto, "Resumen consolidado de la reunión con todos los acuerdos y responsables asignados.", resumen)
+    html_regional = plantilla_html(titulo, fecha_texto, hora_texto, "Resumen consolidado de la reunión con todos los acuerdos y responsables asignados.", resumen, nota_organizador)
     pdf_regional = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
     enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_regional, nombre_archivo)
 
@@ -215,6 +234,7 @@ def enviar_reunion(reunion):
             titulo, fecha_texto, hora_texto,
             "Participaste en esta reunión. No se te asignó ningún acuerdo directamente, pero aquí tienes el resumen completo.",
             resumen,
+            nota_organizador,
         )
         enviar_correo([email], "📋 Minuta — " + titulo, html_participante, pdf_regional, nombre_archivo)
         enviados_participantes += 1
