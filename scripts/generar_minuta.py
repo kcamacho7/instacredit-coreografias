@@ -54,8 +54,21 @@ SCHEMA = {
                 "additionalProperties": False,
             },
         },
+        "participantes": {
+            "type": "array",
+            "description": "Todos los participantes identificados en la transcripción (PASO 1), tengan o no un acuerdo asignado. El sistema filtra automáticamente a quienes ya aparecen como responsables de un acuerdo.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "nombre": {"type": "string", "description": "Nombre completo del participante, tal como quedó identificado en PASO 1 (idealmente ya emparejado con la lista de usuarios registrados)."},
+                    "email_tentativo": {"type": "string", "description": "Correo tentativo si se menciona explícitamente en la transcripción o se puede inferir del dominio @instacredit.com; texto vacío si no hay forma de saberlo."},
+                },
+                "required": ["nombre", "email_tentativo"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["titulo", "minuta", "acuerdos"],
+    "required": ["titulo", "minuta", "acuerdos", "participantes"],
     "additionalProperties": False,
 }
 
@@ -122,7 +135,7 @@ def procesar_reunion(reunion):
         "acuerdos. Tu trabajo tiene dos pasos: primero reconstruir mentalmente la reunión de forma "
         "estructurada (participantes, temas, acuerdos), y luego devolver solo el JSON final. No resumas "
         "de más, no omitas acuerdos y no inventes información que no esté en el texto original.\n\n"
-        "PASO 1 — Identifica a los PARTICIPANTES que hablaron en la transcripción, con su nombre completo "
+        "PASO 1 — Identifica a TODOS los PARTICIPANTES que hablaron en la transcripción, con su nombre completo "
         "tal como se identifican (ej. 'Kenneth Camacho', no 'Kenneth' ni 'KC'). Compara cada nombre contra "
         "esta lista de usuarios ya registrados en el sistema y, si hay una coincidencia clara (aunque la "
         "transcripción solo diga el primer nombre o tenga errores de transcripción fonéticos), usa el "
@@ -150,7 +163,10 @@ def procesar_reunion(reunion):
         "2. La minuta, siguiendo exactamente la estructura de secciones descrita en el esquema de salida "
         "(OBJETIVO, AGENDA, DESARROLLO, RIESGOS O PENDIENTES, PROXIMOS PASOS) — sin repetir ahí la lista de "
         "acuerdos ni de participantes, que ya van aparte.\n"
-        "3. La lista final de acuerdos según las reglas del PASO 2.\n\n"
+        "3. La lista final de acuerdos según las reglas del PASO 2.\n"
+        "4. La lista completa de PARTICIPANTES del PASO 1 (todos, tengan o no un acuerdo asignado), con su "
+        "nombre y correo tentativo — el sistema se encarga de filtrar automáticamente a quienes ya quedaron "
+        "como responsables de un acuerdo, así que no los excluyas tú.\n\n"
         "Fecha de la reunión (usa esta fecha, no la de hoy, como referencia para calcular plazos relativos): "
         + fecha_reunion + "\n\n"
         "TRANSCRIPCIÓN:\n" + transcripcion
@@ -185,12 +201,33 @@ def procesar_reunion(reunion):
             "estado": "Pendiente",
         })
     sb_insert("acuerdos_reunion", filas)
+
+    # Sugiere como "participantes adicionales" (reciben la minuta, sin acuerdo propio) a quien
+    # la IA identificó en la reunión pero no quedó como responsable de ningún acuerdo. El
+    # organizador confirma o ajusta la lista sugerida desde la tarjeta de la reunión.
+    nombres_con_acuerdo = {normalizar(f["responsable_nombre"]) for f in filas if f["responsable_nombre"]}
+    existentes = reunion.get("participantes") or []
+    emails_existentes = {(p.get("email") or "").lower() for p in existentes if p.get("email")}
+    vistos = set()
+    sugeridos = []
+    for p in data.get("participantes", []):
+        nombre = (p.get("nombre") or "").strip()
+        if not nombre or normalizar(nombre) in nombres_con_acuerdo:
+            continue
+        email = buscar_email_por_nombre(nombre, perfiles) or (p.get("email_tentativo") or "").strip().lower()
+        if not email or email in emails_existentes or email in vistos:
+            continue
+        vistos.add(email)
+        sugeridos.append({"email": email, "nombre": nombre})
+    participantes_final = existentes + sugeridos
+
     sb_patch("reuniones", reunion["id"], {
         "titulo": data.get("titulo") or reunion.get("titulo") or "Reunión sin título",
         "minuta": data.get("minuta") or "",
+        "participantes": participantes_final,
         "estado": "procesada",
     })
-    print("  Minuta generada con %d acuerdo(s)." % len(filas))
+    print("  Minuta generada con %d acuerdo(s) y %d participante(s) sugerido(s)." % (len(filas), len(sugeridos)))
 
 
 def main():
