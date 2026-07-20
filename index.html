@@ -1462,7 +1462,9 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   const card = document.createElement('div');
   card.className = 'proyecto-card reunion-card';
   if(reunionesAbiertas.has(reunion.id)) card.classList.add('open');
-  const estadoLabel = { pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' }[reunion.estado] || reunion.estado;
+  const estadoLabel = reunion.envio_enviado_at
+    ? '📨 Guardada y enviada'
+    : ({ pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' }[reunion.estado] || reunion.estado);
 
   const headerRow = document.createElement('div');
   headerRow.className = 'proyecto-card-header reunion-card-header';
