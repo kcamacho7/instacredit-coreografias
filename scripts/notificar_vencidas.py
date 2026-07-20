@@ -411,7 +411,6 @@ def paso_prueba(items, correo, pais_code):
 
 
 def main():
-    print("DEBUG SMTP_SECURE repr=%r len=%d" % (SMTP_SECURE, len(SMTP_SECURE)))
     catalogo_cache = cargar_catalogo()
     items = cargar_items(catalogo_cache)
     usuarios_por_pais = cargar_usuarios_por_pais()
