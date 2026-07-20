@@ -404,6 +404,10 @@ def procesar_reunion(reunion):
         if normalizar(nombre) not in nombres_ia:
             participantes_combinados.append({"nombre": nombre, "email_tentativo": ""})
 
+    # Si no se puede resolver un correo (persona no registrada y sin correo mencionado en el
+    # texto), se sugiere igual con el correo en blanco: así el organizador ve el nombre en la
+    # tarjeta de la reunión y puede agregarle el correo a mano, en vez de perder el dato.
+    nombres_existentes_sin_email = {normalizar(p.get("nombre") or "") for p in existentes if not p.get("email")}
     vistos = set()
     sugeridos = []
     for p in participantes_combinados:
@@ -415,9 +419,14 @@ def procesar_reunion(reunion):
             continue
         if not email and normalizar(nombre) in nombres_con_acuerdo_sin_email:
             continue
-        if not email or email in emails_existentes or email in vistos:
+        if email and email in emails_existentes:
             continue
-        vistos.add(email)
+        if not email and normalizar(nombre) in nombres_existentes_sin_email:
+            continue
+        clave = email or "sin_correo:" + normalizar(nombre)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
         sugeridos.append({"email": email, "nombre": nombre})
     participantes_final = existentes + sugeridos
 

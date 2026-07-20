@@ -1725,9 +1725,26 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     const lista = document.createElement('div');
     lista.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;';
     participantes.forEach((p, idx)=>{
+      const sinCorreo = !p.email;
       const chip = document.createElement('span');
-      chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:#F0F3F7;border:1px solid var(--gris-borde);border-radius:20px;padding:5px 6px 5px 12px;font-size:12.5px;color:var(--gris-texto);';
-      chip.innerHTML = '<span>' + escapeAttr(p.nombre ? p.nombre + ' — ' : '') + escapeAttr(p.email) + '</span>';
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:' + (sinCorreo ? '#FFF6E0' : '#F0F3F7') + ';border:1px solid ' + (sinCorreo ? '#E8D48A' : 'var(--gris-borde)') + ';border-radius:20px;padding:5px 6px 5px 12px;font-size:12.5px;color:var(--gris-texto);';
+      chip.innerHTML = '<span>' + escapeAttr(p.nombre ? p.nombre + ' — ' : '') + (sinCorreo ? '<em style="color:#8a6d1f;">sin correo</em>' : escapeAttr(p.email)) + '</span>';
+      if(sinCorreo){
+        const btnCorreo = document.createElement('button');
+        btnCorreo.type = 'button';
+        btnCorreo.textContent = '+ correo';
+        btnCorreo.title = 'Agregar correo';
+        btnCorreo.style.cssText = 'background:var(--verde);color:#fff;border:none;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;padding:3px 8px;';
+        btnCorreo.addEventListener('click', async ()=>{
+          const nuevoEmail = (await mostrarPrompt('Correo de ' + (p.nombre || 'este participante') + ':') || '').trim().toLowerCase();
+          if(!nuevoEmail || !nuevoEmail.includes('@')){ if(nuevoEmail) mostrarAlerta('Pon un correo válido.'); return; }
+          const nuevos = participantes.map((x, i)=> i === idx ? { ...x, email: nuevoEmail } : x);
+          const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
+          if(error){ mostrarAlerta('Error: ' + error.message); return; }
+          cargarListaReuniones(listWrap);
+        });
+        chip.appendChild(btnCorreo);
+      }
       const btnQuitar = document.createElement('button');
       btnQuitar.type = 'button';
       btnQuitar.textContent = '×';
