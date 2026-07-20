@@ -1278,6 +1278,8 @@ async function cargarModuloAcuerdos(acWrap){
   const addCard = document.createElement('div');
   addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-bottom:20px;';
   addCard.innerHTML = `
+    <button type="button" class="add-proyecto-btn" style="margin:0 0 14px 0;">+ Crear reunión y analizar con IA</button>
+    <div class="nueva-reunion-progreso" style="display:none;margin-bottom:14px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;"></div>
     <div class="field" style="padding:0 0 10px 0;">
       <label>Subir archivo de transcripción</label>
       <div class="file-upload-row">
@@ -1291,8 +1293,6 @@ async function cargarModuloAcuerdos(acWrap){
       <label>Transcripción</label>
       <textarea class="nueva-reunion-transcripcion" rows="6" placeholder="Se llena sola al subir el archivo, o puedes pegar el texto aquí directamente. El título lo genera la IA a partir del contenido, y la fecha queda como la de hoy (fecha de carga)."></textarea>
     </div>
-    <button type="button" class="add-proyecto-btn" style="margin:0;">+ Crear reunión y analizar con IA</button>
-    <div class="nueva-reunion-progreso" style="display:none;margin-top:12px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;"></div>
   `;
   addCard.querySelectorAll('textarea').forEach(wireAutoGrow);
   acWrap.appendChild(addCard);
@@ -1336,6 +1336,7 @@ async function cargarModuloAcuerdos(acWrap){
     const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar', area_negocio: currentAreaNegocio }]).select().single();
     if(error){ mostrarAlerta('Error: ' + error.message); crearBtn.disabled = false; return; }
     textareaTranscripcion.value = '';
+    textareaTranscripcion.style.height = '';
     inputArchivo.value = '';
     nombreArchivo.textContent = 'Ningún archivo seleccionado — formatos .txt, .vtt, .srt, .docx';
     nombreArchivo.style.color = '';
