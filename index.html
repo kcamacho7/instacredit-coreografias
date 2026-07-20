@@ -1278,7 +1278,7 @@ async function cargarModuloAcuerdos(acWrap){
   const addCard = document.createElement('div');
   addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-radius:8px;padding:14px 20px;margin-bottom:20px;';
   addCard.innerHTML = `
-    <button type="button" class="add-proyecto-btn" style="margin:0 0 14px 0;">+ Crear reunión y analizar con IA</button>
+    <button type="button" class="add-proyecto-btn" style="margin:0 0 14px 0;" disabled>+ Crear reunión y analizar con IA</button>
     <div class="nueva-reunion-progreso" style="display:none;margin-bottom:14px;padding:10px 14px;background:#fff;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;"></div>
     <div class="field" style="padding:0 0 10px 0;">
       <label>Subir archivo de transcripción</label>
@@ -1308,6 +1308,11 @@ async function cargarModuloAcuerdos(acWrap){
   const crearBtn = addCard.querySelector('button');
   const progresoDiv = addCard.querySelector('.nueva-reunion-progreso');
 
+  function actualizarEstadoBoton(){
+    crearBtn.disabled = !textareaTranscripcion.value.trim();
+  }
+  textareaTranscripcion.addEventListener('input', actualizarEstadoBoton);
+
   inputArchivo.addEventListener('change', async ()=>{
     const file = inputArchivo.files[0];
     if(!file) return;
@@ -1326,6 +1331,7 @@ async function cargarModuloAcuerdos(acWrap){
       estadoArchivo.textContent = 'No se pudo leer el archivo: ' + e.message + '. Pega el texto manualmente.';
       estadoArchivo.style.color = 'var(--rojo)';
     }
+    actualizarEstadoBoton();
   });
 
   crearBtn.addEventListener('click', async ()=>{
@@ -1344,7 +1350,7 @@ async function cargarModuloAcuerdos(acWrap){
     estadoArchivo.textContent = '';
     await cargarListaReuniones(listWrap);
     await procesarConIA(nueva.id, progresoDiv, listWrap);
-    crearBtn.disabled = false;
+    actualizarEstadoBoton();
   });
 }
 
