@@ -2525,7 +2525,7 @@ function renderDashboardPublico(){
       <h2>Dashboard de avance</h2>
       <span>Visible para todos</span>
     </div>
-    <div class="area-owner"><strong>Qué es:</strong> avance de las acciones registradas, agrupado por dominio y por KPI. Usa los filtros para ver el consolidado regional o el detalle de un país.</div>
+    <div class="area-owner"><strong>Qué es:</strong> avance de las acciones registradas, incluyendo tareas especiales y acuerdos de reuniones, agrupado por dominio y por KPI. Usa los filtros para ver el consolidado regional o el detalle de un país. Nota: los acuerdos de reuniones no están ligados a un país, así que solo aparecen en el consolidado.</div>
   `;
   wrap.appendChild(headerBlock);
 
@@ -2742,10 +2742,12 @@ async function cargarControlAcuerdos(wrap){
 
 async function renderDashboardCharts(dashWrap, paisFiltro){
   dashWrap.innerHTML = '<div class="sin-proyectos">Cargando dashboard…</div>';
-  const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
+  const [{ data: coreoData }, { data: proyData }, { data: customData }, { data: reunionesData }, { data: acuerdosData }] = await Promise.all([
     sb.from('coreografias').select('*').eq('area_negocio', currentAreaNegocio),
     sb.from('proyectos_especiales').select('*').eq('area_negocio', currentAreaNegocio),
-    sb.from('kpis_adicionales').select('*').eq('area_negocio', currentAreaNegocio)
+    sb.from('kpis_adicionales').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('reuniones').select('id,titulo').eq('area_negocio', currentAreaNegocio),
+    sb.from('acuerdos_reunion').select('*').eq('area_negocio', currentAreaNegocio)
   ]);
 
   const todas = [];
@@ -2766,6 +2768,15 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
   });
   collect(customData, r=> (AREA_NOMBRE[r.area_id] || r.area_id) + ' (adicional)', r=> r.pais_code, r=> r.nombre || 'KPI adicional');
   collect(proyData, ()=> 'Proyectos especiales', r=> r.pais_code, r=> r.nombre || 'Proyecto especial');
+
+  const tituloPorReunion = new Map((reunionesData||[]).map(r=> [r.id, r.titulo || 'Reunión sin título']));
+  (acuerdosData||[]).forEach(a=>{
+    if(!a.descripcion && !a.responsable_nombre) return;
+    todas.push({
+      dominio: 'Acuerdos de reuniones', pais: 'ALL', kpi: tituloPorReunion.get(a.reunion_id) || 'Reunión sin título',
+      estado: a.estado || 'Pendiente', accionTexto: a.descripcion || '', responsable: a.responsable_nombre || '', fecha: a.fecha || ''
+    });
+  });
 
   const acciones = (!paisFiltro || paisFiltro === 'ALL') ? todas : todas.filter(a=> a.pais === paisFiltro);
 
