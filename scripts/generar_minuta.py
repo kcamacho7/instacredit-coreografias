@@ -94,6 +94,24 @@ SCHEMA_REDUCE = {
     "additionalProperties": False,
 }
 
+# Esquema de la llamada DEDICADA de participantes: pedir minuta+acuerdos+participantes en una
+# sola llamada hace que "enumerar a todos, sin excepción" quede de última prioridad para el
+# modelo. Una llamada aparte cuyo único trabajo es listar participantes es mucho más confiable,
+# y como no compite por espacio de salida con nada más, puede leer la transcripción completa
+# (sin fragmentar) incluso en reuniones largas.
+SCHEMA_SOLO_PARTICIPANTES = {
+    "type": "object",
+    "properties": {
+        "participantes": {
+            "type": "array",
+            "description": "TODAS las personas que hablaron o estuvieron presentes en la reunión, sin excepción, sin importar cuántas veces hablaron.",
+            "items": {"type": "object", "properties": PARTICIPANTE_PROPS, "required": ["nombre", "email_tentativo"], "additionalProperties": False},
+        },
+    },
+    "required": ["participantes"],
+    "additionalProperties": False,
+}
+
 
 def sb_get(tabla, params):
     r = requests.get(SUPABASE_URL + "/rest/v1/" + tabla, headers=HEADERS, params=params)
@@ -166,6 +184,19 @@ def buscar_email_por_nombre(nombre_ia, perfiles):
     if len(candidatos) == 1:
         return (candidatos[0].get("email") or "").lower()
     return ""
+
+
+def extraer_participantes_dedicado(transcripcion, roster_texto):
+    prompt = (
+        "Lee la siguiente transcripción completa de una reunión de Instacredit y enumera, SIN EXCEPCIÓN, "
+        "a todas las personas que hablaron o estuvieron presentes, sin importar cuántas veces hablaron ni si su "
+        "participación fue breve o marginal — incluye también a quien solo dijo una frase o intervino una sola vez. "
+        "Usa el nombre completo tal como se identifica en el texto y, si coincide con alguien de esta lista de "
+        "usuarios registrados, usa el nombre EXACTO de la lista:\n" + roster_texto + "\n\n"
+        "TRANSCRIPCIÓN:\n" + transcripcion
+    )
+    data = llamar_claude(prompt, SCHEMA_SOLO_PARTICIPANTES)
+    return data.get("participantes", [])
 
 
 def resolver_acuerdos(acuerdos, perfiles):
@@ -308,6 +339,21 @@ def procesar_reunion(reunion):
             data_reduce = llamar_claude(prompt_reduce, SCHEMA_REDUCE)
             titulo = data_reduce.get("titulo")
             minuta_texto = data_reduce.get("minuta")
+
+        # Llamada dedicada solo a enumerar participantes, sobre la transcripción completa sin
+        # fragmentar: al no competir por espacio de salida con la minuta ni los acuerdos, es
+        # mucho más confiable para no omitir a nadie. Se fusiona con lo que ya haya salido del
+        # pase principal (unión, sin duplicar por nombre).
+        try:
+            participantes_dedicados = extraer_participantes_dedicado(transcripcion, roster_texto)
+            nombres_ya_vistos = {normalizar(p.get("nombre") or "") for p in participantes_ia}
+            for p in participantes_dedicados:
+                norm = normalizar(p.get("nombre") or "")
+                if norm not in nombres_ya_vistos:
+                    participantes_ia.append(p)
+                    nombres_ya_vistos.add(norm)
+        except RuntimeError:
+            pass  # si esta llamada falla, seguimos con lo que ya se identificó en el pase principal.
     except RuntimeError as e:
         sb_patch("reuniones", reunion["id"], {"estado": "error"})
         print("  " + str(e))
