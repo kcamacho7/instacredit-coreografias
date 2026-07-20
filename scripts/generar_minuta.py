@@ -328,7 +328,13 @@ def procesar_reunion(reunion):
     # la IA identificó en la reunión pero no quedó como responsable de ningún acuerdo, más los
     # hablantes detectados por el respaldo determinístico que la IA no haya mencionado. El
     # organizador confirma o ajusta la lista sugerida desde la tarjeta de la reunión.
-    nombres_con_acuerdo = {normalizar(f["responsable_nombre"]) for f in filas if f["responsable_nombre"]}
+    # La exclusión se hace por CORREO resuelto, no por nombre exacto: en el modo map-reduce
+    # distintos fragmentos pueden nombrar a la misma persona con distinto nivel de detalle
+    # (ej. "Walter" en un fragmento vs "Walter Chavarria Diaz" en otro), y comparar nombres
+    # literales dejaría pasar duplicados. Solo se usa el nombre como respaldo cuando el acuerdo
+    # no tiene un correo resuelto.
+    emails_con_acuerdo = {f["responsable_email"] for f in filas if f["responsable_email"]}
+    nombres_con_acuerdo_sin_email = {normalizar(f["responsable_nombre"]) for f in filas if f["responsable_nombre"] and not f["responsable_email"]}
     existentes = reunion.get("participantes") or []
     emails_existentes = {(p.get("email") or "").lower() for p in existentes if p.get("email")}
 
@@ -342,9 +348,13 @@ def procesar_reunion(reunion):
     sugeridos = []
     for p in participantes_combinados:
         nombre = (p.get("nombre") or "").strip()
-        if not nombre or normalizar(nombre) in nombres_con_acuerdo:
+        if not nombre:
             continue
         email = buscar_email_por_nombre(nombre, perfiles) or (p.get("email_tentativo") or "").strip().lower()
+        if email and email in emails_con_acuerdo:
+            continue
+        if not email and normalizar(nombre) in nombres_con_acuerdo_sin_email:
+            continue
         if not email or email in emails_existentes or email in vistos:
             continue
         vistos.add(email)
