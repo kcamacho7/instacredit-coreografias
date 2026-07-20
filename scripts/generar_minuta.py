@@ -179,15 +179,22 @@ def buscar_email_por_nombre(nombre_ia, perfiles):
     for p in perfiles:
         if normalizar(p.get("nombre")) == norm:
             return (p.get("email") or "").lower()
-    # Respaldo: solo cuando el nombre extraído es un PREFIJO real del nombre completo registrado
-    # (ej. "Walter" -> "Walter Chavarria Diaz"). Comparar solo el primer nombre es peligroso: dos
-    # personas distintas pueden compartir el primer nombre con apellidos totalmente diferentes
-    # (ej. "Kenneth Tobias Valverde Hernandez" no es "Kenneth Camacho Segura").
-    candidatos = [
-        p for p in perfiles
-        if normalizar(p.get("nombre")) and normalizar(p.get("nombre")) != norm
-        and (normalizar(p.get("nombre")).startswith(norm + " ") or norm.startswith(normalizar(p.get("nombre")) + " "))
-    ]
+    # Respaldo: coincide solo si el PRIMER y el ÚLTIMO nombre son iguales (permite que sobren o
+    # falten nombres intermedios, ej. "Walter Alberto Chavarria Diaz" vs "Walter Chavarria Diaz"),
+    # nunca solo por compartir el primer nombre — dos personas distintas pueden llamarse igual de
+    # pila con apellidos totalmente diferentes (ej. "Kenneth Tobias Valverde Hernandez" no es
+    # "Kenneth Camacho Segura").
+    ia_tokens = [t for t in norm.split(" ") if t]
+    candidatos = []
+    for p in perfiles:
+        np_tokens = [t for t in normalizar(p.get("nombre")).split(" ") if t]
+        if not np_tokens or not ia_tokens:
+            continue
+        if len(ia_tokens) == 1:
+            if np_tokens[0] == ia_tokens[0]:
+                candidatos.append(p)
+        elif np_tokens[0] == ia_tokens[0] and np_tokens[-1] == ia_tokens[-1]:
+            candidatos.append(p)
     if len(candidatos) == 1:
         return (candidatos[0].get("email") or "").lower()
     return ""
