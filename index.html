@@ -472,7 +472,24 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }
 });
 
-const STORAGE_KEY = 'instacredit_coreografias_v1';
+const STORAGE_KEY_BASE = 'instacredit_coreografias_v1';
+const AREA_NEGOCIO_ADMIN_KEY = 'instacredit_coreografias_area_admin';
+let currentAreaNegocio = 'riesgo';
+let areasNegocioCatalogo = [{ codigo:'riesgo', nombre:'Riesgo', activo:true, orden:1 }];
+function storageKeyActiva(){ return STORAGE_KEY_BASE + '__' + currentAreaNegocio; }
+async function loadAreasNegocio(){
+  const { data, error } = await sb.from('areas_negocio').select('*').order('orden');
+  if(!error && data && data.length) areasNegocioCatalogo = data;
+}
+function nombreAreaActiva(){
+  return (areasNegocioCatalogo.find(a=>a.codigo===currentAreaNegocio) || {}).nombre || currentAreaNegocio;
+}
+function resolverAreaActiva(){
+  if(currentUserProfile && currentUserProfile.es_admin){
+    return sessionStorage.getItem(AREA_NEGOCIO_ADMIN_KEY) || currentUserProfile.area_negocio || 'riesgo';
+  }
+  return (currentUserProfile && currentUserProfile.area_negocio) || 'riesgo';
+}
 let state = {};
 const openAccordions = new Set();
 const reunionesAbiertas = new Set();
@@ -645,7 +662,7 @@ function emptyProyecto(){
 }
 
 function loadLocalCache(){
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(storageKeyActiva());
   if(raw){
     try{ state = JSON.parse(raw); }catch(e){ state = {}; }
   }
@@ -714,9 +731,9 @@ function mergeCustomKpisRows(rows){
 
 async function loadFromCloud(){
   const [{ data: coreoData, error: coreoErr }, { data: proyData, error: proyErr }, { data: customData, error: customErr }] = await Promise.all([
-    sb.from('coreografias').select('*'),
-    sb.from('proyectos_especiales').select('*').order('updated_at', { ascending: true }),
-    sb.from('kpis_adicionales').select('*').order('orden', { ascending: true })
+    sb.from('coreografias').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('proyectos_especiales').select('*').eq('area_negocio', currentAreaNegocio).order('updated_at', { ascending: true }),
+    sb.from('kpis_adicionales').select('*').eq('area_negocio', currentAreaNegocio).order('orden', { ascending: true })
   ]);
   if(coreoErr || proyErr || customErr){
     document.getElementById('statusText').innerHTML = 'No se pudo conectar a la nube (mostrando copia local) — ' + (coreoErr||proyErr||customErr).message;
@@ -725,7 +742,7 @@ async function loadFromCloud(){
   mergeCloudRows(coreoData || []);
   mergeProyectosRows(proyData || []);
   mergeCustomKpisRows(customData || []);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(storageKeyActiva(), JSON.stringify(state));
   renderTabs();
   const now = new Date().toLocaleString('es-CR');
   document.getElementById('statusText').innerHTML = 'Datos consolidados cargados — <b>' + now + '</b>';
@@ -790,9 +807,9 @@ async function saveActiveCountry(){
   // tenía un valor viejo en memoria.
   document.getElementById('statusText').innerHTML = 'Verificando fechas con la nube…';
   const [{ data: freshCoreo }, { data: freshProy }, { data: freshCustom }] = await Promise.all([
-    sb.from('coreografias').select('area_id,kpi_id,fecha_revision,hora_revision').eq('pais_code', code),
-    sb.from('proyectos_especiales').select('id,fecha_seguimiento,hora_seguimiento').eq('pais_code', code),
-    sb.from('kpis_adicionales').select('id,fecha_revision,hora_revision').eq('pais_code', code)
+    sb.from('coreografias').select('area_id,kpi_id,fecha_revision,hora_revision').eq('pais_code', code).eq('area_negocio', currentAreaNegocio),
+    sb.from('proyectos_especiales').select('id,fecha_seguimiento,hora_seguimiento').eq('pais_code', code).eq('area_negocio', currentAreaNegocio),
+    sb.from('kpis_adicionales').select('id,fecha_revision,hora_revision').eq('pais_code', code).eq('area_negocio', currentAreaNegocio)
   ]);
   const freshCoreoMap = {};
   (freshCoreo||[]).forEach(r=> freshCoreoMap[r.area_id+'|'+r.kpi_id] = r);
@@ -810,6 +827,7 @@ async function saveActiveCountry(){
         const usarFresh = k._locked_fechaRevision && fresh;
         rows.push({
           pais_code: code,
+          area_negocio: currentAreaNegocio,
           area_id: area.id,
           kpi_id: kpi.id,
           situacion: k.situacion,
@@ -830,6 +848,7 @@ async function saveActiveCountry(){
     return {
       id: p.id,
       pais_code: code,
+      area_negocio: currentAreaNegocio,
       nombre: p.nombre,
       descripcion: p.descripcion,
       responsable: p.responsable,
@@ -851,6 +870,7 @@ async function saveActiveCountry(){
         customKpiRows.push({
           id: c.id,
           pais_code: code,
+          area_negocio: currentAreaNegocio,
           area_id: area.id,
           nombre: c.nombre,
           definicion: c.definicion,
@@ -871,10 +891,10 @@ async function saveActiveCountry(){
   document.getElementById('statusText').innerHTML = 'Guardando ' + code + '…';
   let error = null;
   if(code !== 'RG' && rows.length){
-    const res = await sb.from('coreografias').upsert(rows, { onConflict: 'pais_code,area_id,kpi_id' });
+    const res = await sb.from('coreografias').upsert(rows, { onConflict: 'pais_code,area_negocio,area_id,kpi_id' });
     error = res.error;
   }
-  const { error: delErr } = await sb.from('proyectos_especiales').delete().eq('pais_code', code);
+  const { error: delErr } = await sb.from('proyectos_especiales').delete().eq('pais_code', code).eq('area_negocio', currentAreaNegocio);
   let proyErr = null;
   if(!delErr && proyectoRows.length){
     const res = await sb.from('proyectos_especiales').insert(proyectoRows);
@@ -883,7 +903,7 @@ async function saveActiveCountry(){
   let delCustomErr = null;
   let customErr = null;
   if(code !== 'RG'){
-    const resDel = await sb.from('kpis_adicionales').delete().eq('pais_code', code);
+    const resDel = await sb.from('kpis_adicionales').delete().eq('pais_code', code).eq('area_negocio', currentAreaNegocio);
     delCustomErr = resDel.error;
     if(!delCustomErr && customKpiRows.length){
       const res = await sb.from('kpis_adicionales').insert(customKpiRows);
@@ -892,7 +912,7 @@ async function saveActiveCountry(){
   }
   const now = new Date().toLocaleString('es-CR');
   if(error || delErr || proyErr || delCustomErr || customErr){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(storageKeyActiva(), JSON.stringify(state));
     document.getElementById('statusText').innerHTML = 'Error al guardar ' + code + ': ' + (error||delErr||proyErr||delCustomErr||customErr).message;
   } else {
     // Refleja en pantalla, solo para este país, cualquier fecha/hora tomada fresca de la nube
@@ -916,7 +936,7 @@ async function saveActiveCountry(){
           }));
       });
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(storageKeyActiva(), JSON.stringify(state));
     renderTabs();
     selectTab(code);
     document.getElementById('statusText').innerHTML = 'Guardado en la nube (' + code + ') — <b>' + now + '</b>';
@@ -927,12 +947,14 @@ async function saveActiveCountry(){
 async function cargarPerfilUsuario(){
   if(!currentUser){
     currentUserProfile = null;
-    regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+    regionalUnlocked = false;
+    currentAreaNegocio = 'riesgo';
     return;
   }
   const { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
   currentUserProfile = data || null;
-  regionalUnlocked = (currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin)) || sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+  regionalUnlocked = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
+  currentAreaNegocio = resolverAreaActiva();
 }
 
 async function checkSesionInicial(){
@@ -947,17 +969,20 @@ async function handleLogin(email, password){
   if(error){ authError = 'No se pudo iniciar sesión: ' + error.message; renderAuthBar(); return; }
   currentUser = data.user;
   await cargarPerfilUsuario();
+  await loadKpiCatalog();
+  loadLocalCache();
   renderAuthBar();
   renderTabs();
+  loadFromCloud();
 }
 
 async function handleSignup(email, password){
   authError = '';
   const emailNorm = email.trim().toLowerCase();
-  const { data: preauth, error: preauthErr } = await sb.from('perfiles_usuario').select('*').eq('email', emailNorm).is('user_id', null).maybeSingle();
+  const { data: preautorizado, error: preauthErr } = await sb.rpc('verificar_preautorizacion', { p_email: emailNorm });
   if(preauthErr){ authError = 'No se pudo verificar la autorización: ' + preauthErr.message; renderAuthBar(); return; }
-  if(!preauth){
-    authError = 'Tu correo no ha sido autorizado por Riesgo Regional. Pídele que te agregue primero desde el panel de mantenimiento de usuarios.';
+  if(!preautorizado){
+    authError = 'Tu correo no ha sido autorizado. Pídele a tu Regional o Administración que te agregue primero desde el panel de mantenimiento de usuarios.';
     renderAuthBar();
     return;
   }
@@ -967,13 +992,16 @@ async function handleSignup(email, password){
   });
   if(error){ authError = 'No se pudo crear la cuenta: ' + error.message; renderAuthBar(); return; }
   if(data.user){
-    await sb.from('perfiles_usuario').update({ user_id: data.user.id }).eq('id', preauth.id);
+    await sb.rpc('vincular_preautorizacion');
   }
   currentUser = data.user;
   await cargarPerfilUsuario();
+  await loadKpiCatalog();
+  loadLocalCache();
   authError = data.session ? '' : 'Cuenta creada. Si tu correo pide confirmación, revisa tu bandeja antes de poder iniciar sesión.';
   renderAuthBar();
   renderTabs();
+  loadFromCloud();
 }
 
 async function handleLogout(){
@@ -981,7 +1009,8 @@ async function handleLogout(){
   currentUser = null;
   currentUserProfile = null;
   regionalUnlocked = false;
-  sessionStorage.removeItem(REGIONAL_UNLOCK_KEY);
+  currentAreaNegocio = 'riesgo';
+  sessionStorage.removeItem(AREA_NEGOCIO_ADMIN_KEY);
   renderAuthBar();
   renderTabs();
 }
@@ -1003,10 +1032,19 @@ function renderAuthBar(){
     const status = document.createElement('span');
     status.className = 'auth-status';
     const etiquetaAcceso = currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin)
-      ? '<span class="pais-asignado">' + (currentUserProfile.es_regional ? 'Riesgo Regional' : 'Administrador') + ' — edita los 4 países</span>'
-      : (paisNombre ? '<span class="pais-asignado">' + paisNombre + '</span>' : '<span class="sin-pais">sin país asignado, contacta a Riesgo Regional</span>');
+      ? '<span class="pais-asignado">' + (currentUserProfile.es_regional ? (nombreAreaActiva() + ' Regional') : 'Administrador') + ' — edita los 4 países' + (currentUserProfile.es_admin ? ' de ' + nombreAreaActiva() : '') + '</span>'
+      : (paisNombre ? '<span class="pais-asignado">' + paisNombre + ' — ' + nombreAreaActiva() + '</span>' : '<span class="sin-pais">sin país asignado, contacta a tu Regional</span>');
     status.innerHTML = 'Sesión: ' + escapeAttr(currentUser.email) + ' — ' + etiquetaAcceso;
     bar.appendChild(status);
+
+    const areasActivas = areasNegocioCatalogo.filter(a=>a.activo);
+    if(currentUserProfile && currentUserProfile.es_admin && areasActivas.length > 1){
+      const selectorArea = document.createElement('select');
+      selectorArea.style.cssText = "font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:5px;padding:6px 9px;font-size:12.5px;";
+      selectorArea.innerHTML = areasActivas.map(a=> '<option value="' + escapeAttr(a.codigo) + '"' + (a.codigo===currentAreaNegocio ? ' selected' : '') + '>' + escapeAttr(a.nombre) + '</option>').join('');
+      selectorArea.addEventListener('change', ()=> cambiarAreaActiva(selectorArea.value));
+      bar.appendChild(selectorArea);
+    }
 
     const btnOut = document.createElement('button');
     btnOut.type = 'button';
@@ -1103,23 +1141,10 @@ function renderAuthBar(){
   }
 }
 
-const REGIONAL_UNLOCK_KEY = 'instacredit_coreografias_regional_unlocked';
-let regionalUnlocked = sessionStorage.getItem(REGIONAL_UNLOCK_KEY) === '1';
+let regionalUnlocked = false;
 let regionalSubTab = 'bitacora';
 let dashboardOrdenVencidas = null;
 const seccionesRegionalColapsadas = new Set();
-
-async function attemptUnlockRegional(pin){
-  const { data, error } = await sb.rpc('verificar_pin_regional', { p_pin: pin });
-  if(error || data !== true){
-    mostrarAlerta('PIN incorrecto para Riesgo Regional.');
-    return;
-  }
-  regionalUnlocked = true;
-  sessionStorage.setItem(REGIONAL_UNLOCK_KEY, '1');
-  renderTabs();
-  selectTab('REGIONAL');
-}
 
 function renderTabs(){
   const tabsEl = document.getElementById('tabs');
@@ -1169,7 +1194,7 @@ function renderTabs(){
     const rgBtn = document.createElement('button');
     rgBtn.className = 'tab-btn tab-btn-regional tab-btn-regional-push';
     grupoRegionalEmpujado = true;
-    rgBtn.innerHTML = '<img src="assets/isotipo_instacredit.png" alt="" style="height:1em;width:auto;vertical-align:-0.15em;margin-right:.35em;"> KPI y tareas Regional';
+    rgBtn.innerHTML = '<img src="assets/isotipo_instacredit.png" alt="" style="height:1em;width:auto;vertical-align:-0.15em;margin-right:.35em;"> KPI y tareas ' + escapeAttr(nombreAreaActiva()) + ' Regional';
     rgBtn.dataset.pais = 'RG';
     rgBtn.addEventListener('click', ()=> selectTab('RG'));
     tabsEl.appendChild(rgBtn);
@@ -1239,7 +1264,7 @@ function renderRegionalTareas(){
   wrap.style.paddingTop = '20px';
   const info = document.createElement('div');
   info.className = 'pin-bar unlocked';
-  info.innerHTML = '<span>🔒 Sección privada de Riesgo Regional — solo tu usuario la ve, los gerentes de país no tienen acceso. Úsala para documentar tus propios proyectos y tareas de seguimiento.</span>';
+  info.innerHTML = '<span>🔒 Sección privada de ' + escapeAttr(nombreAreaActiva()) + ' Regional — solo tu usuario la ve, los gerentes de país no tienen acceso. Úsala para documentar tus propios proyectos y tareas de seguimiento.</span>';
   wrap.appendChild(info);
   wrap.appendChild(renderProyectosEspeciales('RG', true));
   const acuerdosWrap = document.createElement('div');
@@ -1307,7 +1332,7 @@ async function cargarModuloAcuerdos(acWrap){
     if(!transcripcion){ mostrarAlerta('Sube un archivo o pega la transcripción de la reunión.'); return; }
     const fecha = new Date().toISOString().slice(0,10);
     crearBtn.disabled = true;
-    const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar' }]).select().single();
+    const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar', area_negocio: currentAreaNegocio }]).select().single();
     if(error){ mostrarAlerta('Error: ' + error.message); crearBtn.disabled = false; return; }
     textareaTranscripcion.value = '';
     inputArchivo.value = '';
@@ -1414,9 +1439,9 @@ async function leerArchivoTranscripcion(file){
 
 async function cargarListaReuniones(listWrap){
   listWrap.innerHTML = '<div class="sin-proyectos">Cargando reuniones…</div>';
-  const { data: reuniones, error } = await sb.from('reuniones').select('*').order('creado_at', { ascending: false });
+  const { data: reuniones, error } = await sb.from('reuniones').select('*').eq('area_negocio', currentAreaNegocio).order('creado_at', { ascending: false });
   if(error){ listWrap.innerHTML = '<div class="sin-proyectos">Error: ' + error.message + '</div>'; return; }
-  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,nombre,user_id,pais_code,es_regional,es_lider');
+  const { data: perfiles } = await sb.from('perfiles_usuario').select('email,nombre,user_id,pais_code,es_regional,es_lider').eq('area_negocio', currentAreaNegocio);
 
   listWrap.innerHTML = '';
   if(!reuniones || reuniones.length === 0){
@@ -1583,8 +1608,13 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
           e.target.value = ac.responsable_email || '';
           return;
         }
+        if(!currentUserProfile || !currentUserProfile.es_admin){
+          mostrarAlerta('Solo Administración puede preautorizar correos nuevos. Pide que lo agreguen desde Mantenimiento de usuarios.');
+          e.target.value = ac.responsable_email || '';
+          return;
+        }
         const nuevoNombre = (await mostrarPrompt('Nombre completo (opcional):') || '').trim();
-        const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre }]);
+        const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre, area_negocio: currentAreaNegocio }]);
         if(errPre){ mostrarAlerta('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
         await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail }).eq('id', ac.id);
         cargarListaReuniones(listWrap);
@@ -1618,8 +1648,12 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
             mostrarAlerta('Ese correo ya existe en la lista de usuarios.');
             return;
           }
+          if(!currentUserProfile || !currentUserProfile.es_admin){
+            mostrarAlerta('Solo Administración puede preautorizar correos nuevos. Pide que lo agreguen desde Mantenimiento de usuarios.');
+            return;
+          }
           const nombre = (await mostrarPrompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
-          const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre }]);
+          const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre, area_negocio: currentAreaNegocio }]);
           if(error){ mostrarAlerta('Error: ' + error.message); return; }
           mostrarAlerta('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
           cargarListaReuniones(listWrap);
@@ -1668,7 +1702,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   addAcuerdoBtn.className = 'add-row-btn';
   addAcuerdoBtn.textContent = '+ Agregar acuerdo manual';
   addAcuerdoBtn.addEventListener('click', async ()=>{
-    const { error } = await sb.from('acuerdos_reunion').insert([{ reunion_id: reunion.id, descripcion: '', responsable_nombre: '', responsable_email: '', estado: 'Pendiente' }]);
+    const { error } = await sb.from('acuerdos_reunion').insert([{ reunion_id: reunion.id, descripcion: '', responsable_nombre: '', responsable_email: '', estado: 'Pendiente', area_negocio: reunion.area_negocio || currentAreaNegocio }]);
     if(error){ mostrarAlerta('Error: ' + error.message); return; }
     cargarListaReuniones(listWrap);
   });
@@ -1785,18 +1819,7 @@ function renderRegional(){
   if(!regionalUnlocked){
     const pinBar = document.createElement('div');
     pinBar.className = 'pin-bar';
-    pinBar.innerHTML = `
-      <span>🔒 Esta pestaña es solo para Administración del sistema. Ingresa el PIN:</span>
-      <input type="password" placeholder="PIN" maxlength="6">
-      <button type="button">Desbloquear</button>
-    `;
-    pinBar.querySelector('button').addEventListener('click', ()=>{
-      const pin = pinBar.querySelector('input').value.trim();
-      if(pin) attemptUnlockRegional(pin);
-    });
-    pinBar.querySelector('input').addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter') pinBar.querySelector('button').click();
-    });
+    pinBar.innerHTML = '<span>🔒 Esta pestaña es solo para Regional/Administración de tu área. Tu cuenta no tiene ese permiso — pide a tu Regional o a Administración que te lo asigne.</span>';
     wrap.appendChild(pinBar);
     return wrap;
   }
@@ -1806,13 +1829,17 @@ function renderRegional(){
   subtabBar.className = 'filtro-bar';
   const subpanelsWrap = document.createElement('div');
 
+  const esAdminActivo = !!(currentUserProfile && currentUserProfile.es_admin);
   const SECCIONES = [
     { id:'bitacora', nombre:'Bitácora' },
     { id:'fechas', nombre:'Fechas y horas' },
     { id:'acciones', nombre:'Acciones' },
     { id:'catalogo', nombre:'Catálogo KPI' },
-    { id:'usuarios', nombre:'Usuarios' }
   ];
+  if(esAdminActivo){
+    SECCIONES.push({ id:'usuarios', nombre:'Usuarios' });
+    SECCIONES.push({ id:'areas', nombre:'Áreas de negocio' });
+  }
   if(!SECCIONES.some(s=>s.id===regionalSubTab)) regionalSubTab = 'bitacora';
 
   SECCIONES.forEach(sec=>{
@@ -1838,7 +1865,7 @@ function renderRegional(){
     block.innerHTML = `
       <div class="area-header">
         <h2>Bitácora de KPI adicionales eliminados</h2>
-        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+        <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
     `;
     const body = document.createElement('div');
@@ -1857,7 +1884,7 @@ function renderRegional(){
     blockProy.innerHTML = `
       <div class="area-header">
         <h2>Bitácora de proyectos especiales eliminados</h2>
-        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+        <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
     `;
     const bodyProy = document.createElement('div');
@@ -1878,7 +1905,7 @@ function renderRegional(){
     fechasBlock.innerHTML = `
       <div class="area-header">
         <h2>Gestión de fechas y horas de reunión</h2>
-        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+        <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
     `;
     const body = document.createElement('div');
@@ -1899,7 +1926,7 @@ function renderRegional(){
     accionesBlock.innerHTML = `
       <div class="area-header">
         <h2>Gestión de acciones</h2>
-        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+        <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
     `;
     const body = document.createElement('div');
@@ -1920,7 +1947,7 @@ function renderRegional(){
     catalogoBlock.innerHTML = `
       <div class="area-header">
         <h2>Mantenimiento de catálogo de KPI</h2>
-        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+        <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
     `;
     const body = document.createElement('div');
@@ -1941,7 +1968,7 @@ function renderRegional(){
     usuariosBlock.innerHTML = `
       <div class="area-header">
         <h2>Mantenimiento de usuarios</h2>
-        <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+        <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
       </div>
     `;
     const body = document.createElement('div');
@@ -1954,6 +1981,27 @@ function renderRegional(){
     subpanelsWrap.appendChild(usuariosBlock);
     wireColapsarSeccion(usuariosBlock.querySelector('.area-header'), body, 'usuarios');
     loadMantenimientoUsuarios(usuariosWrap);
+  }
+
+  if(seccionVisible('areas')){
+    const areasBlock = document.createElement('div');
+    areasBlock.className = 'area-block proyecto-area';
+    areasBlock.innerHTML = `
+      <div class="area-header">
+        <h2>Áreas de negocio</h2>
+        <span class="header-right"><span>Solo Administración</span><button type="button" class="btn-colapsar-seccion"></button></span>
+      </div>
+    `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> catálogo de las áreas de negocio del sistema (Riesgo, Cobro, Comercial…). Cada una tiene sus propios KPIs, proyectos y minutas, completamente separados del resto — nunca se mezclan.</div>';
+    const areasWrap = document.createElement('div');
+    areasWrap.id = 'areas-negocio-list';
+    areasWrap.innerHTML = '<div class="sin-proyectos">Cargando…</div>';
+    body.appendChild(areasWrap);
+    areasBlock.appendChild(body);
+    subpanelsWrap.appendChild(areasBlock);
+    wireColapsarSeccion(areasBlock.querySelector('.area-header'), body, 'areas');
+    loadAreasNegocioMantenimiento(areasWrap);
   }
 
   return wrap;
@@ -1979,9 +2027,9 @@ function wireColapsarSeccion(headerEl, bodyEl, key){
 
 async function loadFechasReunion(listWrap){
   const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
-    sb.from('coreografias').select('*'),
-    sb.from('proyectos_especiales').select('*'),
-    sb.from('kpis_adicionales').select('*')
+    sb.from('coreografias').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('proyectos_especiales').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('kpis_adicionales').select('*').eq('area_negocio', currentAreaNegocio)
   ]);
   const items = [];
   (coreoData||[]).forEach(r=>{
@@ -2050,9 +2098,9 @@ async function loadFechasReunion(listWrap){
 
 async function loadGestionAcciones(listWrap){
   const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
-    sb.from('coreografias').select('*'),
-    sb.from('proyectos_especiales').select('*'),
-    sb.from('kpis_adicionales').select('*')
+    sb.from('coreografias').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('proyectos_especiales').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('kpis_adicionales').select('*').eq('area_negocio', currentAreaNegocio)
   ]);
   const items = [];
   function pushAcciones(rows, tabla, origenFn){
@@ -2121,7 +2169,7 @@ function slugKpiId(nombre){
 }
 
 async function loadCatalogoMantenimiento(catalogoWrap){
-  const { data, error } = await sb.from('kpis_catalogo').select('*').eq('activo', true).order('area_id').order('orden');
+  const { data, error } = await sb.from('kpis_catalogo').select('*').eq('area_negocio', currentAreaNegocio).eq('activo', true).order('area_id').order('orden');
   if(error){
     catalogoWrap.innerHTML = '<div class="sin-proyectos">Error al cargar el catálogo: ' + error.message + '</div>';
     return;
@@ -2221,7 +2269,7 @@ async function loadCatalogoMantenimiento(catalogoWrap){
       if(!nombre){ mostrarAlerta('Ponle un nombre al nuevo KPI.'); return; }
       const maxOrden = kpisDeEstaArea.reduce((m,r)=> Math.max(m, r.orden||0), 0);
       const { error: err } = await sb.from('kpis_catalogo').insert([{
-        area_id: area.id, kpi_id: slugKpiId(nombre), nombre, definicion, orden: maxOrden + 1, activo: true
+        area_negocio: currentAreaNegocio, area_id: area.id, kpi_id: slugKpiId(nombre), nombre, definicion, orden: maxOrden + 1, activo: true
       }]);
       if(err){ mostrarAlerta('Error: ' + err.message); return; }
       await loadKpiCatalog();
@@ -2234,8 +2282,82 @@ async function loadCatalogoMantenimiento(catalogoWrap){
   });
 }
 
+async function loadAreasNegocioMantenimiento(areasWrap){
+  const { data, error } = await sb.from('areas_negocio').select('*').order('orden');
+  if(error){
+    areasWrap.innerHTML = '<div class="sin-proyectos">Error al cargar las áreas: ' + error.message + '</div>';
+    return;
+  }
+  areasWrap.innerHTML = '';
+  (data||[]).forEach(area=>{
+    const card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border:1px solid var(--gris-borde);border-top:none;padding:12px 20px;';
+    card.innerHTML = `
+      <div class="field-grid" style="padding:0 0 10px 0;">
+        <div class="field">
+          <label>Código</label>
+          <input type="text" class="edit-codigo" value="${escapeAttr(area.codigo)}" disabled>
+        </div>
+        <div class="field">
+          <label>Nombre</label>
+          <input type="text" class="edit-nombre" value="${escapeAttr(area.nombre)}">
+        </div>
+        <div class="field">
+          <label>Orden</label>
+          <input type="number" class="edit-orden" value="${escapeAttr(area.orden)}" style="width:100%;">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><input type="checkbox" class="edit-activo" ${area.activo ? 'checked' : ''}> Activa</label>
+        <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);">Guardar</button>
+      </div>
+    `;
+    card.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+      const nombre = card.querySelector('.edit-nombre').value.trim();
+      const orden = parseInt(card.querySelector('.edit-orden').value, 10) || 0;
+      const activo = card.querySelector('.edit-activo').checked;
+      if(!nombre){ mostrarAlerta('El nombre no puede estar vacío.'); return; }
+      const { error: err } = await sb.from('areas_negocio').update({ nombre, orden, activo }).eq('codigo', area.codigo);
+      if(err){ mostrarAlerta('Error: ' + err.message); return; }
+      await loadAreasNegocio();
+      renderAuthBar();
+      renderTabs();
+      selectTab('REGIONAL');
+    });
+    areasWrap.appendChild(card);
+  });
+
+  const addCard = document.createElement('div');
+  addCard.style.cssText = 'background:#F0F7EE;border:1px dashed var(--verde);border-top:none;padding:12px 20px;';
+  addCard.innerHTML = `
+    <div class="field-grid" style="padding:0 0 10px 0;">
+      <div class="field">
+        <label>Código (identificador único, ej. "cobro")</label>
+        <input type="text" class="nuevo-codigo" placeholder="cobro">
+      </div>
+      <div class="field" style="grid-column: span 2;">
+        <label>Nombre</label>
+        <input type="text" class="nuevo-nombre" placeholder="Cobro">
+      </div>
+    </div>
+    <button type="button" class="add-proyecto-btn" style="margin:0;">+ Agregar área de negocio</button>
+  `;
+  addCard.querySelector('button').addEventListener('click', async ()=>{
+    const codigo = addCard.querySelector('.nuevo-codigo').value.trim().toLowerCase().replace(/[^a-z0-9_]+/g,'_');
+    const nombre = addCard.querySelector('.nuevo-nombre').value.trim();
+    if(!codigo || !nombre){ mostrarAlerta('Completa código y nombre.'); return; }
+    const maxOrden = (data||[]).reduce((m,r)=> Math.max(m, r.orden||0), 0);
+    const { error: err } = await sb.from('areas_negocio').insert([{ codigo, nombre, activo: true, orden: maxOrden + 1 }]);
+    if(err){ mostrarAlerta('Error: ' + err.message); return; }
+    await loadAreasNegocio();
+    renderAuthBar();
+    loadAreasNegocioMantenimiento(areasWrap);
+  });
+  areasWrap.appendChild(addCard);
+}
+
 async function loadMantenimientoUsuarios(usuariosWrap){
-  const { data, error } = await sb.from('perfiles_usuario').select('*').order('email');
+  const { data, error } = await sb.from('perfiles_usuario').select('*').eq('area_negocio', currentAreaNegocio).order('email');
   if(error){
     usuariosWrap.innerHTML = '<div class="sin-proyectos">Error al cargar usuarios: ' + error.message + '</div>';
     return;
@@ -2248,9 +2370,10 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     empty.textContent = 'Todavía no hay correos preautorizados.';
     usuariosWrap.appendChild(empty);
   } else {
+    const areasActivasSelect = areasNegocioCatalogo.filter(a=>a.activo);
     const table = document.createElement('table');
     table.className = 'coreo';
-    table.innerHTML = '<tr><th style="width:15%;">Correo</th><th style="width:13%;">Nombre</th><th style="width:10%;">Estado</th><th style="width:13%;">País asignado</th><th style="width:7%;">Regional</th><th style="width:7%;">Admin</th><th style="width:7%;">Líder</th><th style="width:28%;">&nbsp;</th></tr>';
+    table.innerHTML = '<tr><th style="width:14%;">Correo</th><th style="width:12%;">Nombre</th><th style="width:9%;">Estado</th><th style="width:11%;">País asignado</th><th style="width:11%;">Área</th><th style="width:6%;">Regional</th><th style="width:6%;">Admin</th><th style="width:6%;">Líder</th><th style="width:25%;">&nbsp;</th></tr>';
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
 
@@ -2259,11 +2382,15 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       const opciones = '<option value="">Sin asignar</option>' + PAISES.map(p=>
         '<option value="' + p.code + '"' + (u.pais_code===p.code ? ' selected' : '') + '>' + p.nombre + '</option>'
       ).join('') + '<option value="RG"' + (u.pais_code==='RG' ? ' selected' : '') + '>Regional</option>';
+      const opcionesArea = areasActivasSelect.map(a=>
+        '<option value="' + escapeAttr(a.codigo) + '"' + (u.area_negocio===a.codigo ? ' selected' : '') + '>' + escapeAttr(a.nombre) + '</option>'
+      ).join('');
       tr.innerHTML = `
         <td>${escapeAttr(u.email)}</td>
         <td><input type="text" class="nombre-usuario" value="${escapeAttr(u.nombre || '')}" placeholder="Nombre completo" style="width:100%;"></td>
         <td>${u.user_id ? '<span style="color:var(--verde);font-weight:700;">Registrado</span>' : '<span style="color:var(--azul-claro);">Pendiente de registro</span>'}</td>
         <td><select class="estado">${opciones}</select></td>
+        <td><select class="area-usuario">${opcionesArea}</select></td>
         <td style="text-align:center;"><input type="checkbox" class="es-regional" ${u.es_regional ? 'checked' : ''}></td>
         <td style="text-align:center;"><input type="checkbox" class="es-admin" ${u.es_admin ? 'checked' : ''}></td>
         <td style="text-align:center;"><input type="checkbox" class="es-lider" ${u.es_lider ? 'checked' : ''}></td>
@@ -2278,12 +2405,13 @@ async function loadMantenimientoUsuarios(usuariosWrap){
       const btnReset = u.user_id ? botones[1] : null;
       const btnQuitar = u.user_id ? botones[2] : botones[1];
       btnGuardar.addEventListener('click', async ()=>{
-        const nuevoPais = tr.querySelector('select').value || null;
+        const nuevoPais = tr.querySelector('.estado').value || null;
+        const nuevaArea = tr.querySelector('.area-usuario').value;
         const esRegional = tr.querySelector('.es-regional').checked;
         const esAdmin = tr.querySelector('.es-admin').checked;
         const esLider = tr.querySelector('.es-lider').checked;
         const nombre = tr.querySelector('.nombre-usuario').value.trim();
-        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, nombre }).eq('id', u.id);
+        const { error: err } = await sb.from('perfiles_usuario').update({ pais_code: nuevoPais, area_negocio: nuevaArea, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, nombre }).eq('id', u.id);
         if(err){ mostrarAlerta('Error: ' + err.message); return; }
         if(currentUser && u.user_id && currentUser.id === u.user_id){ await cargarPerfilUsuario(); renderAuthBar(); }
         mostrarAlerta('Cambios guardados para ' + escapeAttr(u.email) + '.');
@@ -2347,7 +2475,7 @@ async function loadMantenimientoUsuarios(usuariosWrap){
     const esLider = addCard.querySelector('.nuevo-lider').checked;
     if(!email || !email.includes('@')){ mostrarAlerta('Pon un correo válido.'); return; }
     if((data||[]).some(u=>(u.email||'').toLowerCase()===email)){ mostrarAlerta('Ese correo ya existe en la lista de usuarios.'); return; }
-    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider }]);
+    const { error: err } = await sb.from('perfiles_usuario').insert([{ email, nombre, pais_code: pais, area_negocio: currentAreaNegocio, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider }]);
     if(err){ mostrarAlerta('Error: ' + err.message); return; }
     loadMantenimientoUsuarios(usuariosWrap);
   });
@@ -2421,7 +2549,7 @@ async function cargarControlAcuerdos(wrap){
   block.innerHTML = `
     <div class="area-header">
       <h2>Control de acuerdos</h2>
-      <span class="header-right"><span>Solo Riesgo Regional</span><button type="button" class="btn-colapsar-seccion"></button></span>
+      <span class="header-right"><span>${"Solo Regional/Admin de " + nombreAreaActiva()}</span><button type="button" class="btn-colapsar-seccion"></button></span>
     </div>
   `;
   const body = document.createElement('div');
@@ -2436,9 +2564,9 @@ async function cargarControlAcuerdos(wrap){
   body.appendChild(cargando);
 
   const [{ data: reuniones }, { data: acuerdos }, { data: perfiles }] = await Promise.all([
-    sb.from('reuniones').select('id,fecha'),
-    sb.from('acuerdos_reunion').select('responsable_email,responsable_nombre,estado'),
-    sb.from('perfiles_usuario').select('email,nombre'),
+    sb.from('reuniones').select('id,fecha').eq('area_negocio', currentAreaNegocio),
+    sb.from('acuerdos_reunion').select('responsable_email,responsable_nombre,estado').eq('area_negocio', currentAreaNegocio),
+    sb.from('perfiles_usuario').select('email,nombre').eq('area_negocio', currentAreaNegocio),
   ]);
   cargando.remove();
 
@@ -2585,9 +2713,9 @@ async function cargarControlAcuerdos(wrap){
 async function renderDashboardCharts(dashWrap, paisFiltro){
   dashWrap.innerHTML = '<div class="sin-proyectos">Cargando dashboard…</div>';
   const [{ data: coreoData }, { data: proyData }, { data: customData }] = await Promise.all([
-    sb.from('coreografias').select('*'),
-    sb.from('proyectos_especiales').select('*'),
-    sb.from('kpis_adicionales').select('*')
+    sb.from('coreografias').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('proyectos_especiales').select('*').eq('area_negocio', currentAreaNegocio),
+    sb.from('kpis_adicionales').select('*').eq('area_negocio', currentAreaNegocio)
   ]);
 
   const todas = [];
@@ -2821,7 +2949,7 @@ async function renderDashboardCharts(dashWrap, paisFiltro){
 }
 
 async function loadBitacora(listWrap){
-  const { data, error } = await sb.from('kpis_adicionales_log').select('*').order('deleted_at', { ascending: false });
+  const { data, error } = await sb.from('kpis_adicionales_log').select('*').eq('area_negocio', currentAreaNegocio).order('deleted_at', { ascending: false });
   if(error){
     listWrap.innerHTML = '<div class="sin-proyectos">Error al cargar la bitácora: ' + error.message + '</div>';
     return;
@@ -2839,7 +2967,7 @@ async function loadBitacora(listWrap){
   clearAllBtn.textContent = 'Vaciar toda la bitácora (' + data.length + ')';
   clearAllBtn.addEventListener('click', async ()=>{
     if(!await mostrarConfirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
-    const { error: delAllErr } = await sb.from('kpis_adicionales_log').delete().not('id', 'is', null);
+    const { error: delAllErr } = await sb.from('kpis_adicionales_log').delete().eq('area_negocio', currentAreaNegocio);
     if(delAllErr){ mostrarAlerta('Error: ' + delAllErr.message); return; }
     loadBitacora(listWrap);
   });
@@ -2884,7 +3012,7 @@ async function loadBitacora(listWrap){
 }
 
 async function loadBitacoraProyectos(listWrap){
-  const { data, error } = await sb.from('proyectos_especiales_log').select('*').order('deleted_at', { ascending: false });
+  const { data, error } = await sb.from('proyectos_especiales_log').select('*').eq('area_negocio', currentAreaNegocio).order('deleted_at', { ascending: false });
   if(error){
     listWrap.innerHTML = '<div class="sin-proyectos">Error al cargar la bitácora: ' + error.message + '</div>';
     return;
@@ -2902,7 +3030,7 @@ async function loadBitacoraProyectos(listWrap){
   clearAllBtn.textContent = 'Vaciar toda la bitácora (' + data.length + ')';
   clearAllBtn.addEventListener('click', async ()=>{
     if(!await mostrarConfirm('¿Eliminar los ' + data.length + ' registros de la bitácora? Esta acción no se puede deshacer.')) return;
-    const { error: delAllErr } = await sb.from('proyectos_especiales_log').delete().not('id', 'is', null);
+    const { error: delAllErr } = await sb.from('proyectos_especiales_log').delete().eq('area_negocio', currentAreaNegocio);
     if(delAllErr){ mostrarAlerta('Error: ' + delAllErr.message); return; }
     loadBitacoraProyectos(listWrap);
   });
@@ -3180,20 +3308,20 @@ async function cargarAcuerdosDelResponsable(wrap, paisCode){
   const esVistaRegional = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
   let data, error;
   if(esVistaRegional){
-    const { data: usuariosPais } = await sb.from('perfiles_usuario').select('email,es_regional').eq('pais_code', paisCode);
+    const { data: usuariosPais } = await sb.from('perfiles_usuario').select('email,es_regional').eq('pais_code', paisCode).eq('area_negocio', currentAreaNegocio);
     let candidatos = usuariosPais || [];
     if(paisCode !== 'RG') candidatos = candidatos.filter(u=>!u.es_regional);
     const emails = candidatos.map(u=>(u.email||'').toLowerCase()).filter(Boolean);
     if(emails.length === 0) return;
-    ({ data, error } = await sb.from('acuerdos_reunion').select('*').in('responsable_email', emails).order('creado_at', { ascending: true }));
+    ({ data, error } = await sb.from('acuerdos_reunion').select('*').eq('area_negocio', currentAreaNegocio).in('responsable_email', emails).order('creado_at', { ascending: true }));
   } else {
     const email = (currentUser.email || '').toLowerCase();
-    ({ data, error } = await sb.from('acuerdos_reunion').select('*').eq('responsable_email', email).order('creado_at', { ascending: true }));
+    ({ data, error } = await sb.from('acuerdos_reunion').select('*').eq('area_negocio', currentAreaNegocio).eq('responsable_email', email).order('creado_at', { ascending: true }));
   }
   if(error || !data || data.length === 0) return;
 
   const reunionIds = [...new Set(data.map(a=>a.reunion_id).filter(Boolean))];
-  const { data: reunionesRel } = await sb.from('reuniones').select('id,titulo,fecha').in('id', reunionIds);
+  const { data: reunionesRel } = await sb.from('reuniones').select('id,titulo,fecha').eq('area_negocio', currentAreaNegocio).in('id', reunionIds);
   const reunionesPorId = new Map((reunionesRel||[]).map(r=>[r.id, r]));
 
   const grupos = new Map();
@@ -3337,6 +3465,7 @@ function renderCustomKpis(paisCode, area, isUnlocked, kpiBlock){
       await sb.from('kpis_adicionales_log').insert([{
         original_id: c.id,
         pais_code: paisCode,
+        area_negocio: currentAreaNegocio,
         area_id: area.id,
         nombre: c.nombre,
         definicion: c.definicion,
@@ -3574,6 +3703,7 @@ function renderProyectosEspeciales(paisCode, isUnlocked){
         await sb.from('proyectos_especiales_log').insert([{
           original_id: proy.id,
           pais_code: paisCode,
+          area_negocio: currentAreaNegocio,
           nombre: proy.nombre,
           descripcion: proy.descripcion,
           responsable: proy.responsable,
@@ -3927,18 +4057,35 @@ function wireFechaHoraDefinitiva(container, obj, fechaField, horaField, label){
 document.getElementById('btnSave').addEventListener('click', saveActiveCountry);
 
 async function loadKpiCatalog(){
-  const { data, error } = await sb.from('kpis_catalogo').select('*').eq('activo', true).order('area_id').order('orden');
-  if(error || !data || data.length === 0) return;
+  const { data, error } = await sb.from('kpis_catalogo').select('*').eq('area_negocio', currentAreaNegocio).eq('activo', true).order('area_id').order('orden');
+  if(error) return;
   AREAS.forEach(area=>{
-    const kpisDeEstaArea = data.filter(r=> r.area_id === area.id);
+    const kpisDeEstaArea = (data||[]).filter(r=> r.area_id === area.id);
     if(kpisDeEstaArea.length){
       area.kpis = kpisDeEstaArea.map(r=> ({ id: r.kpi_id, nombre: r.nombre, def: r.definicion || '' }));
+    } else if(currentAreaNegocio !== 'riesgo'){
+      // Solo 'riesgo' conserva el catálogo de fábrica como respaldo; un área nueva
+      // arranca vacía hasta que su Regional/Administrador cargue su propio catálogo.
+      area.kpis = [];
     }
   });
 }
 
+async function cambiarAreaActiva(nuevaArea){
+  if(nuevaArea === currentAreaNegocio) return;
+  currentAreaNegocio = nuevaArea;
+  sessionStorage.setItem(AREA_NEGOCIO_ADMIN_KEY, nuevaArea);
+  regionalSubTab = 'bitacora';
+  await loadKpiCatalog();
+  loadLocalCache();
+  renderAuthBar();
+  renderTabs();
+  loadFromCloud();
+}
+
 (async function init(){
   await checkSesionInicial();
+  await loadAreasNegocio();
   renderAuthBar();
   await loadKpiCatalog();
   loadLocalCache();
