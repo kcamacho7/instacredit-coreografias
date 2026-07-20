@@ -64,6 +64,8 @@
   @media (max-width:720px){
     .login-gate-card{grid-template-columns:1fr;}
     .login-gate-brand img.prestamito{display:none;}
+    .field-grid{grid-template-columns:1fr;}
+    .field-grid .field{grid-column:span 1 !important;}
   }
   .kpi-block.locked textarea, .kpi-block.locked input, .kpi-block.locked select, .kpi-block.locked button.add-row-btn, .kpi-block.locked button[data-remove]{
     pointer-events:none;opacity:.55;background:#F0F0F0 !important;
@@ -243,7 +245,7 @@
 
   .field-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 20px 6px 20px;}
   .field label{display:block;font-size:10.5px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
-  .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="email"], .field select, .field textarea{
+  .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="email"], .field input[type="number"], .field select, .field textarea{
     width:100%;
     font-family:'Inter Tight',sans-serif;
     font-size:13px;
