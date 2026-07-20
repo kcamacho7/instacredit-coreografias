@@ -1148,7 +1148,8 @@ function renderAuthBar(){
 }
 
 let regionalUnlocked = false;
-let regionalSubTab = 'bitacora';
+const REGIONAL_SUBTAB_KEY = 'instacredit_coreografias_regional_subtab';
+let regionalSubTab = sessionStorage.getItem(REGIONAL_SUBTAB_KEY) || 'bitacora';
 let dashboardOrdenVencidas = null;
 const seccionesRegionalColapsadas = new Set();
 
@@ -1881,6 +1882,7 @@ function renderRegional(){
     btn.textContent = sec.nombre;
     btn.addEventListener('click', ()=>{
       regionalSubTab = sec.id;
+      sessionStorage.setItem(REGIONAL_SUBTAB_KEY, sec.id);
       renderTabs();
       selectTab('REGIONAL');
     });
@@ -4119,6 +4121,7 @@ async function cambiarAreaActiva(nuevaArea){
   currentAreaNegocio = nuevaArea;
   sessionStorage.setItem(AREA_NEGOCIO_ADMIN_KEY, nuevaArea);
   regionalSubTab = 'bitacora';
+  sessionStorage.setItem(REGIONAL_SUBTAB_KEY, 'bitacora');
   await loadKpiCatalog();
   loadLocalCache();
   renderAuthBar();
