@@ -119,12 +119,12 @@ def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
     return buffer.getvalue()
 
 
-def enviar_correo(destinatarios, asunto, cuerpo_html, pdf_bytes, nombre_archivo):
+def enviar_correo(destinatarios, asunto, cuerpo_html, pdf_bytes, nombre_archivo, nombre_area):
     if not destinatarios:
         return
     msg = MIMEMultipart("mixed")
     msg["Subject"] = asunto
-    msg["From"] = "Riesgo Regional Instacredit <" + SMTP_USER + ">"
+    msg["From"] = nombre_area + " Regional Instacredit <" + SMTP_USER + ">"
     msg["To"] = ", ".join(destinatarios)
 
     alt = MIMEMultipart("alternative")
@@ -151,7 +151,7 @@ def enviar_correo(destinatarios, asunto, cuerpo_html, pdf_bytes, nombre_archivo)
             server.sendmail(SMTP_USER, destinatarios, msg.as_string())
 
 
-def plantilla_html(titulo, fecha_texto, hora_texto, intro, resumen, nota_final=None):
+def plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, intro, resumen, nota_final=None):
     cuando_texto = " · ".join(filter(None, [fecha_texto, hora_texto]))
     resumen_html = ("""<div style="background:{vc}22;border-left:4px solid {verde};border-radius:0 8px 8px 0;padding:14px 18px;margin:16px 0;font-size:13.5px;line-height:1.6;color:{texto};white-space:pre-wrap;">{resumen}</div>"""
                      .format(vc=VERDE_CLARO, verde=VERDE, texto=GRIS_TEXTO, resumen=esc(resumen))) if resumen else ""
@@ -166,7 +166,7 @@ def plantilla_html(titulo, fecha_texto, hora_texto, intro, resumen, nota_final=N
       <tr>
         <td style="padding:26px 8px 26px 28px;vertical-align:middle;">
           <img src="{logo}" alt="Instacredit" height="22" style="display:block;margin-bottom:14px;border:0;">
-          <div style="color:{verde_claro};font-weight:700;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Riesgo Regional · Instacredit</div>
+          <div style="color:{verde_claro};font-weight:700;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">{nombre_area} Regional · Instacredit</div>
           <div style="color:#fff;font-size:21px;font-weight:800;line-height:1.3;">{titulo}</div>
           {cuando_html}
         </td>
@@ -188,18 +188,22 @@ def plantilla_html(titulo, fecha_texto, hora_texto, intro, resumen, nota_final=N
       <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 24px;border-radius:8px;display:inline-block;">Abrir el landing</a>
     </div>
     <div style="padding:16px 28px;border-top:1px solid {borde};background:{fondo};font-size:11.5px;color:{azul_claro};">
-      ¡Apoyándote siempre! — Instacredit Riesgo Regional · Notificación automática, no responder a este correo.
+      ¡Apoyándote siempre! — Instacredit {nombre_area} Regional · Notificación automática, no responder a este correo.
     </div>
   </div>
 </body></html>""".format(
         fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, azul_claro=AZUL_CLARO,
         texto=GRIS_TEXTO, borde=GRIS_BORDE, logo=LOGO_URL, prestamito=PRESTAMITO_URL,
         titulo=esc(titulo), intro=intro, resumen_html=resumen_html, nota_html=nota_html,
-        link=LANDING_URL, cuando_html=cuando_html,
+        link=LANDING_URL, cuando_html=cuando_html, nombre_area=esc(nombre_area),
     )
 
 
 def enviar_reunion(reunion):
+    area_reunion = reunion.get("area_negocio") or "riesgo"
+    areas = sb_get("areas_negocio", {"select": "nombre", "codigo": "eq." + area_reunion})
+    nombre_area = areas[0]["nombre"] if areas else "Riesgo"
+
     acuerdos = sb_get("acuerdos_reunion", {"select": "*", "reunion_id": "eq." + reunion["id"]})
     titulo = reunion.get("titulo") or "Reunión sin título"
     fecha_texto, hora_texto = fecha_hora_reunion(reunion)
@@ -219,13 +223,13 @@ def enviar_reunion(reunion):
         por_responsable.setdefault(email, []).append(a)
 
     for email, sus_acuerdos in por_responsable.items():
-        html_body = plantilla_html(titulo, fecha_texto, hora_texto, "Se te asignaron acuerdos en esta reunión.", resumen, nota_organizador)
+        html_body = plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, "Se te asignaron acuerdos en esta reunión.", resumen, nota_organizador)
         pdf_bytes = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), sus_acuerdos)
-        enviar_correo([email], "📋 Minuta — " + titulo, html_body, pdf_bytes, nombre_archivo)
+        enviar_correo([email], "📋 Minuta — " + titulo, html_body, pdf_bytes, nombre_archivo, nombre_area)
 
-    html_regional = plantilla_html(titulo, fecha_texto, hora_texto, "Resumen consolidado de la reunión con todos los acuerdos y responsables asignados.", resumen, nota_organizador)
+    html_regional = plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, "Resumen consolidado de la reunión con todos los acuerdos y responsables asignados.", resumen, nota_organizador)
     pdf_regional = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
-    enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_regional, nombre_archivo)
+    enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_regional, nombre_archivo, nombre_area)
 
     participantes = reunion.get("participantes") or []
     enviados_participantes = 0
@@ -234,12 +238,12 @@ def enviar_reunion(reunion):
         if not email or email in por_responsable:
             continue
         html_participante = plantilla_html(
-            titulo, fecha_texto, hora_texto,
+            nombre_area, titulo, fecha_texto, hora_texto,
             "Participaste en esta reunión. No se te asignó ningún acuerdo directamente, pero aquí tienes el resumen completo.",
             resumen,
             nota_organizador,
         )
-        enviar_correo([email], "📋 Minuta — " + titulo, html_participante, pdf_regional, nombre_archivo)
+        enviar_correo([email], "📋 Minuta — " + titulo, html_participante, pdf_regional, nombre_archivo, nombre_area)
         enviados_participantes += 1
 
     sb_patch("reuniones", reunion["id"], {
