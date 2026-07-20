@@ -179,8 +179,15 @@ def buscar_email_por_nombre(nombre_ia, perfiles):
     for p in perfiles:
         if normalizar(p.get("nombre")) == norm:
             return (p.get("email") or "").lower()
-    primer_token = norm.split(" ")[0]
-    candidatos = [p for p in perfiles if normalizar(p.get("nombre")).split(" ")[0:1] == [primer_token]]
+    # Respaldo: solo cuando el nombre extraído es un PREFIJO real del nombre completo registrado
+    # (ej. "Walter" -> "Walter Chavarria Diaz"). Comparar solo el primer nombre es peligroso: dos
+    # personas distintas pueden compartir el primer nombre con apellidos totalmente diferentes
+    # (ej. "Kenneth Tobias Valverde Hernandez" no es "Kenneth Camacho Segura").
+    candidatos = [
+        p for p in perfiles
+        if normalizar(p.get("nombre")) and normalizar(p.get("nombre")) != norm
+        and (normalizar(p.get("nombre")).startswith(norm + " ") or norm.startswith(normalizar(p.get("nombre")) + " "))
+    ]
     if len(candidatos) == 1:
         return (candidatos[0].get("email") or "").lower()
     return ""
