@@ -94,22 +94,25 @@ def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
 
     story = [
         Paragraph(esc(titulo or "Reunión sin título"), style_titulo),
-        Paragraph(esc(" · ".join(filter(None, [fecha_texto, hora_texto]))), style_meta),
+        Paragraph(esc(" · ".join(filter(None, [fecha_texto, hora_texto])) or "Por definir"), style_meta),
     ]
 
     if minuta and minuta.strip():
         story.append(Paragraph("MINUTA", style_h2))
         for parrafo in re.split(r"\n\s*\n", minuta.strip()):
+            if not parrafo.strip():
+                continue
             story.append(Paragraph(esc(parrafo).replace("\n", "<br/>"), style_body))
 
-    story.append(Paragraph("ACUERDOS (%d)" % len(acuerdos), style_h2))
-    if not acuerdos:
+    acuerdos_con_contenido = [a for a in acuerdos if (a.get("descripcion") or "").strip() or (a.get("responsable_nombre") or "").strip()]
+    story.append(Paragraph("ACUERDOS (%d)" % len(acuerdos_con_contenido), style_h2))
+    if not acuerdos_con_contenido:
         story.append(Paragraph("Sin acuerdos registrados.", style_body))
-    for i, a in enumerate(acuerdos):
+    for i, a in enumerate(acuerdos_con_contenido):
         story.append(Paragraph(esc(str(i + 1) + ". " + (a.get("descripcion") or "(sin descripción)")), style_acuerdo_desc))
         meta = "Responsable: %s   ·   Fecha: %s   ·   Estado: %s" % (
             a.get("responsable_nombre") or a.get("responsable_email") or "—",
-            a.get("fecha") or "—",
+            a.get("fecha") or "Por definir",
             a.get("estado") or "Pendiente",
         )
         story.append(Paragraph(esc(meta), style_acuerdo_meta))
@@ -153,49 +156,53 @@ def enviar_correo(destinatarios, asunto, cuerpo_html, pdf_bytes, nombre_archivo,
 
 def plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, intro, resumen, nota_final=None):
     cuando_texto = " · ".join(filter(None, [fecha_texto, hora_texto]))
-    resumen_html = ("""<div style="background:{vc}22;border-left:4px solid {verde};border-radius:0 8px 8px 0;padding:14px 18px;margin:16px 0;font-size:13.5px;line-height:1.6;color:{texto};white-space:pre-wrap;">{resumen}</div>"""
-                     .format(vc=VERDE_CLARO, verde=VERDE, texto=GRIS_TEXTO, resumen=esc(resumen))) if resumen else ""
-    nota_html = ("""<div style="margin-top:16px;padding:13px 16px;background:#fff;border:1px solid {borde};border-radius:8px;font-size:12.5px;line-height:1.55;color:{azul};">💬 {nota}</div>"""
-                 .format(borde=GRIS_BORDE, azul=AZUL, nota=esc(nota_final))) if nota_final else ""
+    label_style = "display:block;font-size:10.5px;font-weight:700;color:{azul};text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;".format(azul=AZUL)
+    resumen_html = ("""<div style="background:{vc}22;border:1px solid {vc};border-left:4px solid {verde};border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0 0 0;font-size:13.5px;line-height:1.6;color:{texto};white-space:pre-wrap;">"""
+                     """<span style="{label_style}">Resumen de la minuta</span>{resumen}</div>"""
+                     .format(vc=VERDE_CLARO, verde=VERDE, texto=GRIS_TEXTO, label_style=label_style, resumen=esc(resumen))) if resumen and resumen.strip() else ""
+    nota_html = ("""<div style="margin-top:16px;padding:13px 16px;background:#fff;border:1px solid {borde};border-radius:8px;font-size:12.5px;line-height:1.55;color:{texto};">"""
+                 """<span style="{label_style}">💬 Nota importante</span>{nota}</div>"""
+                 .format(borde=GRIS_BORDE, texto=GRIS_TEXTO, label_style=label_style, nota=esc(nota_final))) if nota_final and nota_final.strip() else ""
     cuando_html = ('<div style="color:{vc};font-size:13px;margin-top:6px;">{c}</div>'.format(vc=VERDE_CLARO, c=esc(cuando_texto)) if cuando_texto else "")
+    intro_html = ('<p style="font-size:14px;line-height:1.6;margin:0;">{intro}</p>'.format(intro=intro) if intro and intro.strip() else "")
     return """<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:24px 12px;background:{fondo};font-family:Arial,'Segoe UI',sans-serif;color:{texto};">
   <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(0,37,84,.12);">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{azul};border-collapse:collapse;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{azul};border-collapse:collapse;border-radius:16px 16px 0 0;overflow:hidden;">
       <tr>
-        <td style="padding:26px 8px 26px 28px;vertical-align:middle;">
+        <td style="padding:26px 8px 26px 28px;vertical-align:middle;border-radius:16px 0 0 0;">
           <img src="{logo}" alt="Instacredit" height="22" style="display:block;margin-bottom:14px;border:0;">
           <div style="color:{verde_claro};font-weight:700;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">{nombre_area} Regional · Instacredit</div>
           <div style="color:#fff;font-size:21px;font-weight:800;line-height:1.3;">{titulo}</div>
           {cuando_html}
         </td>
-        <td style="width:76px;padding:0 22px 0 0;text-align:right;vertical-align:bottom;">
+        <td style="width:76px;padding:0 22px 0 0;text-align:right;vertical-align:bottom;border-radius:0 16px 0 0;">
           <img src="{prestamito}" alt="Prestamito" width="70" style="display:block;border:0;">
         </td>
       </tr>
     </table>
     <div style="height:4px;background:{verde};"></div>
     <div style="padding:26px 28px 6px 28px;">
-      <p style="font-size:14px;line-height:1.6;margin:0;">{intro}</p>
+      {intro_html}
       {resumen_html}
-      <p style="font-size:13px;line-height:1.6;background:{fondo};border:1px dashed {borde};border-radius:8px;padding:12px 16px;margin:16px 0 0 0;">
-        📎 En el archivo adjunto va el detalle completo de la sesión, con la minuta y todos los acuerdos asignados.
-      </p>
+      <div style="font-size:13px;line-height:1.6;background:{fondo};border:1px dashed {borde};border-radius:8px;padding:12px 16px;margin:16px 0 0 0;">
+        <span style="{label_style}">📎 Archivo adjunto</span>El detalle completo de la sesión va en el PDF adjunto, con la minuta y todos los acuerdos asignados.
+      </div>
       {nota_html}
     </div>
     <div style="padding:20px 28px 26px 28px;">
       <a href="{link}" style="background:{verde};color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:11px 24px;border-radius:8px;display:inline-block;">Abrir el landing</a>
     </div>
-    <div style="padding:16px 28px;border-top:1px solid {borde};background:{fondo};font-size:11.5px;color:{azul_claro};">
+    <div style="padding:16px 28px;border-top:1px solid {borde};background:{fondo};font-size:11.5px;color:{azul_claro};border-radius:0 0 16px 16px;">
       ¡Apoyándote siempre! — Instacredit {nombre_area} Regional · Notificación automática, no responder a este correo.
     </div>
   </div>
 </body></html>""".format(
         fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, azul_claro=AZUL_CLARO,
         texto=GRIS_TEXTO, borde=GRIS_BORDE, logo=LOGO_URL, prestamito=PRESTAMITO_URL,
-        titulo=esc(titulo), intro=intro, resumen_html=resumen_html, nota_html=nota_html,
-        link=LANDING_URL, cuando_html=cuando_html, nombre_area=esc(nombre_area),
+        titulo=esc(titulo), intro_html=intro_html, resumen_html=resumen_html, nota_html=nota_html,
+        link=LANDING_URL, cuando_html=cuando_html, nombre_area=esc(nombre_area), label_style=label_style,
     )
 
 
