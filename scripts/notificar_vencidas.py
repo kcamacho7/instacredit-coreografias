@@ -106,9 +106,14 @@ def cargar_items(catalogo_cache):
     """Devuelve lista de dicts: tabla, row_id, idx, pais, grupo, origen, accion(dict)"""
     items = []
 
+    def tiene_contenido(a):
+        return bool((a.get("accion") or "").strip() or (a.get("responsable") or "").strip())
+
     for row in sb_get("coreografias"):
         origen = kpi_catalogo_nombre(row["kpi_id"], catalogo_cache)
         for idx, a in enumerate(row.get("acciones") or []):
+            if not tiene_contenido(a):
+                continue
             items.append({"tabla": "coreografias", "row_id": row["id"], "idx": idx,
                           "pais": row["pais_code"], "grupo": row["pais_code"], "origen": origen, "accion": a,
                           "acciones_full": row.get("acciones") or []})
@@ -116,6 +121,8 @@ def cargar_items(catalogo_cache):
     for row in sb_get("kpis_adicionales"):
         origen = row.get("nombre") or "KPI adicional"
         for idx, a in enumerate(row.get("acciones") or []):
+            if not tiene_contenido(a):
+                continue
             items.append({"tabla": "kpis_adicionales", "row_id": row["id"], "idx": idx,
                           "pais": row["pais_code"], "grupo": row["pais_code"], "origen": origen, "accion": a,
                           "acciones_full": row.get("acciones") or []})
@@ -123,11 +130,15 @@ def cargar_items(catalogo_cache):
     for row in sb_get("proyectos_especiales"):
         origen = row.get("nombre") or "Proyecto especial"
         for idx, a in enumerate(row.get("acciones") or []):
+            if not tiene_contenido(a):
+                continue
             items.append({"tabla": "proyectos_especiales", "row_id": row["id"], "idx": idx,
                           "pais": row["pais_code"], "grupo": row["pais_code"], "origen": origen, "accion": a,
                           "acciones_full": row.get("acciones") or []})
 
     for row in sb_get("acuerdos_reunion"):
+        if not (row.get("descripcion") or "").strip() and not (row.get("responsable_nombre") or "").strip():
+            continue
         email = (row.get("responsable_email") or "").strip().lower()
         accion = {
             "accion": row.get("descripcion") or "",
