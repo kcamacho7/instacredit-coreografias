@@ -1593,6 +1593,18 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   if(acuerdos.length === 0){
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--azul-claro);padding:12px;">Sin acuerdos todavía.</td></tr>';
   }
+  function normalizarNombreSimple(s){
+    return (s||'').normalize('NFD').replace(new RegExp('[̀-ͯ]', 'g'), '').trim().toLowerCase();
+  }
+  async function aplicarCorreoAAcuerdosCoincidentes(acActual, nombre, email){
+    const nombreNorm = normalizarNombreSimple(nombre);
+    if(!nombreNorm || !email) return 0;
+    const coincidentes = acuerdos.filter(a=> a.id !== acActual.id && !a.responsable_email && normalizarNombreSimple(a.responsable_nombre) === nombreNorm);
+    for(const a of coincidentes){
+      await sb.from('acuerdos_reunion').update({ responsable_email: email, responsable_nombre: nombre }).eq('id', a.id);
+    }
+    return coincidentes.length;
+  }
   const emailsEnLista = new Set(perfiles.map(p=>(p.email||'').toLowerCase()));
   function opcionesResponsablesPara(emailActual){
     const actual = (emailActual || '').toLowerCase();
@@ -1648,17 +1660,22 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
           e.target.value = ac.responsable_email || '';
           return;
         }
-        const nuevoNombre = (await mostrarPrompt('Nombre completo (opcional):') || '').trim();
+        const nuevoNombre = (await mostrarPrompt('Nombre completo:', ac.responsable_nombre || '') || '').trim();
         const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre, area_negocio: currentAreaNegocio }]);
         if(errPre){ mostrarAlerta('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
-        await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail }).eq('id', ac.id);
+        await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail, responsable_nombre: nuevoNombre || ac.responsable_nombre }).eq('id', ac.id);
+        await aplicarCorreoAAcuerdosCoincidentes(ac, nuevoNombre || ac.responsable_nombre, nuevoEmail);
         cargarListaReuniones(listWrap);
         return;
       }
       e.target.style.borderColor = e.target.value ? '' : 'var(--rojo)';
       ac.responsable_email = e.target.value;
       const { error: errGuardarEmail } = await sb.from('acuerdos_reunion').update({ responsable_email: e.target.value }).eq('id', ac.id);
-      if(errGuardarEmail) mostrarAlerta('No se pudo guardar el responsable: ' + errGuardarEmail.message);
+      if(errGuardarEmail){ mostrarAlerta('No se pudo guardar el responsable: ' + errGuardarEmail.message); return; }
+      if(e.target.value){
+        const nCoincidentes = await aplicarCorreoAAcuerdosCoincidentes(ac, ac.responsable_nombre, e.target.value);
+        if(nCoincidentes > 0) cargarListaReuniones(listWrap);
+      }
     });
     tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
       if(!await mostrarConfirm('¿Eliminar este acuerdo?')) return;
@@ -1690,6 +1707,8 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
           const nombre = (await mostrarPrompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
           const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre, area_negocio: currentAreaNegocio }]);
           if(error){ mostrarAlerta('Error: ' + error.message); return; }
+          if(nombre) await sb.from('acuerdos_reunion').update({ responsable_nombre: nombre }).eq('id', ac.id);
+          await aplicarCorreoAAcuerdosCoincidentes(ac, nombre || ac.responsable_nombre, ac.responsable_email.toLowerCase());
           mostrarAlerta('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
           cargarListaReuniones(listWrap);
         });
