@@ -1596,6 +1596,20 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   function normalizarNombreSimple(s){
     return (s||'').normalize('NFD').replace(new RegExp('[̀-ͯ]', 'g'), '').trim().toLowerCase();
   }
+  async function guardarCamposPendientesAcuerdos(){
+    const filas = Array.from(tbody.querySelectorAll('tr')).filter(fila=> fila.querySelector('[data-f="descripcion"]'));
+    for(let i=0;i<filas.length;i++){
+      const fila = filas[i];
+      const acFila = acuerdos[i];
+      if(!acFila) continue;
+      await sb.from('acuerdos_reunion').update({
+        descripcion: fila.querySelector('[data-f="descripcion"]').value,
+        responsable_nombre: fila.querySelector('[data-f="responsable_nombre"]').value,
+        fecha: fila.querySelector('[data-f="fecha"]').value || null,
+        estado: fila.querySelector('[data-f="estado"]').value,
+      }).eq('id', acFila.id);
+    }
+  }
   async function aplicarCorreoAAcuerdosCoincidentes(acActual, nombre, email){
     const nombreNorm = normalizarNombreSimple(nombre);
     if(!nombreNorm || !email) return 0;
@@ -1663,6 +1677,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
         const nuevoNombre = (await mostrarPrompt('Nombre completo:', ac.responsable_nombre || '') || '').trim();
         const { error: errPre } = await sb.from('perfiles_usuario').insert([{ email: nuevoEmail, nombre: nuevoNombre, area_negocio: currentAreaNegocio }]);
         if(errPre){ mostrarAlerta('Error al preautorizar: ' + errPre.message); e.target.value = ac.responsable_email || ''; return; }
+        await guardarCamposPendientesAcuerdos();
         await sb.from('acuerdos_reunion').update({ responsable_email: nuevoEmail, responsable_nombre: nuevoNombre || ac.responsable_nombre }).eq('id', ac.id);
         await aplicarCorreoAAcuerdosCoincidentes(ac, nuevoNombre || ac.responsable_nombre, nuevoEmail);
         cargarListaReuniones(listWrap);
@@ -1674,7 +1689,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
       if(errGuardarEmail){ mostrarAlerta('No se pudo guardar el responsable: ' + errGuardarEmail.message); return; }
       if(e.target.value){
         const nCoincidentes = await aplicarCorreoAAcuerdosCoincidentes(ac, ac.responsable_nombre, e.target.value);
-        if(nCoincidentes > 0) cargarListaReuniones(listWrap);
+        if(nCoincidentes > 0){ await guardarCamposPendientesAcuerdos(); cargarListaReuniones(listWrap); }
       }
     });
     tr.querySelector('.btn-eliminar-acuerdo').addEventListener('click', async ()=>{
@@ -1707,6 +1722,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
           const nombre = (await mostrarPrompt('Nombre completo de ' + ac.responsable_email + ':', ac.responsable_nombre || '') || '').trim();
           const { error } = await sb.from('perfiles_usuario').insert([{ email: ac.responsable_email.toLowerCase(), nombre, area_negocio: currentAreaNegocio }]);
           if(error){ mostrarAlerta('Error: ' + error.message); return; }
+          await guardarCamposPendientesAcuerdos();
           if(nombre) await sb.from('acuerdos_reunion').update({ responsable_nombre: nombre }).eq('id', ac.id);
           await aplicarCorreoAAcuerdosCoincidentes(ac, nombre || ac.responsable_nombre, ac.responsable_email.toLowerCase());
           mostrarAlerta('Correo preautorizado. Ya puede registrarse desde "Primera vez / correo recién autorizado".');
@@ -1756,6 +1772,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   addAcuerdoBtn.className = 'add-row-btn';
   addAcuerdoBtn.textContent = '+ Agregar acuerdo manual';
   addAcuerdoBtn.addEventListener('click', async ()=>{
+    await guardarCamposPendientesAcuerdos();
     const { error } = await sb.from('acuerdos_reunion').insert([{ reunion_id: reunion.id, descripcion: '', responsable_nombre: '', responsable_email: '', estado: 'Pendiente', area_negocio: reunion.area_negocio || currentAreaNegocio }]);
     if(error){ mostrarAlerta('Error: ' + error.message); return; }
     cargarListaReuniones(listWrap);
@@ -1791,6 +1808,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
           const nuevos = participantes.map((x, i)=> i === idx ? { ...x, email: nuevoEmail } : x);
           const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
           if(error){ mostrarAlerta('Error: ' + error.message); return; }
+          await guardarCamposPendientesAcuerdos();
           cargarListaReuniones(listWrap);
         });
         chip.appendChild(btnCorreo);
@@ -1804,6 +1822,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
         const nuevos = participantes.filter((_, i)=> i !== idx);
         const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
         if(error){ mostrarAlerta('Error: ' + error.message); return; }
+        await guardarCamposPendientesAcuerdos();
         cargarListaReuniones(listWrap);
       });
       chip.appendChild(btnQuitar);
@@ -1823,6 +1842,7 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
     const nuevos = [...participantes, { email, nombre }];
     const { error } = await sb.from('reuniones').update({ participantes: nuevos }).eq('id', reunion.id);
     if(error){ mostrarAlerta('Error: ' + error.message); return; }
+    await guardarCamposPendientesAcuerdos();
     cargarListaReuniones(listWrap);
   });
   participantesWrap.appendChild(addParticipanteBtn);
