@@ -14,7 +14,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle, Image
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
@@ -42,6 +43,9 @@ AZUL_CLARO = "#677C98"
 GRIS_TEXTO = "#333333"
 GRIS_BORDE = "#D2D2D2"
 FONDO = "#F5FCF3"
+ROJO = "#EE212E"
+
+ESTADO_COLORES = {"Pendiente": AZUL_CLARO, "En curso": VERDE, "Cumplida": AZUL, "Vencida": ROJO}
 
 
 def esc(v):
@@ -81,21 +85,53 @@ def resumen_corto(minuta):
     return (primer_parrafo[:377] + "…") if len(primer_parrafo) > 380 else primer_parrafo
 
 
+def _logo_flowable():
+    try:
+        resp = requests.get(LOGO_URL, timeout=8)
+        resp.raise_for_status()
+        ancho = 34 * mm
+        alto = ancho * (248 / 1000)
+        return Image(io.BytesIO(resp.content), width=ancho, height=alto)
+    except Exception:
+        return None
+
+
 def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=20 * mm, bottomMargin=18 * mm, leftMargin=18 * mm, rightMargin=18 * mm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=16 * mm, bottomMargin=18 * mm, leftMargin=18 * mm, rightMargin=18 * mm)
+    ancho_util = A4[0] - 36 * mm
 
-    style_titulo = ParagraphStyle("titulo", fontName="Helvetica-Bold", fontSize=17, textColor=colors.HexColor(AZUL), spaceAfter=4)
-    style_meta = ParagraphStyle("meta", fontName="Helvetica", fontSize=10, textColor=colors.HexColor(VERDE), spaceAfter=14)
-    style_h2 = ParagraphStyle("h2", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor(AZUL), spaceBefore=10, spaceAfter=6)
+    style_eyebrow = ParagraphStyle("eyebrow", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor(VERDE_CLARO), leading=11, spaceAfter=4)
+    style_titulo_header = ParagraphStyle("titulohdr", fontName="Helvetica-Bold", fontSize=16, textColor=colors.white, leading=19)
+    style_meta_header = ParagraphStyle("metahdr", fontName="Helvetica", fontSize=10, textColor=colors.HexColor(VERDE_CLARO), leading=13, spaceBefore=4)
+    style_h2 = ParagraphStyle("h2", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor(AZUL), spaceBefore=14, spaceAfter=8)
     style_body = ParagraphStyle("body", fontName="Helvetica", fontSize=10, textColor=colors.HexColor(GRIS_TEXTO), leading=14, spaceAfter=8)
-    style_acuerdo_desc = ParagraphStyle("acdesc", fontName="Helvetica-Bold", fontSize=10.5, textColor=colors.HexColor(GRIS_TEXTO), leading=14)
-    style_acuerdo_meta = ParagraphStyle("acmeta", fontName="Helvetica", fontSize=9.5, textColor=colors.HexColor(AZUL), leading=13, leftIndent=10, spaceAfter=8)
+    style_cell_head = ParagraphStyle("cellhead", fontName="Helvetica-Bold", fontSize=8.5, textColor=colors.white, leading=11)
+    style_cell = ParagraphStyle("cell", fontName="Helvetica", fontSize=9, textColor=colors.HexColor(GRIS_TEXTO), leading=12)
+    style_cell_num = ParagraphStyle("cellnum", parent=style_cell, alignment=TA_CENTER)
 
-    story = [
-        Paragraph(esc(titulo or "Reunión sin título"), style_titulo),
-        Paragraph(esc(" · ".join(filter(None, [fecha_texto, hora_texto])) or "Por definir"), style_meta),
+    story = []
+
+    logo_img = _logo_flowable()
+    celda_header = [logo_img] if logo_img else []
+    celda_header += [
+        Paragraph("RIESGO REGIONAL &middot; INSTACREDIT", style_eyebrow),
+        Paragraph(esc(titulo or "Reunión sin título"), style_titulo_header),
+        Paragraph(esc(" · ".join(filter(None, [fecha_texto, hora_texto])) or "Por definir"), style_meta_header),
     ]
+    tabla_header = Table([[celda_header]], colWidths=[ancho_util])
+    tabla_header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(AZUL)),
+        ("LEFTPADDING", (0, 0), (-1, -1), 14 * mm),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14 * mm),
+        ("TOPPADDING", (0, 0), (-1, -1), 12 * mm),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12 * mm),
+    ]))
+    story.append(tabla_header)
+    barra_verde = Table([[""]], colWidths=[ancho_util], rowHeights=[3])
+    barra_verde.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(VERDE))]))
+    story.append(barra_verde)
+    story.append(Spacer(1, 18))
 
     if minuta and minuta.strip():
         story.append(Paragraph("MINUTA", style_h2))
@@ -108,15 +144,40 @@ def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
     story.append(Paragraph("ACUERDOS (%d)" % len(acuerdos_con_contenido), style_h2))
     if not acuerdos_con_contenido:
         story.append(Paragraph("Sin acuerdos registrados.", style_body))
-    for i, a in enumerate(acuerdos_con_contenido):
-        story.append(Paragraph(esc(str(i + 1) + ". " + (a.get("descripcion") or "(sin descripción)")), style_acuerdo_desc))
-        meta = "Responsable: %s   ·   Fecha: %s   ·   Estado: %s" % (
-            a.get("responsable_nombre") or a.get("responsable_email") or "—",
-            a.get("fecha") or "Por definir",
-            a.get("estado") or "Pendiente",
-        )
-        story.append(Paragraph(esc(meta), style_acuerdo_meta))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor(GRIS_BORDE), spaceAfter=8))
+    else:
+        filas = [[
+            Paragraph("#", style_cell_head),
+            Paragraph("ACUERDO", style_cell_head),
+            Paragraph("RESPONSABLE", style_cell_head),
+            Paragraph("FECHA", style_cell_head),
+            Paragraph("ESTADO", style_cell_head),
+        ]]
+        for i, a in enumerate(acuerdos_con_contenido):
+            estado = a.get("estado") or "Pendiente"
+            style_estado = ParagraphStyle("estado%d" % i, parent=style_cell, fontName="Helvetica-Bold", textColor=colors.HexColor(ESTADO_COLORES.get(estado, GRIS_TEXTO)))
+            filas.append([
+                Paragraph(str(i + 1), style_cell_num),
+                Paragraph(esc(a.get("descripcion") or "(sin descripción)"), style_cell),
+                Paragraph(esc(a.get("responsable_nombre") or a.get("responsable_email") or "—"), style_cell),
+                Paragraph(esc(a.get("fecha") or "Por definir"), style_cell),
+                Paragraph(esc(estado), style_estado),
+            ])
+        anchos = [8 * mm, 0.36 * ancho_util, 0.22 * ancho_util, 0.16 * ancho_util, 0.18 * ancho_util]
+        tabla_acuerdos = Table(filas, colWidths=anchos, repeatRows=1)
+        estilo = [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(AZUL)),
+            ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor(GRIS_BORDE)),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]
+        for fila_idx in range(1, len(filas)):
+            if fila_idx % 2 == 0:
+                estilo.append(("BACKGROUND", (0, fila_idx), (-1, fila_idx), colors.HexColor(FONDO)))
+        tabla_acuerdos.setStyle(TableStyle(estilo))
+        story.append(tabla_acuerdos)
 
     doc.build(story)
     return buffer.getvalue()
