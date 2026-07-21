@@ -2,6 +2,11 @@ name: Enviar minuta por correo
 
 on:
   workflow_dispatch:
+    inputs:
+      correo_prueba:
+        description: "Modo prueba: envía un ejemplo con datos ficticios a este correo (deja vacío para envío normal)"
+        type: string
+        default: ""
 
 jobs:
   enviar:
@@ -28,4 +33,5 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           REGIONAL_EMAIL: ${{ secrets.REGIONAL_EMAIL }}
+          CORREO_PRUEBA: ${{ github.event.inputs.correo_prueba }}
         run: python scripts/enviar_minuta.py

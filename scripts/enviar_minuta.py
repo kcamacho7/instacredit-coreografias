@@ -260,7 +260,35 @@ def enviar_reunion(reunion):
     print("Minuta '%s' enviada a %d responsable(s) + regional + %d participante(s)." % (titulo, len(por_responsable), enviados_participantes))
 
 
+def enviar_prueba(correo):
+    """Envía un correo de ejemplo con datos ficticios, sin tocar la base de datos, para confirmar el formato."""
+    titulo = "🧪 Ejemplo — Reunión de seguimiento semanal"
+    fecha_texto, hora_texto = "2026-07-21", "10:00 AM"
+    minuta = (
+        "Se discutieron los avances del mes de julio en materia de cobranza y colocación.\n\n"
+        "Se acordó reforzar el seguimiento diario de las cuentas en mora temprana.\n\n"
+        "Adicionalmente se revisó el estado de los proyectos especiales de la región, destacando avances en el Agente RiskIA."
+    )
+    resumen = resumen_corto(minuta)
+    acuerdos = [
+        {"descripcion": "Enviar listado de cuentas vencidas a cobro", "responsable_nombre": "Walter Chavarría", "responsable_email": "", "fecha": "2026-07-25", "estado": "Pendiente"},
+        {"descripcion": "Actualizar dashboard de KPIs con corte a julio", "responsable_nombre": "Marco Valverde", "responsable_email": "", "fecha": "", "estado": "En curso"},
+    ]
+    nota = ("Este es un correo de EJEMPLO para confirmar el formato — no corresponde a una reunión real. "
+            "En caso de considerar que debe ajustarse algo de la minuta favor contactarse con el organizador de la sesión.")
+    html_body = plantilla_html("Riesgo", titulo, fecha_texto, hora_texto,
+                                "Se generó la minuta de esta reunión con IA. Revisa el resumen abajo y el detalle completo en el PDF adjunto.",
+                                resumen, nota)
+    pdf_bytes = generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos)
+    enviar_correo([correo], "🧪 Prueba de formato — Minuta", html_body, pdf_bytes, "Minuta - Ejemplo.pdf", "Riesgo")
+    print("Correo de prueba enviado a %s." % correo)
+
+
 def main():
+    correo_prueba = (os.environ.get("CORREO_PRUEBA") or "").strip()
+    if correo_prueba:
+        enviar_prueba(correo_prueba)
+        return
     reuniones = sb_get("reuniones", {"select": "*", "envio_pendiente": "eq.true"})
     if not reuniones:
         print("Sin minutas pendientes de envío.")
