@@ -104,6 +104,7 @@
     pointer-events:none;opacity:.55;background:#F0F0F0 !important;
   }
   .proyecto-card.locked button.proyecto-toggle{pointer-events:auto !important;opacity:1 !important;background:none !important;}
+  .proyecto-card.locked button.btn-desbloquear-minuta{pointer-events:auto !important;opacity:1 !important;background:var(--azul) !important;}
   .sin-proyectos{padding:20px;font-size:13px;color:var(--azul-claro);font-style:italic;}
   .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 20px;}
   .dashboard-card{background:#fff;border:1px solid var(--gris-borde);border-radius:8px;padding:16px;}
@@ -1173,6 +1174,22 @@ function renderAuthBar(){
 let regionalUnlocked = false;
 const REGIONAL_SUBTAB_KEY = 'instacredit_coreografias_regional_subtab';
 let regionalSubTab = sessionStorage.getItem(REGIONAL_SUBTAB_KEY) || 'bitacora';
+let diasBloqueoMinuta = 3;
+
+async function cargarConfigSistema(){
+  const { data } = await sb.from('configuracion_sistema').select('clave,valor');
+  (data||[]).forEach(r=>{
+    if(r.clave === 'dias_bloqueo_minuta') diasBloqueoMinuta = parseInt(r.valor, 10) || 3;
+  });
+}
+
+function minutaBloqueada(reunion){
+  const inicio = reunion.desbloqueada_en || reunion.creado_at;
+  if(!inicio) return false;
+  const limite = new Date(inicio);
+  limite.setDate(limite.getDate() + diasBloqueoMinuta);
+  return new Date() >= limite;
+}
 let dashboardOrdenVencidas = null;
 const seccionesRegionalColapsadas = new Set();
 
@@ -1368,7 +1385,7 @@ async function cargarModuloAcuerdos(acWrap){
     if(!transcripcion){ mostrarAlerta('Sube un archivo o pega la transcripción de la reunión.'); return; }
     const fecha = new Date().toISOString().slice(0,10);
     crearBtn.disabled = true;
-    const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar', area_negocio: currentAreaNegocio }]).select().single();
+    const { data: nueva, error } = await sb.from('reuniones').insert([{ fecha, transcripcion, estado: 'pendiente_procesar', area_negocio: currentAreaNegocio, creado_por_email: (currentUser && currentUser.email ? currentUser.email.toLowerCase() : ''), creado_por_nombre: (currentUserProfile && currentUserProfile.nombre) || '' }]).select().single();
     if(error){ mostrarAlerta('Error: ' + error.message); crearBtn.disabled = false; return; }
     textareaTranscripcion.value = '';
     textareaTranscripcion.style.height = '';
@@ -1476,7 +1493,12 @@ async function leerArchivoTranscripcion(file){
 
 async function cargarListaReuniones(listWrap){
   listWrap.innerHTML = '<div class="sin-proyectos">Cargando reuniones…</div>';
-  const { data: reuniones, error } = await sb.from('reuniones').select('*').eq('area_negocio', currentAreaNegocio).order('creado_at', { ascending: false });
+  let queryReuniones = sb.from('reuniones').select('*').eq('area_negocio', currentAreaNegocio).order('creado_at', { ascending: false });
+  const puedeVerTodasReuniones = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
+  if(!puedeVerTodasReuniones && currentUser && currentUser.email){
+    queryReuniones = queryReuniones.eq('creado_por_email', currentUser.email.toLowerCase());
+  }
+  const { data: reuniones, error } = await queryReuniones;
   if(error){ listWrap.innerHTML = '<div class="sin-proyectos">Error: ' + error.message + '</div>'; return; }
   const { data: perfiles } = await sb.from('perfiles_usuario').select('email,nombre,user_id,pais_code,es_regional,es_lider').eq('area_negocio', currentAreaNegocio);
 
@@ -1496,8 +1518,12 @@ async function cargarListaReuniones(listWrap){
 
 function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   const emailsConCuenta = new Set(perfiles.filter(p=>p.user_id).map(p=>(p.email||'').toLowerCase()));
+  const esCreadorReunion = !!(currentUser && currentUser.email && reunion.creado_por_email && reunion.creado_por_email.toLowerCase() === currentUser.email.toLowerCase());
+  const puedeGestionarBloqueo = esCreadorReunion || regionalUnlocked;
+  const bloqueada = minutaBloqueada(reunion);
   const card = document.createElement('div');
   card.className = 'proyecto-card reunion-card';
+  if(bloqueada) card.classList.add('locked');
   if(reunionesAbiertas.has(reunion.id)) card.classList.add('open');
   const estadoLabel = reunion.envio_enviado_at
     ? '📨 Guardada y enviada'
@@ -1532,6 +1558,40 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
   const body = document.createElement('div');
   body.className = 'proyecto-card-body';
   card.appendChild(body);
+
+  if(bloqueada){
+    const bloqueoWrap = document.createElement('div');
+    bloqueoWrap.style.cssText = 'padding:10px 20px;background:#FFF6E0;border-bottom:1px solid #E8D48A;font-size:12.5px;color:#8a6d1f;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;';
+    bloqueoWrap.innerHTML = '<span>🔒 Esta minuta quedó definitiva y no se puede editar (se bloquea sola a los ' + diasBloqueoMinuta + ' día(s) de creada).</span>';
+    if(puedeGestionarBloqueo){
+      const btnDesbloquear = document.createElement('button');
+      btnDesbloquear.type = 'button';
+      btnDesbloquear.className = 'btn-desbloquear-minuta';
+      btnDesbloquear.style.cssText = 'background:var(--azul);color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;flex:0 0 auto;';
+      btnDesbloquear.textContent = 'Desbloquear para editar';
+      btnDesbloquear.addEventListener('click', async ()=>{
+        if(!await mostrarConfirm('¿Desbloquear esta minuta para editarla? Quedará registrado quién y cuándo la desbloqueó, y vuelve a bloquearse sola en ' + diasBloqueoMinuta + ' día(s).')) return;
+        const historial = Array.isArray(reunion.historial_ediciones) ? reunion.historial_ediciones : [];
+        historial.push({ accion: 'desbloqueo', usuario_email: (currentUser && currentUser.email ? currentUser.email.toLowerCase() : ''), usuario_nombre: (currentUserProfile && currentUserProfile.nombre) || '', fecha: new Date().toISOString() });
+        const { error: errDesbloqueo } = await sb.from('reuniones').update({ desbloqueada_en: new Date().toISOString(), historial_ediciones: historial }).eq('id', reunion.id);
+        if(errDesbloqueo){ mostrarAlerta('Error: ' + errDesbloqueo.message); return; }
+        cargarListaReuniones(listWrap);
+      });
+      bloqueoWrap.appendChild(btnDesbloquear);
+    }
+    body.appendChild(bloqueoWrap);
+  }
+
+  if(Array.isArray(reunion.historial_ediciones) && reunion.historial_ediciones.length > 0){
+    const historialWrap = document.createElement('div');
+    historialWrap.style.cssText = 'padding:8px 20px;background:#F0F3F7;border-bottom:1px solid var(--gris-borde);font-size:11.5px;color:var(--azul-claro);';
+    historialWrap.innerHTML = '<strong style="color:var(--azul);">Historial de bloqueo:</strong> ' + reunion.historial_ediciones.map(h=>{
+      const fecha = h.fecha ? new Date(h.fecha).toLocaleString('es-CR') : '';
+      const accionTexto = h.accion === 'desbloqueo' ? 'desbloqueada' : 'editada tras desbloqueo';
+      return escapeAttr((h.usuario_nombre || h.usuario_email || 'alguien') + ' — ' + accionTexto + ' — ' + fecha);
+    }).join(' · ');
+    body.appendChild(historialWrap);
+  }
 
   if(reunion.estado === 'pendiente_procesar' || reunion.estado === 'error'){
     const retryWrap = document.createElement('div');
@@ -1887,6 +1947,11 @@ function renderReunionCard(reunion, acuerdos, perfiles, listWrap){
 
       const camposReunion = { titulo: tituloInput.value.trim() };
       if(minutaTextarea) camposReunion.minuta = minutaTextarea.value;
+      if(reunion.desbloqueada_en){
+        const historialEdicion = Array.isArray(reunion.historial_ediciones) ? reunion.historial_ediciones : [];
+        historialEdicion.push({ accion: 'edicion', usuario_email: (currentUser && currentUser.email ? currentUser.email.toLowerCase() : ''), usuario_nombre: (currentUserProfile && currentUserProfile.nombre) || '', fecha: new Date().toISOString() });
+        camposReunion.historial_ediciones = historialEdicion;
+      }
       const enviar = await mostrarConfirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar');
       const { error: errReunion } = await sb.from('reuniones').update(camposReunion).eq('id', reunion.id);
       if(errReunion){
@@ -1934,6 +1999,7 @@ function renderRegional(){
   if(esAdminActivo){
     SECCIONES.push({ id:'usuarios', nombre:'Usuarios' });
     SECCIONES.push({ id:'areas', nombre:'Áreas de negocio' });
+    SECCIONES.push({ id:'config', nombre:'Configuración' });
   }
   if(!SECCIONES.some(s=>s.id===regionalSubTab)) regionalSubTab = 'bitacora';
 
@@ -2098,6 +2164,42 @@ function renderRegional(){
     subpanelsWrap.appendChild(areasBlock);
     wireColapsarSeccion(areasBlock.querySelector('.area-header'), body, 'areas');
     loadAreasNegocioMantenimiento(areasWrap);
+  }
+
+  if(seccionVisible('config')){
+    const configBlock = document.createElement('div');
+    configBlock.className = 'area-block proyecto-area';
+    configBlock.innerHTML = `
+      <div class="area-header">
+        <h2>Configuración del sistema</h2>
+        <span class="header-right"><span>Solo Administración</span><button type="button" class="btn-colapsar-seccion"></button></span>
+      </div>
+    `;
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="area-owner"><strong>Qué es:</strong> parámetros globales del sistema — aplican a todas las áreas de negocio por igual.</div>';
+    const configWrap = document.createElement('div');
+    configWrap.style.cssText = 'padding:14px 20px;';
+    configWrap.innerHTML = `
+      <div class="field-grid" style="padding:0;">
+        <div class="field">
+          <label>Días para bloquear una minuta (queda definitiva)</label>
+          <input type="number" min="0" class="config-dias-bloqueo" value="${diasBloqueoMinuta}" style="width:100%;">
+        </div>
+      </div>
+      <button type="button" class="btn-eliminar-proyecto" style="border-color:var(--verde);color:var(--verde);margin-top:10px;">Guardar</button>
+    `;
+    configWrap.querySelector('.btn-eliminar-proyecto').addEventListener('click', async ()=>{
+      const dias = parseInt(configWrap.querySelector('.config-dias-bloqueo').value, 10);
+      if(isNaN(dias) || dias < 0){ mostrarAlerta('Pon un número de días válido (0 o más).'); return; }
+      const { error: errConfig } = await sb.from('configuracion_sistema').update({ valor: String(dias) }).eq('clave', 'dias_bloqueo_minuta');
+      if(errConfig){ mostrarAlerta('Error: ' + errConfig.message); return; }
+      diasBloqueoMinuta = dias;
+      mostrarAlerta('Configuración guardada. El nuevo valor aplica de inmediato.');
+    });
+    body.appendChild(configWrap);
+    configBlock.appendChild(body);
+    subpanelsWrap.appendChild(configBlock);
+    wireColapsarSeccion(configBlock.querySelector('.area-header'), body, 'config-sistema');
   }
 
   return wrap;
@@ -4194,6 +4296,7 @@ async function cambiarAreaActiva(nuevaArea){
 (async function init(){
   await checkSesionInicial();
   await loadAreasNegocio();
+  await cargarConfigSistema();
   renderAuthBar();
   await loadKpiCatalog();
   loadLocalCache();
