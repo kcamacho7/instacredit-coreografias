@@ -56,7 +56,7 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
     mostrarAlerta(`Los cambios de ${paisCode} se guardaron correctamente.`, 'success')
   }
 
-  if (loading) return <div className="sin-proyectos">Cargando…</div>
+  if (loading || !seeded.current) return <div className="sin-proyectos">Cargando…</div>
   if (error) return <div className="sin-proyectos">Error: {error}</div>
 
   let pinBarMensaje: string

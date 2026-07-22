@@ -37,7 +37,7 @@ export function RegionalTareasPanel({ areaNegocio, nombreAreaActiva }: RegionalT
     mostrarAlerta('Los cambios se guardaron correctamente.', 'success')
   }
 
-  if (loading) return <div className="sin-proyectos">Cargando…</div>
+  if (loading || !seeded.current) return <div className="sin-proyectos">Cargando…</div>
 
   return (
     <div style={{ paddingTop: 20 }}>
