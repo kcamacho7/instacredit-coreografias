@@ -1,4 +1,4 @@
-import type { Accion } from '../components/AccionesTable'
+import type { Accion, HistorialFecha } from '../components/AccionesTable'
 import { emptyAccion } from '../components/AccionesTable'
 import type { Json, Tables } from '../types/database.types'
 
@@ -23,7 +23,9 @@ export interface KpiState {
   fechaRevision: string
   horaRevision: string
   acciones: Accion[]
-  _locked_fechaRevision?: boolean
+  /** Historial/ajustes de fechaRevision — solo de sesión, no se persiste en Supabase (igual que en el sitio legado). */
+  historialFechaRevision?: HistorialFecha[]
+  ajustesUsuarioFechaRevision?: number
 }
 
 export interface CustomKpiState extends KpiState {
@@ -41,7 +43,8 @@ export interface ProyectoState {
   fechaSeguimiento: string
   horaSeguimiento: string
   acciones: Accion[]
-  _locked_fechaSeguimiento?: boolean
+  historialFechaSeguimiento?: HistorialFecha[]
+  ajustesUsuarioFechaSeguimiento?: number
 }
 
 export function emptyKpiState(): KpiState {

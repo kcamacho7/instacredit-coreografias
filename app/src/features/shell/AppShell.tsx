@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useAreaNegocio } from '../../hooks/useAreaNegocio'
 import { AuthBar } from '../auth/AuthBar'
 import { PAISES } from '../../lib/catalogs'
+import { PaisPanel } from '../pais/PaisPanel'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 
@@ -94,7 +95,7 @@ export function AppShell() {
       <div className="page" id="tabPanels">
         {paisesVisibles.map((p) => (
           <div key={p.code} className={'tab-panel' + (activeTab === p.code ? ' active' : '')}>
-            <Placeholder titulo={`Panel de ${p.nombre}`} />
+            <PaisPanel paisCode={p.code} areaNegocio={currentArea} />
           </div>
         ))}
         <div className={'tab-panel' + (activeTab === 'DASHBOARD' ? ' active' : '')}>
