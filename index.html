@@ -975,7 +975,11 @@ async function cargarPerfilUsuario(){
     currentAreaNegocio = 'riesgo';
     return;
   }
-  const { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
+  let { data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle();
+  if(!data){
+    await sb.rpc('vincular_preautorizacion');
+    ({ data } = await sb.from('perfiles_usuario').select('*').eq('user_id', currentUser.id).maybeSingle());
+  }
   currentUserProfile = data || null;
   regionalUnlocked = !!(currentUserProfile && (currentUserProfile.es_regional || currentUserProfile.es_admin));
   currentAreaNegocio = resolverAreaActiva();
