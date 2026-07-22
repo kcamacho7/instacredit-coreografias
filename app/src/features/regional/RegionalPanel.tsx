@@ -1,0 +1,77 @@
+import { useState } from 'react'
+import { useAuth } from '../../hooks/useAuth'
+import { BitacoraTab } from './BitacoraTab'
+import { FechasReunionTab } from './FechasReunionTab'
+import { GestionAccionesTab } from './GestionAccionesTab'
+
+const REGIONAL_SUBTAB_KEY = 'instacredit_coreografias_regional_subtab'
+
+interface Seccion {
+  id: string
+  nombre: string
+}
+
+interface RegionalPanelProps {
+  areaNegocio: string
+}
+
+function PlaceholderFase9({ titulo }: { titulo: string }) {
+  return <div className="sin-proyectos">{titulo} — se migra en la Fase 9 (Administración del sistema).</div>
+}
+
+export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
+  const { regionalUnlocked, profile } = useAuth()
+  const esAdminActivo = !!profile?.es_admin
+
+  const secciones: Seccion[] = [
+    { id: 'bitacora', nombre: 'Bitácora' },
+    { id: 'fechas', nombre: 'Fechas y horas' },
+    { id: 'acciones', nombre: 'Acciones' },
+    { id: 'catalogo', nombre: 'Catálogo KPI' },
+  ]
+  if (esAdminActivo) {
+    secciones.push({ id: 'usuarios', nombre: 'Usuarios' })
+    secciones.push({ id: 'areas', nombre: 'Áreas de negocio' })
+    secciones.push({ id: 'config', nombre: 'Configuración' })
+  }
+
+  const [subTab, setSubTab] = useState<string>(() => {
+    const guardada = sessionStorage.getItem(REGIONAL_SUBTAB_KEY)
+    return guardada && secciones.some((s) => s.id === guardada) ? guardada : 'bitacora'
+  })
+
+  function seleccionar(id: string) {
+    setSubTab(id)
+    sessionStorage.setItem(REGIONAL_SUBTAB_KEY, id)
+  }
+
+  if (!regionalUnlocked) {
+    return (
+      <div style={{ paddingTop: 20 }}>
+        <div className="pin-bar">
+          <span>🔒 Esta pestaña es solo para Regional/Administración de tu área. Tu cuenta no tiene ese permiso — pide a tu Regional o a Administración que te lo asigne.</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ paddingTop: 20 }}>
+      <div className="filtro-bar">
+        {secciones.map((s) => (
+          <button key={s.id} type="button" className={'filtro-btn' + (subTab === s.id ? ' active' : '')} onClick={() => seleccionar(s.id)}>
+            {s.nombre}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'bitacora' && <BitacoraTab areaNegocio={areaNegocio} />}
+      {subTab === 'fechas' && <FechasReunionTab areaNegocio={areaNegocio} />}
+      {subTab === 'acciones' && <GestionAccionesTab areaNegocio={areaNegocio} />}
+      {subTab === 'catalogo' && <PlaceholderFase9 titulo="Mantenimiento de catálogo de KPI" />}
+      {subTab === 'usuarios' && <PlaceholderFase9 titulo="Mantenimiento de usuarios" />}
+      {subTab === 'areas' && <PlaceholderFase9 titulo="Áreas de negocio" />}
+      {subTab === 'config' && <PlaceholderFase9 titulo="Configuración del sistema" />}
+    </div>
+  )
+}

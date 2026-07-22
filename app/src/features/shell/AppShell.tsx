@@ -4,6 +4,8 @@ import { useAreaNegocio } from '../../hooks/useAreaNegocio'
 import { AuthBar } from '../auth/AuthBar'
 import { PAISES } from '../../lib/catalogs'
 import { PaisPanel } from '../pais/PaisPanel'
+import { RegionalPanel } from '../regional/RegionalPanel'
+import { RegionalTareasPanel } from '../regional/RegionalTareasPanel'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 
@@ -103,7 +105,7 @@ export function AppShell() {
         </div>
         {esRegionalExclusivo && (
           <div className={'tab-panel' + (activeTab === 'RG' ? ' active' : '')}>
-            <Placeholder titulo={`KPI y tareas ${nombreAreaActiva} Regional`} />
+            <RegionalTareasPanel areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
           </div>
         )}
         {puedeVerAcuerdos && (
@@ -112,7 +114,7 @@ export function AppShell() {
           </div>
         )}
         <div className={'tab-panel' + (activeTab === 'REGIONAL' ? ' active' : '')}>
-          <Placeholder titulo="Administración del sistema" />
+          <RegionalPanel areaNegocio={currentArea} />
         </div>
       </div>
 

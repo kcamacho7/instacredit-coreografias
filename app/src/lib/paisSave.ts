@@ -43,6 +43,39 @@ export function validarAntesDeGuardar(
   return null
 }
 
+interface GuardarProyectosResultado {
+  error?: string
+  proyectos: ProyectoState[]
+}
+
+/** Guarda solo proyectos especiales de un país (o del pseudo-país 'RG') — usado también desde "KPI y tareas Regional". */
+export async function guardarProyectos(paisCode: string, areaNegocio: string, proyectos: ProyectoState[]): Promise<GuardarProyectosResultado> {
+  const { data: freshProy } = await sb.from('proyectos_especiales').select('id,fecha_seguimiento,hora_seguimiento').eq('pais_code', paisCode).eq('area_negocio', areaNegocio)
+  const freshProyMap = new Map((freshProy || []).map((r) => [r.id, r]))
+
+  const proyectosFinal: ProyectoState[] = proyectos.map((p) => {
+    const fresh = freshProyMap.get(p.id)
+    const usarFresh = !!p.fechaSeguimiento && !!fresh
+    const fechaSeguimiento = usarFresh ? fresh!.fecha_seguimiento || '' : p.fechaSeguimiento
+    const horaSeguimiento = usarFresh ? fresh!.hora_seguimiento || '' : p.horaSeguimiento
+    return { ...p, fechaSeguimiento, horaSeguimiento }
+  })
+  const proyectoRows = proyectosFinal.map((p, i) => ({
+    id: p.id, pais_code: paisCode, area_negocio: areaNegocio, nombre: p.nombre, descripcion: p.descripcion,
+    responsable: p.responsable, estado: p.estado, fecha_seguimiento: p.fechaSeguimiento || null,
+    hora_seguimiento: p.horaSeguimiento || null, acciones: p.acciones, orden: i, updated_at: new Date().toISOString(),
+  }))
+
+  let error: string | undefined
+  const { error: delErr } = await sb.from('proyectos_especiales').delete().eq('pais_code', paisCode).eq('area_negocio', areaNegocio)
+  if (delErr) error = delErr.message
+  if (!delErr && proyectoRows.length) {
+    const { error: err } = await sb.from('proyectos_especiales').insert(proyectoRows as never)
+    if (err) error = err.message
+  }
+  return { error, proyectos: proyectosFinal }
+}
+
 interface GuardarParams {
   paisCode: string
   areaNegocio: string
@@ -67,13 +100,11 @@ interface GuardarResultado {
  * `saveActiveCountry()` del sitio legado.
  */
 export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, proyectos }: GuardarParams): Promise<GuardarResultado> {
-  const [{ data: freshCoreo }, { data: freshProy }, { data: freshCustom }] = await Promise.all([
+  const [{ data: freshCoreo }, { data: freshCustom }] = await Promise.all([
     sb.from('coreografias').select('area_id,kpi_id,fecha_revision,hora_revision').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
-    sb.from('proyectos_especiales').select('id,fecha_seguimiento,hora_seguimiento').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
     sb.from('kpis_adicionales').select('id,fecha_revision,hora_revision').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
   ])
   const freshCoreoMap = new Map((freshCoreo || []).map((r) => [r.area_id + '|' + r.kpi_id, r]))
-  const freshProyMap = new Map((freshProy || []).map((r) => [r.id, r]))
   const freshCustomMap = new Map((freshCustom || []).map((r) => [r.id, r]))
 
   const kpisFinal: Record<string, Record<string, KpiState>> = {}
@@ -96,19 +127,6 @@ export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, pro
       })
     })
   })
-
-  const proyectosFinal: ProyectoState[] = proyectos.map((p) => {
-    const fresh = freshProyMap.get(p.id)
-    const usarFresh = !!p.fechaSeguimiento && !!fresh
-    const fechaSeguimiento = usarFresh ? fresh!.fecha_seguimiento || '' : p.fechaSeguimiento
-    const horaSeguimiento = usarFresh ? fresh!.hora_seguimiento || '' : p.horaSeguimiento
-    return { ...p, fechaSeguimiento, horaSeguimiento }
-  })
-  const proyectoRows = proyectosFinal.map((p, i) => ({
-    id: p.id, pais_code: paisCode, area_negocio: areaNegocio, nombre: p.nombre, descripcion: p.descripcion,
-    responsable: p.responsable, estado: p.estado, fecha_seguimiento: p.fechaSeguimiento || null,
-    hora_seguimiento: p.horaSeguimiento || null, acciones: p.acciones, orden: i, updated_at: new Date().toISOString(),
-  }))
 
   const customKpisFinal: Record<string, CustomKpiState[]> = {}
   const customKpiRows: Record<string, unknown>[] = []
@@ -135,12 +153,8 @@ export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, pro
     if (err) error = err.message
   }
 
-  const { error: delErr } = await sb.from('proyectos_especiales').delete().eq('pais_code', paisCode).eq('area_negocio', areaNegocio)
-  if (delErr) error = error || delErr.message
-  if (!delErr && proyectoRows.length) {
-    const { error: err } = await sb.from('proyectos_especiales').insert(proyectoRows as never)
-    if (err) error = error || err.message
-  }
+  const proyResultado = await guardarProyectos(paisCode, areaNegocio, proyectos)
+  if (proyResultado.error) error = error || proyResultado.error
 
   const { error: delCustomErr } = await sb.from('kpis_adicionales').delete().eq('pais_code', paisCode).eq('area_negocio', areaNegocio)
   if (delCustomErr) error = error || delCustomErr.message
@@ -149,5 +163,5 @@ export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, pro
     if (err) error = error || err.message
   }
 
-  return { error, kpis: kpisFinal, proyectos: proyectosFinal, customKpis: customKpisFinal }
+  return { error, kpis: kpisFinal, proyectos: proyResultado.proyectos, customKpis: customKpisFinal }
 }
