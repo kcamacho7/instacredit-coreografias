@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { PAISES } from '../../lib/catalogs'
+import { Emoji } from '../../components/Emoji'
 import { DashboardCharts } from './DashboardCharts'
 import { AcuerdosControlWidget } from './AcuerdosControlWidget'
 
@@ -39,7 +40,7 @@ export function DashboardPage({ areaNegocio, nombreAreaActiva }: DashboardPagePr
           <div className="filtro-bar">
             {opciones.map((o) => (
               <button key={o.code} type="button" className={'filtro-btn' + (paisFiltro === o.code ? ' active' : '')} onClick={() => setPaisFiltro(o.code)}>
-                {o.bandera} {o.nombre}
+                <Emoji text={`${o.bandera} ${o.nombre}`} />
               </button>
             ))}
           </div>

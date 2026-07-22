@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAreaNegocio } from '../../hooks/useAreaNegocio'
 import { KpiCatalogProvider } from '../../hooks/useKpiCatalog'
+import { Emoji } from '../../components/Emoji'
 import { AuthBar } from '../auth/AuthBar'
 import { PAISES } from '../../lib/catalogs'
 import { PaisPanel } from '../pais/PaisPanel'
@@ -14,7 +15,7 @@ const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 
 interface TabDef {
   code: string
-  label: string
+  label: ReactNode
   className?: string
 }
 
@@ -32,14 +33,19 @@ export function AppShell() {
   const regionalUnlocked = !!(profile && (profile.es_regional || profile.es_admin))
   const puedeVerAcuerdos = regionalUnlocked || !!(profile && profile.es_lider)
 
+  function isotipo() {
+    return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: '.35em' }} />
+  }
+
   const tabs: TabDef[] = useMemo(() => {
-    const lista: TabDef[] = paisesVisibles.map((p) => ({ code: p.code, label: `${p.bandera} ${p.nombre}` }))
-    lista.push({ code: 'DASHBOARD', label: '📊 Dashboard' })
-    if (esRegionalExclusivo) lista.push({ code: 'RG', label: `KPI y tareas ${nombreAreaActiva} Regional`, className: 'tab-btn-regional' })
-    if (puedeVerAcuerdos) lista.push({ code: 'ACUERDOS', label: 'Acuerdos de reuniones', className: 'tab-btn-regional' })
-    lista.push({ code: 'REGIONAL', label: '🔒 Administración del sistema', className: 'tab-btn-regional' })
+    const lista: TabDef[] = paisesVisibles.map((p) => ({ code: p.code, label: <Emoji text={`${p.bandera} ${p.nombre}`} /> }))
+    lista.push({ code: 'DASHBOARD', label: <Emoji text="📊 Dashboard" /> })
+    if (esRegionalExclusivo) lista.push({ code: 'RG', label: <>{isotipo()}KPI y tareas {nombreAreaActiva} Regional</>, className: 'tab-btn-regional' })
+    if (puedeVerAcuerdos) lista.push({ code: 'ACUERDOS', label: <>{isotipo()}Acuerdos de reuniones</>, className: 'tab-btn-regional' })
+    lista.push({ code: 'REGIONAL', label: <>{isotipo()}Administración del sistema</>, className: 'tab-btn-regional' })
     return lista
-  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdos, nombreAreaActiva])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdos, nombreAreaActiva, base])
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const guardada = sessionStorage.getItem(ACTIVE_TAB_KEY)
@@ -107,7 +113,7 @@ export function AppShell() {
         {puedeVerAcuerdos && (
           <div className={'tab-panel' + (activeTab === 'ACUERDOS' ? ' active' : '')}>
             <div style={{ paddingTop: 20 }}>
-              <div className="area-owner" style={{ background: 'none', color: 'var(--azul-claro)', padding: '0 0 14px 0' }}>
+              <div className="area-owner">
                 <strong>Qué es:</strong> sube el archivo (o pega el texto) de una transcripción y la IA arma la minuta al instante, con título y acuerdos sugeridos (responsable, fecha y correo, tomados de la lista de usuarios cuando reconoce el nombre). Revisa y ajusta cada acuerdo, y al "Guardar minuta" puedes enviarla por correo a cada responsable y a Riesgo Regional en el mismo paso, con un PDF adjunto del detalle completo.
               </div>
               <AcuerdosModule areaNegocio={currentArea} />
