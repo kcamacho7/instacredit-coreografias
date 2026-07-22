@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAreaData } from '../../hooks/useAreaData'
 import { useToast } from '../../components/ui/ToastProvider'
-import { AREAS_FALLBACK } from '../../lib/catalogs'
+import { useKpiCatalog } from '../../hooks/useKpiCatalog'
 import type { CustomKpiState, KpiState, ProyectoState } from '../../lib/stateShape'
 import { guardarPais, validarAntesDeGuardar } from '../../lib/paisSave'
 import { KpiBlock } from './KpiBlock'
@@ -20,8 +20,9 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
   const { user, profile } = useAuth()
   const { mostrarAlerta } = useToast()
   const isUnlocked = !!(profile && (profile.es_regional || profile.es_admin || profile.pais_code === paisCode))
+  const { areas } = useKpiCatalog()
 
-  const { loading, error, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales } = useAreaData(paisCode, areaNegocio)
+  const { loading, error, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales } = useAreaData(paisCode, areaNegocio, areas)
   const [kpis, setKpis] = useState<Record<string, Record<string, KpiState>>>({})
   const [customKpis, setCustomKpis] = useState<Record<string, CustomKpiState[]>>({})
   const [proyectos, setProyectos] = useState<ProyectoState[]>([])
@@ -42,11 +43,11 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
       mostrarAlerta(`No tienes permiso para editar ${paisCode}. Inicia sesión con la cuenta asignada a ese país.`)
       return
     }
-    const errorValidacion = validarAntesDeGuardar(kpis, customKpis, proyectos)
+    const errorValidacion = validarAntesDeGuardar(areas, kpis, customKpis, proyectos)
     if (errorValidacion) { mostrarAlerta(errorValidacion); return }
 
     setGuardando(true)
-    const resultado = await guardarPais({ paisCode, areaNegocio, kpis, customKpis, proyectos })
+    const resultado = await guardarPais({ paisCode, areaNegocio, areas, kpis, customKpis, proyectos })
     setGuardando(false)
     if (resultado.error) { mostrarAlerta(`Error al guardar ${paisCode}: ${resultado.error}`); return }
     setKpis(resultado.kpis)
@@ -69,7 +70,7 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
         <span>{pinBarMensaje}</span>
       </div>
 
-      {AREAS_FALLBACK.map((area) => (
+      {areas.map((area) => (
         <KpiBlock
           key={area.id}
           area={area}

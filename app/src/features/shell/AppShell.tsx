@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAreaNegocio } from '../../hooks/useAreaNegocio'
+import { KpiCatalogProvider } from '../../hooks/useKpiCatalog'
 import { AuthBar } from '../auth/AuthBar'
 import { PAISES } from '../../lib/catalogs'
 import { PaisPanel } from '../pais/PaisPanel'
@@ -58,6 +59,7 @@ export function AppShell() {
   }
 
   return (
+    <KpiCatalogProvider areaNegocio={currentArea}>
     <div id="appContent">
       <header className="cover">
         <div className="page" style={{ padding: 0 }}>
@@ -122,5 +124,6 @@ export function AppShell() {
         <span>Coreografías Operativas · Julio 2026</span>
       </footer>
     </div>
+    </KpiCatalogProvider>
   )
 }

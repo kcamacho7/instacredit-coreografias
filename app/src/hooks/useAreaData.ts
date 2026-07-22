@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { sb } from '../lib/supabase'
-import { AREAS_FALLBACK } from '../lib/catalogs'
+import type { AreaCatalogo } from '../lib/catalogs'
 import {
   emptyKpiState, filaCoreografiaAKpiState, filaCustomKpiAState, filaProyectoAProyectoState,
   type CustomKpiState, type KpiState, type ProyectoState,
@@ -23,7 +23,7 @@ export interface AreaDataState {
  * `paisCode = 'RG'` es el pseudo-país de tareas privadas de Regional: no tiene
  * coreografías fijas ni KPI adicionales, solo proyectos especiales.
  */
-export function useAreaData(paisCode: string, areaNegocio: string): AreaDataState {
+export function useAreaData(paisCode: string, areaNegocio: string, areas: AreaCatalogo[]): AreaDataState {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [kpisPorAreaId, setKpisPorAreaId] = useState<Record<string, Record<string, KpiState>>>({})
@@ -60,7 +60,7 @@ export function useAreaData(paisCode: string, areaNegocio: string): AreaDataStat
       }
 
       const kpis: Record<string, Record<string, KpiState>> = {}
-      AREAS_FALLBACK.forEach((area) => {
+      areas.forEach((area) => {
         kpis[area.id] = {}
         area.kpis.forEach((kpi) => { kpis[area.id][kpi.id] = emptyKpiState() })
       })
@@ -69,7 +69,7 @@ export function useAreaData(paisCode: string, areaNegocio: string): AreaDataStat
       })
 
       const customs: Record<string, CustomKpiState[]> = {}
-      AREAS_FALLBACK.forEach((area) => { customs[area.id] = [] })
+      areas.forEach((area) => { customs[area.id] = [] })
       ;(customRes.data || []).forEach((row) => {
         if (!customs[row.area_id]) customs[row.area_id] = []
         customs[row.area_id].push(filaCustomKpiAState(row))
@@ -85,7 +85,7 @@ export function useAreaData(paisCode: string, areaNegocio: string): AreaDataStat
 
     cargar()
     return () => { activo = false }
-  }, [paisCode, areaNegocio, tick])
+  }, [paisCode, areaNegocio, areas, tick])
 
   return { loading, error, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales, refetch }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAreaData } from '../../hooks/useAreaData'
+import { useKpiCatalog } from '../../hooks/useKpiCatalog'
 import type { ProyectoState } from '../../lib/stateShape'
 import { guardarProyectos } from '../../lib/paisSave'
 import { useToast } from '../../components/ui/ToastProvider'
@@ -14,7 +15,8 @@ interface RegionalTareasPanelProps {
 /** Pestaña "KPI y tareas Regional": espacio privado de proyectos especiales del pseudo-país 'RG'. */
 export function RegionalTareasPanel({ areaNegocio, nombreAreaActiva }: RegionalTareasPanelProps) {
   const { mostrarAlerta } = useToast()
-  const { loading, proyectosEspeciales } = useAreaData('RG', areaNegocio)
+  const { areas } = useKpiCatalog()
+  const { loading, proyectosEspeciales } = useAreaData('RG', areaNegocio, areas)
   const [proyectos, setProyectos] = useState<ProyectoState[]>([])
   const [guardando, setGuardando] = useState(false)
   const seeded = useRef(false)

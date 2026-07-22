@@ -3,6 +3,10 @@ import { useAuth } from '../../hooks/useAuth'
 import { BitacoraTab } from './BitacoraTab'
 import { FechasReunionTab } from './FechasReunionTab'
 import { GestionAccionesTab } from './GestionAccionesTab'
+import { CatalogoKpiTab } from './CatalogoKpiTab'
+import { UsuariosTab } from './UsuariosTab'
+import { AreasNegocioTab } from './AreasNegocioTab'
+import { ConfigSistemaTab } from './ConfigSistemaTab'
 
 const REGIONAL_SUBTAB_KEY = 'instacredit_coreografias_regional_subtab'
 
@@ -13,10 +17,6 @@ interface Seccion {
 
 interface RegionalPanelProps {
   areaNegocio: string
-}
-
-function PlaceholderFase9({ titulo }: { titulo: string }) {
-  return <div className="sin-proyectos">{titulo} — se migra en la Fase 9 (Administración del sistema).</div>
 }
 
 export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
@@ -68,10 +68,10 @@ export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
       {subTab === 'bitacora' && <BitacoraTab areaNegocio={areaNegocio} />}
       {subTab === 'fechas' && <FechasReunionTab areaNegocio={areaNegocio} />}
       {subTab === 'acciones' && <GestionAccionesTab areaNegocio={areaNegocio} />}
-      {subTab === 'catalogo' && <PlaceholderFase9 titulo="Mantenimiento de catálogo de KPI" />}
-      {subTab === 'usuarios' && <PlaceholderFase9 titulo="Mantenimiento de usuarios" />}
-      {subTab === 'areas' && <PlaceholderFase9 titulo="Áreas de negocio" />}
-      {subTab === 'config' && <PlaceholderFase9 titulo="Configuración del sistema" />}
+      {subTab === 'catalogo' && <CatalogoKpiTab areaNegocio={areaNegocio} />}
+      {subTab === 'usuarios' && esAdminActivo && <UsuariosTab areaNegocio={areaNegocio} />}
+      {subTab === 'areas' && esAdminActivo && <AreasNegocioTab />}
+      {subTab === 'config' && esAdminActivo && <ConfigSistemaTab />}
     </div>
   )
 }

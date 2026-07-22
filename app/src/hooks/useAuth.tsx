@@ -19,6 +19,7 @@ interface AuthContextValue {
   forgotPassword: (email: string) => Promise<void>
   setNewPassword: (password: string) => Promise<void>
   clearMessages: () => void
+  refrescarPerfil: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -122,12 +123,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (sessionUser) setProfile(await cargarPerfil(sessionUser))
   }
 
+  async function refrescarPerfil() {
+    if (user) setProfile(await cargarPerfil(user))
+  }
+
   const regionalUnlocked = !!(profile && (profile.es_regional || profile.es_admin))
 
   return (
     <AuthContext.Provider value={{
       loading, user, profile, regionalUnlocked, authError, authInfo, recoveryMode,
-      login, signup, logout, forgotPassword, setNewPassword, clearMessages,
+      login, signup, logout, forgotPassword, setNewPassword, clearMessages, refrescarPerfil,
     }}>
       {children}
     </AuthContext.Provider>

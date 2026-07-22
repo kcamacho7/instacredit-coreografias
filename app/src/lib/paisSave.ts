@@ -1,5 +1,5 @@
 import { sb } from './supabase'
-import { AREAS_FALLBACK } from './catalogs'
+import type { AreaCatalogo } from './catalogs'
 import type { Accion } from '../components/AccionesTable'
 import type { CustomKpiState, KpiState, ProyectoState } from './stateShape'
 
@@ -20,11 +20,12 @@ function revisarPuntoControl(k: { puntoControl: string; fechaRevision: string; h
 }
 
 export function validarAntesDeGuardar(
+  areas: AreaCatalogo[],
   kpis: Record<string, Record<string, KpiState>>,
   customKpis: Record<string, CustomKpiState[]>,
   proyectos: ProyectoState[],
 ): string | null {
-  for (const area of AREAS_FALLBACK) {
+  for (const area of areas) {
     for (const kpi of area.kpis) {
       const k = kpis[area.id]?.[kpi.id]
       if (!k) continue
@@ -79,6 +80,7 @@ export async function guardarProyectos(paisCode: string, areaNegocio: string, pr
 interface GuardarParams {
   paisCode: string
   areaNegocio: string
+  areas: AreaCatalogo[]
   kpis: Record<string, Record<string, KpiState>>
   customKpis: Record<string, CustomKpiState[]>
   proyectos: ProyectoState[]
@@ -99,7 +101,7 @@ interface GuardarResultado {
  * sesión tenía un valor viejo en memoria — mismo comportamiento que
  * `saveActiveCountry()` del sitio legado.
  */
-export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, proyectos }: GuardarParams): Promise<GuardarResultado> {
+export async function guardarPais({ paisCode, areaNegocio, areas, kpis, customKpis, proyectos }: GuardarParams): Promise<GuardarResultado> {
   const [{ data: freshCoreo }, { data: freshCustom }] = await Promise.all([
     sb.from('coreografias').select('area_id,kpi_id,fecha_revision,hora_revision').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
     sb.from('kpis_adicionales').select('id,fecha_revision,hora_revision').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
@@ -109,7 +111,7 @@ export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, pro
 
   const kpisFinal: Record<string, Record<string, KpiState>> = {}
   const rows: Record<string, unknown>[] = []
-  AREAS_FALLBACK.forEach((area) => {
+  areas.forEach((area) => {
     kpisFinal[area.id] = {}
     area.kpis.forEach((kpi) => {
       const k = kpis[area.id]?.[kpi.id]
@@ -130,7 +132,7 @@ export async function guardarPais({ paisCode, areaNegocio, kpis, customKpis, pro
 
   const customKpisFinal: Record<string, CustomKpiState[]> = {}
   const customKpiRows: Record<string, unknown>[] = []
-  AREAS_FALLBACK.forEach((area) => {
+  areas.forEach((area) => {
     customKpisFinal[area.id] = (customKpis[area.id] || []).map((c, i) => {
       const fresh = freshCustomMap.get(c.id)
       const usarFresh = !!c.fechaRevision && !!fresh
