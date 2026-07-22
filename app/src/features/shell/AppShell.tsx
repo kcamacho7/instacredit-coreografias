@@ -1,0 +1,124 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../../hooks/useAuth'
+import { useAreaNegocio } from '../../hooks/useAreaNegocio'
+import { AuthBar } from '../auth/AuthBar'
+import { PAISES } from '../../lib/catalogs'
+
+const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
+
+interface TabDef {
+  code: string
+  label: string
+  className?: string
+}
+
+function Placeholder({ titulo }: { titulo: string }) {
+  return (
+    <div className="sin-proyectos">
+      {titulo} — este módulo se migra en una fase posterior de la migración a React.
+    </div>
+  )
+}
+
+export function AppShell() {
+  const { profile } = useAuth()
+  const { catalogo, currentArea, nombreAreaActiva, cambiarAreaActiva } = useAreaNegocio(profile)
+  const base = import.meta.env.BASE_URL
+
+  const puedeVerTodosPaises = !!(profile && (profile.es_regional || profile.es_admin))
+  const paisesVisibles = useMemo(
+    () => (puedeVerTodosPaises ? PAISES : PAISES.filter((p) => profile && profile.pais_code === p.code)),
+    [puedeVerTodosPaises, profile],
+  )
+  const esRegionalExclusivo = !!(profile && profile.es_regional)
+  const regionalUnlocked = !!(profile && (profile.es_regional || profile.es_admin))
+  const puedeVerAcuerdos = regionalUnlocked || !!(profile && profile.es_lider)
+
+  const tabs: TabDef[] = useMemo(() => {
+    const lista: TabDef[] = paisesVisibles.map((p) => ({ code: p.code, label: `${p.bandera} ${p.nombre}` }))
+    lista.push({ code: 'DASHBOARD', label: '📊 Dashboard' })
+    if (esRegionalExclusivo) lista.push({ code: 'RG', label: `KPI y tareas ${nombreAreaActiva} Regional`, className: 'tab-btn-regional' })
+    if (puedeVerAcuerdos) lista.push({ code: 'ACUERDOS', label: 'Acuerdos de reuniones', className: 'tab-btn-regional' })
+    lista.push({ code: 'REGIONAL', label: '🔒 Administración del sistema', className: 'tab-btn-regional' })
+    return lista
+  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdos, nombreAreaActiva])
+
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const guardada = sessionStorage.getItem(ACTIVE_TAB_KEY)
+    return guardada || (paisesVisibles.length ? paisesVisibles[0].code : 'DASHBOARD')
+  })
+
+  useEffect(() => {
+    if (!tabs.some((t) => t.code === activeTab)) {
+      setActiveTab(tabs[0]?.code || 'DASHBOARD')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs])
+
+  function selectTab(code: string) {
+    setActiveTab(code)
+    sessionStorage.setItem(ACTIVE_TAB_KEY, code)
+  }
+
+  return (
+    <div id="appContent">
+      <header className="cover">
+        <div className="page" style={{ padding: 0 }}>
+          <div className="logo-row"><img src={`${base}assets/logo_claro.png`} alt="Instacredit" /></div>
+          <div className="eyebrow">{nombreAreaActiva} — Instacredit</div>
+          <h1>Coreografías Operativas</h1>
+          <p>Cada Gerente de País documenta aquí sus Coreografías por KPI.</p>
+        </div>
+        <img className="prestamito" src={`${base}assets/prestamito_senalando.png`} alt="Prestamito" />
+      </header>
+
+      <div className="toolbar">
+        <span className="status" id="statusText">Datos consolidados — módulo de guardado llega en una fase posterior</span>
+      </div>
+
+      <AuthBar currentArea={currentArea} nombreAreaActiva={nombreAreaActiva} areasCatalogo={catalogo} onCambiarArea={cambiarAreaActiva} />
+
+      <div className="tabs" id="tabs">
+        {tabs.map((t) => (
+          <button
+            key={t.code}
+            type="button"
+            className={'tab-btn' + (t.className ? ' ' + t.className : '') + (activeTab === t.code ? ' active' : '')}
+            onClick={() => selectTab(t.code)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="page" id="tabPanels">
+        {paisesVisibles.map((p) => (
+          <div key={p.code} className={'tab-panel' + (activeTab === p.code ? ' active' : '')}>
+            <Placeholder titulo={`Panel de ${p.nombre}`} />
+          </div>
+        ))}
+        <div className={'tab-panel' + (activeTab === 'DASHBOARD' ? ' active' : '')}>
+          <Placeholder titulo="Dashboard" />
+        </div>
+        {esRegionalExclusivo && (
+          <div className={'tab-panel' + (activeTab === 'RG' ? ' active' : '')}>
+            <Placeholder titulo={`KPI y tareas ${nombreAreaActiva} Regional`} />
+          </div>
+        )}
+        {puedeVerAcuerdos && (
+          <div className={'tab-panel' + (activeTab === 'ACUERDOS' ? ' active' : '')}>
+            <Placeholder titulo="Acuerdos de reuniones" />
+          </div>
+        )}
+        <div className={'tab-panel' + (activeTab === 'REGIONAL' ? ' active' : '')}>
+          <Placeholder titulo="Administración del sistema" />
+        </div>
+      </div>
+
+      <footer>
+        <span>¡Apoyándote siempre! — Instacredit {nombreAreaActiva} Regional</span>
+        <span>Coreografías Operativas · Julio 2026</span>
+      </footer>
+    </div>
+  )
+}
