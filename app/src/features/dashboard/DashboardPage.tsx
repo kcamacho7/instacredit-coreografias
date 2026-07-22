@@ -1,0 +1,54 @@
+import { useMemo, useState } from 'react'
+import { useAuth } from '../../hooks/useAuth'
+import { PAISES } from '../../lib/catalogs'
+import { DashboardCharts } from './DashboardCharts'
+import { AcuerdosControlWidget } from './AcuerdosControlWidget'
+
+interface DashboardPageProps {
+  areaNegocio: string
+  nombreAreaActiva: string
+}
+
+export function DashboardPage({ areaNegocio, nombreAreaActiva }: DashboardPageProps) {
+  const { profile } = useAuth()
+  const puedeVerTodosPaises = !!(profile && (profile.es_regional || profile.es_admin))
+
+  const opciones = useMemo(() => {
+    if (puedeVerTodosPaises) return [{ code: 'ALL', nombre: 'Consolidado', bandera: '🌎' }, ...PAISES]
+    return PAISES.filter((p) => profile && profile.pais_code === p.code)
+  }, [puedeVerTodosPaises, profile])
+
+  const [paisFiltro, setPaisFiltro] = useState(opciones[0]?.code || 'ALL')
+
+  return (
+    <div style={{ paddingTop: 20 }}>
+      <div className="area-block proyecto-area">
+        <div className="area-header">
+          <h2>Dashboard de avance</h2>
+          <span>Visible para todos</span>
+        </div>
+        <div className="area-owner">
+          <strong>Qué es:</strong> avance de las acciones registradas, incluyendo tareas especiales y acuerdos de reuniones, agrupado por dominio y por KPI. Usa los filtros para ver el consolidado regional o el detalle de un país. Nota: los acuerdos de reuniones no están ligados a un país, así que solo aparecen en el consolidado.
+        </div>
+      </div>
+
+      {opciones.length === 0 ? (
+        <div className="sin-proyectos">Tu cuenta no tiene un país asignado — contacta a Riesgo Regional.</div>
+      ) : (
+        <>
+          <div className="filtro-bar">
+            {opciones.map((o) => (
+              <button key={o.code} type="button" className={'filtro-btn' + (paisFiltro === o.code ? ' active' : '')} onClick={() => setPaisFiltro(o.code)}>
+                {o.bandera} {o.nombre}
+              </button>
+            ))}
+          </div>
+          <div id="dashboard-publico-charts">
+            <DashboardCharts areaNegocio={areaNegocio} paisFiltro={paisFiltro} />
+          </div>
+          {puedeVerTodosPaises && <AcuerdosControlWidget areaNegocio={areaNegocio} nombreAreaActiva={nombreAreaActiva} />}
+        </>
+      )}
+    </div>
+  )
+}
