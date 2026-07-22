@@ -6,6 +6,7 @@ import { PAISES } from '../../lib/catalogs'
 import { PaisPanel } from '../pais/PaisPanel'
 import { RegionalPanel } from '../regional/RegionalPanel'
 import { RegionalTareasPanel } from '../regional/RegionalTareasPanel'
+import { DashboardPage } from '../dashboard/DashboardPage'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 
@@ -101,7 +102,7 @@ export function AppShell() {
           </div>
         ))}
         <div className={'tab-panel' + (activeTab === 'DASHBOARD' ? ' active' : '')}>
-          <Placeholder titulo="Dashboard" />
+          <DashboardPage areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
         </div>
         {esRegionalExclusivo && (
           <div className={'tab-panel' + (activeTab === 'RG' ? ' active' : '')}>

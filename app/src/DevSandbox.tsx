@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Bar, Doughnut } from 'react-chartjs-2'
+import './lib/chartSetup'
+import { CHART_COLORS, ESTADOS } from './lib/chartSetup'
 import { FieldGrid, FieldRow } from './components/form/FieldGrid'
 import { EstadoBadge } from './components/EstadoBadge'
 import { CollapsibleCard } from './components/CollapsibleCard'
@@ -59,6 +62,18 @@ export function DevSandbox() {
       >
         <AccionesTable acciones={acciones} onChange={() => {}} hoy="2026-07-22" />
       </CollapsibleCard>
+
+      <h3 style={{ marginTop: 24 }}>Fase 7 — Chart.js</h3>
+      <div className="dashboard-grid">
+        <div className="dashboard-card">
+          <h4>Estado general</h4>
+          <Doughnut data={{ labels: [...ESTADOS], datasets: [{ data: [3, 2, 5, 1], backgroundColor: ESTADOS.map((e) => CHART_COLORS[e]) }] }} />
+        </div>
+        <div className="dashboard-card">
+          <h4>Avance por país</h4>
+          <Bar data={{ labels: ['Costa Rica', 'Nicaragua', 'Panamá', 'El Salvador'], datasets: [{ label: '% cumplidas', data: [80, 45, 60, 30], backgroundColor: ['#002554', '#4C9C2E', '#4C9C2E', '#4C9C2E'], borderRadius: 4 }] }} options={{ scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } }} />
+        </div>
+      </div>
     </div>
   )
 }
