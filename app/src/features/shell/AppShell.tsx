@@ -7,6 +7,7 @@ import { PaisPanel } from '../pais/PaisPanel'
 import { RegionalPanel } from '../regional/RegionalPanel'
 import { RegionalTareasPanel } from '../regional/RegionalTareasPanel'
 import { DashboardPage } from '../dashboard/DashboardPage'
+import { AcuerdosModule } from '../acuerdos/AcuerdosModule'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 
@@ -14,14 +15,6 @@ interface TabDef {
   code: string
   label: string
   className?: string
-}
-
-function Placeholder({ titulo }: { titulo: string }) {
-  return (
-    <div className="sin-proyectos">
-      {titulo} — este módulo se migra en una fase posterior de la migración a React.
-    </div>
-  )
 }
 
 export function AppShell() {
@@ -77,7 +70,7 @@ export function AppShell() {
       </header>
 
       <div className="toolbar">
-        <span className="status" id="statusText">Datos consolidados — módulo de guardado llega en una fase posterior</span>
+        <span className="status" id="statusText">Datos consolidados desde la nube</span>
       </div>
 
       <AuthBar currentArea={currentArea} nombreAreaActiva={nombreAreaActiva} areasCatalogo={catalogo} onCambiarArea={cambiarAreaActiva} />
@@ -111,7 +104,12 @@ export function AppShell() {
         )}
         {puedeVerAcuerdos && (
           <div className={'tab-panel' + (activeTab === 'ACUERDOS' ? ' active' : '')}>
-            <Placeholder titulo="Acuerdos de reuniones" />
+            <div style={{ paddingTop: 20 }}>
+              <div className="area-owner" style={{ background: 'none', color: 'var(--azul-claro)', padding: '0 0 14px 0' }}>
+                <strong>Qué es:</strong> sube el archivo (o pega el texto) de una transcripción y la IA arma la minuta al instante, con título y acuerdos sugeridos (responsable, fecha y correo, tomados de la lista de usuarios cuando reconoce el nombre). Revisa y ajusta cada acuerdo, y al "Guardar minuta" puedes enviarla por correo a cada responsable y a Riesgo Regional en el mismo paso, con un PDF adjunto del detalle completo.
+              </div>
+              <AcuerdosModule areaNegocio={currentArea} />
+            </div>
           </div>
         )}
         <div className={'tab-panel' + (activeTab === 'REGIONAL' ? ' active' : '')}>

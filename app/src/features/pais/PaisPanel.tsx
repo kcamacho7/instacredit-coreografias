@@ -7,6 +7,7 @@ import type { CustomKpiState, KpiState, ProyectoState } from '../../lib/stateSha
 import { guardarPais, validarAntesDeGuardar } from '../../lib/paisSave'
 import { KpiBlock } from './KpiBlock'
 import { ProyectosSection } from './ProyectosSection'
+import { AcuerdosDelResponsable } from '../acuerdos/AcuerdosDelResponsable'
 
 const HOY = new Date().toISOString().slice(0, 10)
 
@@ -91,6 +92,8 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
         proyectos={proyectos}
         onChange={setProyectos}
       />
+
+      {isUnlocked && <AcuerdosDelResponsable paisCode={paisCode} areaNegocio={areaNegocio} />}
 
       <button type="button" className="btn btn-primary" disabled={guardando} onClick={guardar} style={{ margin: '0 32px 32px 32px' }}>
         {guardando ? 'Guardando…' : 'Guardar cambios de este país'}
