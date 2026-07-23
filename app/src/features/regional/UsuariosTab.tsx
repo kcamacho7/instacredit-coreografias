@@ -60,7 +60,7 @@ export function UsuariosTab({ areaNegocio }: UsuariosTabProps) {
               <th style={{ width: '10%' }}>Área</th>
               <th style={{ width: '5%' }}>Regional</th>
               <th style={{ width: '5%' }}>Admin</th>
-              <th style={{ width: '5%' }}>Líder</th>
+              <th style={{ width: '5%' }}>Acceso Acuerdos</th>
               <th style={{ width: '6%' }}>Gerente país</th>
               <th style={{ width: '6%' }}>Admin área</th>
               <th style={{ width: '6%' }}>Admin país</th>
@@ -262,7 +262,7 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
           <label>Permisos</label>
           <div className="permisos-checks">
             <label><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} /> Es Regional (de su propia área)</label>
-            <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin} /> Es Líder (acceso a Acuerdos de reuniones)</label>
+            <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin} /> Acceso Acuerdos (pestaña "Acuerdos de reuniones")</label>
             {esSuperAdmin && (
               <>
                 <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} /> Es Super Usuario (Administración total)</label>

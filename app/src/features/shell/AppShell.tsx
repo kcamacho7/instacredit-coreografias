@@ -32,9 +32,9 @@ export function AppShell() {
   )
   const esRegionalExclusivo = !!(profile && profile.es_regional)
   const esGerentePais = !!(profile && profile.es_gerente_pais && profile.pais_code)
-  // Acuerdos standalone queda solo para un líder puro — regional/admin ya tienen
-  // Acuerdos embebido en su tab "Regional {Área}".
-  const puedeVerAcuerdosStandalone = !!(profile && profile.es_lider && !profile.es_regional && !profile.es_admin)
+  // "Acceso Acuerdos" (columna es_lider en la BD) es un permiso independiente que se
+  // asigna explícitamente por usuario — no se hereda de ser regional/admin.
+  const puedeVerAcuerdosStandalone = !!(profile && profile.es_lider)
 
   function isotipo() {
     return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: '.35em' }} />
