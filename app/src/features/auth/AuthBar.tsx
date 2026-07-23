@@ -36,8 +36,8 @@ export function AuthBar({ currentArea, nombreAreaActiva, areasCatalogo, onCambia
         )}
       </span>
 
-      {profile?.es_admin && areasActivas.length > 1 && (
-        <select value={currentArea} onChange={(e) => onCambiarArea(e.target.value)} style={{ fontFamily: "'Inter Tight',sans-serif", border: '1px solid var(--gris-borde)', borderRadius: '5px', padding: '6px 9px', fontSize: '12.5px' }}>
+      {(profile?.es_admin || esGerentePais) && areasActivas.length > 1 && (
+        <select value={currentArea} onChange={(e) => onCambiarArea(e.target.value)} title="Área para Dashboard/Administración" style={{ fontFamily: "'Inter Tight',sans-serif", border: '1px solid var(--gris-borde)', borderRadius: '5px', padding: '6px 9px', fontSize: '12.5px' }}>
           {areasActivas.map((a) => (
             <option key={a.codigo} value={a.codigo}>{a.nombre}</option>
           ))}

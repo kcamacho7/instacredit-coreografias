@@ -12,7 +12,11 @@ const FALLBACK: AreaNegocio[] = [
 ]
 
 function resolverAreaActiva(profile: PerfilUsuario | null): string {
-  if (profile && profile.es_admin) {
+  // Admin y Gerente de país no tienen una sola área fija (el admin puede ver
+  // cualquiera; el gerente de país no está atado a ninguna en particular, ver
+  // area_negocio=null) — ambos pueden elegir cuál ver en Dashboard/Administración
+  // vía el selector de AuthBar, persistido en sessionStorage.
+  if (profile && (profile.es_admin || profile.es_gerente_pais)) {
     return sessionStorage.getItem(AREA_NEGOCIO_ADMIN_KEY) || profile.area_negocio || 'riesgo'
   }
   return (profile && profile.area_negocio) || 'riesgo'
