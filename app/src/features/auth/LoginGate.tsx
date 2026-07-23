@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
+import { PasswordInput } from '../../components/PasswordInput'
 
 type Modo = 'login' | 'signup'
 
@@ -19,11 +20,10 @@ export function LoginGate() {
             <h2>Nueva contraseña</h2>
             <p className="subt">Escribe la contraseña que vas a usar de ahora en adelante.</p>
             <div id="authBarGate">
-              <input
-                type="password"
+              <PasswordInput
                 placeholder="contraseña nueva (mín. 6 caracteres)"
                 value={nuevaPassword}
-                onChange={(e) => setNuevaPassword(e.target.value)}
+                onChange={setNuevaPassword}
               />
               <button type="button" className="btn-auth-primary" onClick={() => setNewPassword(nuevaPassword)}>
                 Guardar contraseña
@@ -52,7 +52,7 @@ export function LoginGate() {
           <p className="subt">Accede con tu correo institucional y contraseña.</p>
           <div id="authBarGate">
             <input type="email" placeholder="correo@instacredit.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input type="password" placeholder="contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <PasswordInput placeholder="contraseña" value={password} onChange={setPassword} />
             <button type="button" className="btn-auth-primary" onClick={submit}>
               {modo === 'login' ? 'Iniciar sesión' : 'Crear mi contraseña'}
             </button>

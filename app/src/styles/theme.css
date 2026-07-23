@@ -49,9 +49,16 @@
 .login-gate-form h2{color:var(--azul);font-size:19px;font-weight:800;margin:0 0 6px 0;}
 .login-gate-form .subt{color:var(--gris-texto);opacity:.75;font-size:13px;margin:0 0 22px 0;}
 #authBarGate{display:flex;flex-direction:column;gap:10px;}
-#authBarGate input[type="email"], #authBarGate input[type="password"]{
+#authBarGate input[type="email"], #authBarGate input[type="password"], #authBarGate input[type="text"]{
   font-family:'Inter Tight',sans-serif;border:1px solid var(--gris-borde);border-radius:7px;padding:11px 13px;font-size:14px;width:100%;
 }
+.password-field{position:relative;display:flex;}
+.password-field input{padding-right:40px !important;}
+.password-toggle{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;padding:6px;
+  display:flex;align-items:center;justify-content:center;color:var(--gris-texto);opacity:.6;cursor:pointer;border-radius:5px;
+}
+.password-toggle:hover{opacity:1;background:var(--fondo);}
 #authBarGate button.btn-auth-primary{
   font-family:'Inter Tight',sans-serif;background:var(--verde);color:#fff;border:none;border-radius:7px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;
 }
