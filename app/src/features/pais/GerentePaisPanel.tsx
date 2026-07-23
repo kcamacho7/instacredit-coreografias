@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { KpiCatalogProvider } from '../../hooks/useKpiCatalog'
 import { PaisPanel } from './PaisPanel'
+import { MisAcuerdosPanel } from '../acuerdos/MisAcuerdosPanel'
 import type { AreaNegocio } from '../../hooks/useAreaNegocio'
+
+const MIS_ACUERDOS = '__mis_acuerdos__'
 
 interface GerentePaisPanelProps {
   paisCode: string
@@ -11,7 +14,9 @@ interface GerentePaisPanelProps {
 /**
  * Gerente de país: ve/edita TODAS las áreas de negocio activas para su único país —
  * una sub-pestaña por área (como los tabs de país de AppShell), cada una con su propio
- * PaisPanel y catálogo de KPI. Todas se montan a la vez y se muestran/ocultan por CSS
+ * PaisPanel y catálogo de KPI, más una pestaña "Mis acuerdos" que junta los acuerdos de
+ * reunión asignados a su correo en cualquiera de sus áreas (si no, quedarían repartidos
+ * entre las pestañas de área). Todas se montan a la vez y se muestran/ocultan por CSS
  * (mismo patrón que las pestañas de país arriba) para no perder ediciones sin guardar
  * al cambiar de área.
  */
@@ -20,7 +25,7 @@ export function GerentePaisPanel({ paisCode, areasCatalogo }: GerentePaisPanelPr
   const [areaActiva, setAreaActiva] = useState(areasActivas[0]?.codigo || '')
 
   useEffect(() => {
-    if (areasActivas.length && !areasActivas.some((a) => a.codigo === areaActiva)) {
+    if (areasActivas.length && areaActiva !== MIS_ACUERDOS && !areasActivas.some((a) => a.codigo === areaActiva)) {
       setAreaActiva(areasActivas[0].codigo)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,6 +43,9 @@ export function GerentePaisPanel({ paisCode, areasCatalogo }: GerentePaisPanelPr
             {area.nombre}
           </button>
         ))}
+        <button type="button" className={'filtro-btn' + (areaActiva === MIS_ACUERDOS ? ' active' : '')} onClick={() => setAreaActiva(MIS_ACUERDOS)}>
+          Mis acuerdos
+        </button>
       </div>
       {areasActivas.map((area) => (
         <div key={area.codigo} className={'tab-panel' + (areaActiva === area.codigo ? ' active' : '')}>
@@ -46,6 +54,9 @@ export function GerentePaisPanel({ paisCode, areasCatalogo }: GerentePaisPanelPr
           </KpiCatalogProvider>
         </div>
       ))}
+      <div className={'tab-panel' + (areaActiva === MIS_ACUERDOS ? ' active' : '')}>
+        <MisAcuerdosPanel />
+      </div>
     </div>
   )
 }
