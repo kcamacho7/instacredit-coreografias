@@ -4,41 +4,40 @@ import '../../lib/chartSetup'
 import { CHART_COLORS, ESTADOS } from '../../lib/chartSetup'
 import { sb } from '../../lib/supabase'
 import { PAISES } from '../../lib/catalogs'
-import { useKpiCatalog } from '../../hooks/useKpiCatalog'
 import { construirTodas, ordenarVencidas, type AccionAgregada, type OrdenVencidas } from '../../lib/dashboardMetrics'
 
 interface DashboardChartsProps {
-  areaNegocio: string
+  areasNegocio: string[]
   paisFiltro: string
 }
 
 const legendBottom = { legend: { position: 'bottom' as const, labels: { boxWidth: 12, font: { size: 11 } } } }
 
-export function DashboardCharts({ areaNegocio, paisFiltro }: DashboardChartsProps) {
-  const { areas } = useKpiCatalog()
+export function DashboardCharts({ areasNegocio, paisFiltro }: DashboardChartsProps) {
   const [todas, setTodas] = useState<AccionAgregada[] | null>(null)
   const [orden, setOrden] = useState<OrdenVencidas>({ campo: 'pais', dir: 'asc' })
   const [filtroUsuarioEstado, setFiltroUsuarioEstado] = useState('')
-
-  const dominioNombrePorCodigo = useMemo(() => Object.fromEntries(areas.map((a) => [a.id, a.nombre])), [areas])
-  const kpiNombrePorId = useMemo(() => Object.fromEntries(areas.flatMap((a) => a.kpis).map((k) => [k.id, k.nombre])), [areas])
 
   useEffect(() => {
     let activo = true
     setTodas(null)
     ;(async () => {
-      const [{ data: coreoData }, { data: proyData }, { data: customData }, { data: reunionesData }, { data: acuerdosData }] = await Promise.all([
-        sb.from('coreografias').select('*').eq('area_negocio', areaNegocio),
-        sb.from('proyectos_especiales').select('*').eq('area_negocio', areaNegocio),
-        sb.from('kpis_adicionales').select('*').eq('area_negocio', areaNegocio),
-        sb.from('reuniones').select('id,titulo').eq('area_negocio', areaNegocio),
-        sb.from('acuerdos_reunion').select('*').eq('area_negocio', areaNegocio),
+      const [{ data: dominiosData }, { data: kpisData }, { data: coreoData }, { data: proyData }, { data: customData }, { data: reunionesData }, { data: acuerdosData }] = await Promise.all([
+        sb.from('kpi_dominios').select('codigo,nombre').in('area_negocio', areasNegocio),
+        sb.from('kpis_catalogo').select('kpi_id,nombre').in('area_negocio', areasNegocio),
+        sb.from('coreografias').select('*').in('area_negocio', areasNegocio),
+        sb.from('proyectos_especiales').select('*').in('area_negocio', areasNegocio),
+        sb.from('kpis_adicionales').select('*').in('area_negocio', areasNegocio),
+        sb.from('reuniones').select('id,titulo').in('area_negocio', areasNegocio),
+        sb.from('acuerdos_reunion').select('*').in('area_negocio', areasNegocio),
       ])
       if (!activo) return
+      const dominioNombrePorCodigo = Object.fromEntries((dominiosData || []).map((d) => [d.codigo, d.nombre]))
+      const kpiNombrePorId = Object.fromEntries((kpisData || []).map((k) => [k.kpi_id, k.nombre]))
       setTodas(construirTodas(coreoData as never, proyData as never, customData as never, reunionesData, acuerdosData as never, dominioNombrePorCodigo, kpiNombrePorId))
     })()
     return () => { activo = false }
-  }, [areaNegocio, dominioNombrePorCodigo, kpiNombrePorId])
+  }, [areasNegocio])
 
   const nombrePais = (code: string) => PAISES.find((p) => p.code === code)?.nombre || code
 

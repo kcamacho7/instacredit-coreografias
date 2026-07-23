@@ -4,15 +4,18 @@ import { PAISES } from '../../lib/catalogs'
 import { Emoji } from '../../components/Emoji'
 import { DashboardCharts } from './DashboardCharts'
 import { AcuerdosControlWidget } from './AcuerdosControlWidget'
+import type { AreaNegocio } from '../../hooks/useAreaNegocio'
 
 interface DashboardPageProps {
   areaNegocio: string
   nombreAreaActiva: string
+  areasCatalogo: AreaNegocio[]
 }
 
-export function DashboardPage({ areaNegocio, nombreAreaActiva }: DashboardPageProps) {
+export function DashboardPage({ areaNegocio, nombreAreaActiva, areasCatalogo }: DashboardPageProps) {
   const { profile } = useAuth()
   const puedeVerTodosPaises = !!(profile && (profile.es_regional || profile.es_admin))
+  const esGerentePais = !!(profile?.es_gerente_pais && profile?.pais_code)
 
   const opciones = useMemo(() => {
     if (puedeVerTodosPaises) return [{ code: 'ALL', nombre: 'Consolidado', bandera: '🌎' }, ...PAISES]
@@ -20,6 +23,16 @@ export function DashboardPage({ areaNegocio, nombreAreaActiva }: DashboardPagePr
   }, [puedeVerTodosPaises, profile])
 
   const [paisFiltro, setPaisFiltro] = useState(opciones[0]?.code || 'ALL')
+
+  // Un gerente de país maneja varias áreas de negocio a la vez — además del
+  // país (fijo, el suyo), puede elegir ver todas sus áreas consolidadas o
+  // filtrar a una sola, en vez del selector global de área en AuthBar.
+  const areasActivas = useMemo(() => areasCatalogo.filter((a) => a.activo), [areasCatalogo])
+  const [areaFiltro, setAreaFiltro] = useState('ALL')
+  const areasParaConsulta = useMemo(() => {
+    if (!esGerentePais) return [areaNegocio]
+    return areaFiltro === 'ALL' ? areasActivas.map((a) => a.codigo) : [areaFiltro]
+  }, [esGerentePais, areaFiltro, areasActivas, areaNegocio])
 
   return (
     <div style={{ paddingTop: 20 }}>
@@ -44,8 +57,16 @@ export function DashboardPage({ areaNegocio, nombreAreaActiva }: DashboardPagePr
               </button>
             ))}
           </div>
+          {esGerentePais && (
+            <div className="filtro-bar">
+              <button type="button" className={'filtro-btn' + (areaFiltro === 'ALL' ? ' active' : '')} onClick={() => setAreaFiltro('ALL')}>Todas las áreas</button>
+              {areasActivas.map((a) => (
+                <button key={a.codigo} type="button" className={'filtro-btn' + (areaFiltro === a.codigo ? ' active' : '')} onClick={() => setAreaFiltro(a.codigo)}>{a.nombre}</button>
+              ))}
+            </div>
+          )}
           <div id="dashboard-publico-charts">
-            <DashboardCharts areaNegocio={areaNegocio} paisFiltro={paisFiltro} />
+            <DashboardCharts areasNegocio={areasParaConsulta} paisFiltro={paisFiltro} />
           </div>
           {puedeVerTodosPaises && <AcuerdosControlWidget areaNegocio={areaNegocio} nombreAreaActiva={nombreAreaActiva} />}
         </>

@@ -124,7 +124,7 @@ export function AppShell() {
           </div>
         ))}
         <div className={'tab-panel' + (activeTab === 'DASHBOARD' ? ' active' : '')}>
-          <DashboardPage areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
+          <DashboardPage areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} areasCatalogo={catalogo} />
         </div>
         {esRegionalExclusivo && (
           <div className={'tab-panel' + (activeTab === 'REGIONAL_AREA' ? ' active' : '')}>
