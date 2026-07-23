@@ -150,13 +150,9 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
         )}
       </td>
       <td>
-        {modoPais ? (
-          <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad}>
-            {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
-          </select>
-        ) : (
-          <span>{areasActivas.find((a) => a.codigo === areaUsuario)?.nombre || areaUsuario}</span>
-        )}
+        <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad}>
+          {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
+        </select>
       </td>
       <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} disabled={bloqueadaPorPropiedad} /></td>
       <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
