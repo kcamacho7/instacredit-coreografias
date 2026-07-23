@@ -43,9 +43,15 @@ export function UsuariosTab({ areaNegocio }: UsuariosTabProps) {
 
   async function cargar() {
     const base = sb.from('perfiles_usuario').select('*').order('email')
+    // area_negocio=null (Gerente de País) nunca calza con .eq() — el super usuario
+    // necesita seguir viéndolos para poder gestionarlos sin importar qué área tenga
+    // activa. Un admin de área no los ve (no podría editarlos: RLS exige su propia
+    // área); los ve en su lista un admin de país, vía modoPais.
     const usuariosRes = modoPais
       ? await base.eq('pais_code', profile!.pais_code!)
-      : await base.eq('area_negocio', areaNegocio)
+      : esSuperAdmin
+        ? await base.or(`area_negocio.eq.${areaNegocio},area_negocio.is.null`)
+        : await base.eq('area_negocio', areaNegocio)
     const { data: areasData } = await sb.from('areas_negocio').select('*').eq('activo', true).order('orden')
     if (usuariosRes.error) { setError(usuariosRes.error.message); return }
     setUsuarios(usuariosRes.data || [])
@@ -98,7 +104,7 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
   const esSuperAdmin = !!profile?.es_admin
   const [nombre, setNombre] = useState(usuario.nombre || '')
   const [paisCode, setPaisCode] = useState(usuario.pais_code || '')
-  const [areaUsuario, setAreaUsuario] = useState(usuario.area_negocio)
+  const [areaUsuario, setAreaUsuario] = useState(usuario.area_negocio || '')
   const [esRegional, setEsRegional] = useState(usuario.es_regional)
   const [esAdmin, setEsAdmin] = useState(usuario.es_admin)
   const [esLider, setEsLider] = useState(usuario.es_lider)
@@ -113,7 +119,9 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
 
   async function guardar() {
     const payload: Record<string, unknown> = {
-      pais_code: paisCode || null, area_negocio: areaUsuario, es_regional: esRegional, nombre: nombre.trim(),
+      // Un Gerente de País no está atado a ninguna área en particular — ve/edita
+      // todas las de su país, así que su área_negocio se guarda como null.
+      pais_code: paisCode || null, area_negocio: esGerentePais ? null : (areaUsuario || null), es_regional: esRegional, nombre: nombre.trim(),
     }
     // Los roles elevados solo los puede tocar el super usuario — el checkbox ya está
     // deshabilitado para los demás, pero además el trigger de la base lo rechazaría.
@@ -164,9 +172,14 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
           )}
         </td>
         <td>
-          <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad} style={{ minWidth: 120 }}>
-            {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
-          </select>
+          {esGerentePais ? (
+            <span style={{ fontStyle: 'italic', color: 'var(--azul-claro)' }}>Todas las áreas</span>
+          ) : (
+            <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad} style={{ minWidth: 120 }}>
+              <option value="">Sin asignar</option>
+              {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
+            </select>
+          )}
         </td>
         <td>
           {insignias.length === 0 ? <span style={{ color: 'var(--gris-borde)', fontSize: 11 }}>Sin roles</span> : insignias.map((r) => <span key={r} style={ROLE_BADGE_STYLE}>{r}</span>)}
@@ -240,7 +253,8 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
       email: emailNorm,
       nombre: nombre.trim(),
       pais_code: modoPais ? paisFijo : (pais || null),
-      area_negocio: modoPais ? area : areaNegocio,
+      // Un Gerente de País no está atado a ninguna área en particular.
+      area_negocio: esGerentePais ? null : (modoPais ? area : areaNegocio),
       es_regional: esRegional,
     }
     if (esSuperAdmin) {
@@ -292,7 +306,7 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
             {esSuperAdmin && (
               <>
                 <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} /> Es Super Usuario (Administración total)</label>
-                <label><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} /> Es Gerente de País (todas las áreas, un solo país)</label>
+                <label><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} /> Es Gerente de País (todas las áreas de su país — no se le asigna un área en particular)</label>
                 <label><input type="checkbox" checked={esAdminArea} onChange={(e) => setEsAdminArea(e.target.checked)} /> Es Administrador de su área</label>
                 <label><input type="checkbox" checked={esAdminPais} onChange={(e) => setEsAdminPais(e.target.checked)} /> Es Administrador de su país</label>
               </>

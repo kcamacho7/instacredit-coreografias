@@ -496,7 +496,7 @@ export type Database = {
       }
       perfiles_usuario: {
         Row: {
-          area_negocio: string
+          area_negocio: string | null
           creado_at: string
           creado_por: string | null
           email: string
@@ -512,7 +512,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
-          area_negocio?: string
+          area_negocio?: string | null
           creado_at?: string
           creado_por?: string | null
           email: string
@@ -528,7 +528,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
-          area_negocio?: string
+          area_negocio?: string | null
           creado_at?: string
           creado_por?: string | null
           email?: string
