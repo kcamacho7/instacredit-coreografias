@@ -113,7 +113,7 @@ export function AppShell() {
         {puedeVerAcuerdos && (
           <div className={'tab-panel' + (activeTab === 'ACUERDOS' ? ' active' : '')}>
             <div style={{ paddingTop: 20 }}>
-              <div className="area-owner">
+              <div className="area-owner" style={{ borderRadius: 8, marginBottom: 16 }}>
                 <strong>Qué es:</strong> sube el archivo (o pega el texto) de una transcripción y la IA arma la minuta al instante, con título y acuerdos sugeridos (responsable, fecha y correo, tomados de la lista de usuarios cuando reconoce el nombre). Revisa y ajusta cada acuerdo, y al "Guardar minuta" puedes enviarla por correo a cada responsable y a Riesgo Regional en el mismo paso, con un PDF adjunto del detalle completo.
               </div>
               <AcuerdosModule areaNegocio={currentArea} />
