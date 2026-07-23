@@ -20,9 +20,10 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
   const { user, profile } = useAuth()
   const { mostrarAlerta } = useToast()
   const isUnlocked = !!(profile && (profile.es_regional || profile.es_admin || profile.pais_code === paisCode))
-  const { areas } = useKpiCatalog()
+  const { areas, loading: catalogoLoading } = useKpiCatalog()
 
-  const { loading, error, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales } = useAreaData(paisCode, areaNegocio, areas)
+  const { loading: datosLoading, error, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales } = useAreaData(paisCode, areaNegocio, areas)
+  const loading = datosLoading || catalogoLoading
   const [kpis, setKpis] = useState<Record<string, Record<string, KpiState>>>({})
   const [customKpis, setCustomKpis] = useState<Record<string, CustomKpiState[]>>({})
   const [proyectos, setProyectos] = useState<ProyectoState[]>([])
@@ -30,13 +31,20 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
   const seeded = useRef(false)
 
   useEffect(() => {
-    if (!loading && !seeded.current) {
+    // useAreaData recalcula kpisPorAreaId de forma asíncrona cuando "areas"
+    // cambia (el catálogo puede terminar de cargar un instante después que los
+    // datos de coreografias) — hay un frame en que "loading" ya es false pero
+    // kpisPorAreaId todavía no trae una entrada por cada dominio del catálogo.
+    // Sembrar en ese frame deja kpisState vacío para siempre (solo se siembra
+    // una vez) y KpiBlock revienta al leer un kpi que no existe en el estado.
+    const catalogoListo = areas.every((a) => kpisPorAreaId[a.id])
+    if (!loading && !seeded.current && catalogoListo) {
       setKpis(kpisPorAreaId)
       setCustomKpis(customKpisPorAreaId)
       setProyectos(proyectosEspeciales)
       seeded.current = true
     }
-  }, [loading, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales])
+  }, [loading, kpisPorAreaId, customKpisPorAreaId, proyectosEspeciales, areas])
 
   async function guardar() {
     if (!isUnlocked) {

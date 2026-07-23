@@ -17,13 +17,19 @@ interface AcuerdosDelResponsableProps {
 export function AcuerdosDelResponsable({ paisCode, areaNegocio }: AcuerdosDelResponsableProps) {
   const { user, profile } = useAuth()
   const esVistaRegional = !!(profile && (profile.es_regional || profile.es_admin))
+  // El gerente de país no tiene área propia — sus acuerdos personales ya se
+  // consolidan en "Mis acuerdos" (todas sus áreas); mostrarlos aquí también,
+  // por cada pestaña de área que visita, sería duplicado y engañoso.
+  const esGerentePais = !!profile?.es_gerente_pais
   const [grupos, setGrupos] = useState<{ reunion: ReunionRel | null; acuerdos: AcuerdoReunion[] }[] | null>(null)
 
   useEffect(() => {
     let activo = true
     ;(async () => {
       let data: AcuerdoReunion[] | null = null
-      if (esVistaRegional) {
+      if (esGerentePais && !esVistaRegional) {
+        data = []
+      } else if (esVistaRegional) {
         const { data: usuariosPais } = await sb.from('perfiles_usuario').select('email,es_regional').eq('pais_code', paisCode).eq('area_negocio', areaNegocio)
         let candidatos = usuariosPais || []
         if (paisCode !== 'RG') candidatos = candidatos.filter((u) => !u.es_regional)
