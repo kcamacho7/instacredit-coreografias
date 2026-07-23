@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { sb } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { useDialog } from '../../components/ui/DialogProvider'
@@ -8,6 +8,22 @@ import type { AreaNegocio } from '../../hooks/useAreaNegocio'
 import type { Tables } from '../../types/database.types'
 
 type PerfilUsuario = Tables<'perfiles_usuario'>
+
+const ROLE_BADGE_STYLE: CSSProperties = {
+  display: 'inline-block', background: 'var(--verde-claro)', color: 'var(--azul)',
+  borderRadius: 10, padding: '2px 8px', fontSize: 10.5, fontWeight: 700, marginRight: 4, marginBottom: 3, whiteSpace: 'nowrap',
+}
+
+function insigniasDe(u: Pick<PerfilUsuario, 'es_regional' | 'es_admin' | 'es_lider' | 'es_gerente_pais' | 'es_admin_area' | 'es_admin_pais'>): string[] {
+  const insignias: string[] = []
+  if (u.es_admin) insignias.push('Super Usuario')
+  if (u.es_regional) insignias.push('Regional')
+  if (u.es_lider) insignias.push('Acceso Acuerdos')
+  if (u.es_gerente_pais) insignias.push('Gerente país')
+  if (u.es_admin_area) insignias.push('Admin área')
+  if (u.es_admin_pais) insignias.push('Admin país')
+  return insignias
+}
 
 interface UsuariosTabProps {
   areaNegocio: string
@@ -53,18 +69,13 @@ export function UsuariosTab({ areaNegocio }: UsuariosTabProps) {
         <table className="coreo">
           <thead>
             <tr>
-              <th style={{ width: '13%' }}>Correo</th>
-              <th style={{ width: '11%' }}>Nombre</th>
-              <th style={{ width: '8%' }}>Estado</th>
-              <th style={{ width: '10%' }}>País</th>
-              <th style={{ width: '10%' }}>Área</th>
-              <th style={{ width: '5%' }}>Regional</th>
-              <th style={{ width: '5%' }}>Admin</th>
-              <th style={{ width: '5%' }}>Acceso Acuerdos</th>
-              <th style={{ width: '6%' }}>Gerente país</th>
-              <th style={{ width: '6%' }}>Admin área</th>
-              <th style={{ width: '6%' }}>Admin país</th>
-              <th style={{ width: '15%' }}>&nbsp;</th>
+              <th style={{ width: '17%' }}>Correo</th>
+              <th style={{ width: '14%' }}>Nombre</th>
+              <th style={{ width: '9%' }}>Estado</th>
+              <th style={{ width: '11%' }}>País</th>
+              <th style={{ width: '11%' }}>Área</th>
+              <th style={{ width: '19%' }}>Roles</th>
+              <th style={{ width: '19%' }}>&nbsp;</th>
             </tr>
           </thead>
           <tbody>
@@ -94,9 +105,11 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
   const [esGerentePais, setEsGerentePais] = useState(usuario.es_gerente_pais)
   const [esAdminArea, setEsAdminArea] = useState(usuario.es_admin_area)
   const [esAdminPais, setEsAdminPais] = useState(usuario.es_admin_pais)
+  const [editandoRoles, setEditandoRoles] = useState(false)
 
   const esPropia = !!(user && usuario.user_id && user.id === usuario.user_id)
   const bloqueadaPorPropiedad = !esSuperAdmin && !!usuario.creado_por && usuario.creado_por !== user?.id
+  const insignias = insigniasDe({ es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, es_gerente_pais: esGerentePais, es_admin_area: esAdminArea, es_admin_pais: esAdminPais })
 
   async function guardar() {
     const payload: Record<string, unknown> = {
@@ -135,45 +148,62 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
   }
 
   return (
-    <tr>
-      <td>{usuario.email}</td>
-      <td><input type="text" style={{ width: '100%' }} placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={bloqueadaPorPropiedad} /></td>
-      <td>{usuario.user_id ? <span style={{ color: 'var(--verde)', fontWeight: 700 }}>Registrado</span> : <span style={{ color: 'var(--azul-claro)' }}>Pendiente de registro</span>}</td>
-      <td>
-        {modoPais ? (
-          <span>{PAISES.find((p) => p.code === paisCode)?.nombre || paisCode || 'Sin asignar'}</span>
-        ) : (
-          <select value={paisCode} onChange={(e) => setPaisCode(e.target.value)} disabled={bloqueadaPorPropiedad}>
-            <option value="">Sin asignar</option>
-            {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
+    <>
+      <tr>
+        <td>{usuario.email}</td>
+        <td><input type="text" style={{ width: '100%', minWidth: 120 }} placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={bloqueadaPorPropiedad} /></td>
+        <td>{usuario.user_id ? <span style={{ color: 'var(--verde)', fontWeight: 700 }}>Registrado</span> : <span style={{ color: 'var(--azul-claro)' }}>Pendiente</span>}</td>
+        <td>
+          {modoPais ? (
+            <span>{PAISES.find((p) => p.code === paisCode)?.nombre || paisCode || 'Sin asignar'}</span>
+          ) : (
+            <select value={paisCode} onChange={(e) => setPaisCode(e.target.value)} disabled={bloqueadaPorPropiedad} style={{ minWidth: 120 }}>
+              <option value="">Sin asignar</option>
+              {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
+            </select>
+          )}
+        </td>
+        <td>
+          <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad} style={{ minWidth: 120 }}>
+            {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
           </select>
-        )}
-      </td>
-      <td>
-        <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad}>
-          {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
-        </select>
-      </td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} disabled={bloqueadaPorPropiedad} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin || bloqueadaPorPropiedad} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdminArea} onChange={(e) => setEsAdminArea(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdminPais} onChange={(e) => setEsAdminPais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
-      <td style={{ whiteSpace: 'nowrap' }}>
-        {bloqueadaPorPropiedad ? (
-          <span style={{ fontSize: 11, color: 'var(--azul-claro)' }}>🔒 Creado por otro administrador</span>
-        ) : (
-          <>
-            <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--verde)', color: 'var(--verde)', marginRight: 6 }} onClick={guardar}>Guardar</button>
-            {usuario.user_id && (
-              <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--azul-claro)', color: 'var(--azul-claro)', marginRight: 6 }} onClick={resetPassword}>Restablecer contraseña</button>
-            )}
-            <button type="button" className="btn-eliminar-proyecto" onClick={quitarAcceso}>Quitar acceso</button>
-          </>
-        )}
-      </td>
-    </tr>
+        </td>
+        <td>
+          {insignias.length === 0 ? <span style={{ color: 'var(--gris-borde)', fontSize: 11 }}>Sin roles</span> : insignias.map((r) => <span key={r} style={ROLE_BADGE_STYLE}>{r}</span>)}
+        </td>
+        <td style={{ whiteSpace: 'nowrap' }}>
+          {bloqueadaPorPropiedad ? (
+            <span style={{ fontSize: 11, color: 'var(--azul-claro)' }}>🔒 Creado por otro administrador</span>
+          ) : (
+            <>
+              <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--azul-claro)', color: 'var(--azul-claro)', marginRight: 6 }} onClick={() => setEditandoRoles((v) => !v)}>
+                {editandoRoles ? 'Ocultar roles' : 'Editar roles'}
+              </button>
+              <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--verde)', color: 'var(--verde)', marginRight: 6 }} onClick={guardar}>Guardar</button>
+              {usuario.user_id && (
+                <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--azul-claro)', color: 'var(--azul-claro)', marginRight: 6 }} onClick={resetPassword}>Restablecer contraseña</button>
+              )}
+              <button type="button" className="btn-eliminar-proyecto" onClick={quitarAcceso}>Quitar acceso</button>
+            </>
+          )}
+        </td>
+      </tr>
+      {editandoRoles && (
+        <tr className="fila-resultado">
+          <td colSpan={7}>
+            <label>Roles de {usuario.email}</label>
+            <div className="permisos-checks" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+              <label><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} disabled={bloqueadaPorPropiedad} /> Regional (de su propia área)</label>
+              <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin || bloqueadaPorPropiedad} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Acceso Acuerdos</label>
+              <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Super Usuario</label>
+              <label><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Gerente de País</label>
+              <label><input type="checkbox" checked={esAdminArea} onChange={(e) => setEsAdminArea(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Admin de área</label>
+              <label><input type="checkbox" checked={esAdminPais} onChange={(e) => setEsAdminPais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Admin de país</label>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 

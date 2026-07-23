@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { sb } from '../../lib/supabase'
 import { useToast } from '../../components/ui/ToastProvider'
+import { useDialog } from '../../components/ui/DialogProvider'
 import type { AreaNegocio } from '../../hooks/useAreaNegocio'
 
 export function AreasNegocioTab() {
@@ -56,6 +57,7 @@ export function AreasNegocioTab() {
 
 function FilaArea({ area, onGuardado }: { area: AreaNegocio; onGuardado: () => void }) {
   const { mostrarAlerta } = useToast()
+  const { mostrarConfirm } = useDialog()
   const [nombre, setNombre] = useState(area.nombre)
   const [orden, setOrden] = useState(area.orden)
   const [activo, setActivo] = useState(area.activo)
@@ -65,6 +67,22 @@ function FilaArea({ area, onGuardado }: { area: AreaNegocio; onGuardado: () => v
     if (!nombreLimpio) { mostrarAlerta('El nombre no puede estar vacío.'); return }
     const { error } = await sb.from('areas_negocio').update({ nombre: nombreLimpio, orden, activo }).eq('codigo', area.codigo)
     if (error) { mostrarAlerta('Error: ' + error.message); return }
+    onGuardado()
+  }
+
+  async function eliminar() {
+    const ok = await mostrarConfirm(`¿Eliminar por completo el área "${area.nombre}" (${area.codigo})? Solo funciona si no tiene ningún dato asociado (coreografías, KPI adicionales, proyectos, usuarios, catálogo, reuniones) — si los tiene, la base de datos rechazará el borrado para no perder información. Si solo quieres dejar de usarla, desactívala en vez de borrarla.`)
+    if (!ok) return
+    const { error } = await sb.from('areas_negocio').delete().eq('codigo', area.codigo)
+    if (error) {
+      if (error.code === '23503') {
+        mostrarAlerta(`No se puede eliminar "${area.nombre}": todavía tiene datos asociados (coreografías, usuarios, catálogo, etc.). Desactívala en vez de borrarla, o primero elimina/reasigna esos datos.`)
+      } else {
+        mostrarAlerta('Error: ' + error.message)
+      }
+      return
+    }
+    mostrarAlerta(`Área "${area.nombre}" eliminada.`, 'success')
     onGuardado()
   }
 
@@ -89,6 +107,7 @@ function FilaArea({ area, onGuardado }: { area: AreaNegocio; onGuardado: () => v
           <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activa
         </label>
         <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--verde)', color: 'var(--verde)' }} onClick={guardar}>Guardar</button>
+        <button type="button" className="btn-eliminar-proyecto" onClick={eliminar}>Eliminar área</button>
       </div>
     </div>
   )
