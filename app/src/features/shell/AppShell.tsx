@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAreaNegocio } from '../../hooks/useAreaNegocio'
 import { KpiCatalogProvider } from '../../hooks/useKpiCatalog'
@@ -64,6 +64,20 @@ export function AppShell() {
     sessionStorage.setItem(ACTIVE_TAB_KEY, code)
   }
 
+  // El toolbar es sticky en top:0 y las tabs son sticky justo debajo — en vez de
+  // asumir una altura fija de toolbar (frágil ante cambios de fuente/contenido),
+  // se mide en vivo para que nunca quede un hueco que deje ver el contenido
+  // scrolleando detrás.
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const [toolbarHeight, setToolbarHeight] = useState(0)
+  useLayoutEffect(() => {
+    const el = toolbarRef.current
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => setToolbarHeight(entry.contentRect.height))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <KpiCatalogProvider areaNegocio={currentArea}>
     <div id="appContent">
@@ -77,13 +91,13 @@ export function AppShell() {
         <img className="prestamito" src={`${base}assets/prestamito_senalando.png`} alt="Prestamito" />
       </header>
 
-      <div className="toolbar">
+      <div className="toolbar" ref={toolbarRef}>
         <span className="status" id="statusText">Datos consolidados desde la nube</span>
       </div>
 
       <AuthBar currentArea={currentArea} nombreAreaActiva={nombreAreaActiva} areasCatalogo={catalogo} onCambiarArea={cambiarAreaActiva} />
 
-      <div className="tabs" id="tabs">
+      <div className="tabs" id="tabs" style={toolbarHeight ? { top: toolbarHeight } : undefined}>
         {tabs.map((t) => (
           <button
             key={t.code}
