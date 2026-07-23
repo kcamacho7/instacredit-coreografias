@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb } from '../../lib/supabase'
-import { PAISES, AREAS_FALLBACK } from '../../lib/catalogs'
+import { PAISES } from '../../lib/catalogs'
 import { useDialog } from '../../components/ui/DialogProvider'
 import { useToast } from '../../components/ui/ToastProvider'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
@@ -34,11 +34,16 @@ function BitacoraKpisAdicionales({ areaNegocio }: { areaNegocio: string }) {
   const { mostrarAlerta } = useToast()
   const [data, setData] = useState<KpiLogRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [dominioNombrePorCodigo, setDominioNombrePorCodigo] = useState<Record<string, string>>({})
 
   async function cargar() {
-    const { data, error } = await sb.from('kpis_adicionales_log').select('*').eq('area_negocio', areaNegocio).order('deleted_at', { ascending: false })
+    const [{ data, error }, { data: dominiosData }] = await Promise.all([
+      sb.from('kpis_adicionales_log').select('*').eq('area_negocio', areaNegocio).order('deleted_at', { ascending: false }),
+      sb.from('kpi_dominios').select('codigo,nombre').eq('area_negocio', areaNegocio),
+    ])
     if (error) { setError(error.message); return }
     setData(data)
+    setDominioNombrePorCodigo(Object.fromEntries((dominiosData || []).map((d) => [d.codigo, d.nombre])))
   }
   useEffect(() => { cargar() }, [areaNegocio])
 
@@ -72,7 +77,7 @@ function BitacoraKpisAdicionales({ areaNegocio }: { areaNegocio: string }) {
           </button>
           {data.map((row) => {
             const paisNombre = PAISES.find((p) => p.code === row.pais_code)?.nombre || row.pais_code
-            const areaNombre = AREAS_FALLBACK.find((a) => a.id === row.area_id)?.nombre || row.area_id
+            const areaNombre = dominioNombrePorCodigo[row.area_id] || row.area_id
             return (
               <div key={row.id} className="proyecto-card">
                 <div className="proyecto-card-header">

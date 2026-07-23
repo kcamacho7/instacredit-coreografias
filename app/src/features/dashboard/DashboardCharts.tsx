@@ -4,6 +4,7 @@ import '../../lib/chartSetup'
 import { CHART_COLORS, ESTADOS } from '../../lib/chartSetup'
 import { sb } from '../../lib/supabase'
 import { PAISES } from '../../lib/catalogs'
+import { useKpiCatalog } from '../../hooks/useKpiCatalog'
 import { construirTodas, ordenarVencidas, type AccionAgregada, type OrdenVencidas } from '../../lib/dashboardMetrics'
 
 interface DashboardChartsProps {
@@ -14,9 +15,13 @@ interface DashboardChartsProps {
 const legendBottom = { legend: { position: 'bottom' as const, labels: { boxWidth: 12, font: { size: 11 } } } }
 
 export function DashboardCharts({ areaNegocio, paisFiltro }: DashboardChartsProps) {
+  const { areas } = useKpiCatalog()
   const [todas, setTodas] = useState<AccionAgregada[] | null>(null)
   const [orden, setOrden] = useState<OrdenVencidas>({ campo: 'pais', dir: 'asc' })
   const [filtroUsuarioEstado, setFiltroUsuarioEstado] = useState('')
+
+  const dominioNombrePorCodigo = useMemo(() => Object.fromEntries(areas.map((a) => [a.id, a.nombre])), [areas])
+  const kpiNombrePorId = useMemo(() => Object.fromEntries(areas.flatMap((a) => a.kpis).map((k) => [k.id, k.nombre])), [areas])
 
   useEffect(() => {
     let activo = true
@@ -30,10 +35,10 @@ export function DashboardCharts({ areaNegocio, paisFiltro }: DashboardChartsProp
         sb.from('acuerdos_reunion').select('*').eq('area_negocio', areaNegocio),
       ])
       if (!activo) return
-      setTodas(construirTodas(coreoData as never, proyData as never, customData as never, reunionesData, acuerdosData as never))
+      setTodas(construirTodas(coreoData as never, proyData as never, customData as never, reunionesData, acuerdosData as never, dominioNombrePorCodigo, kpiNombrePorId))
     })()
     return () => { activo = false }
-  }, [areaNegocio])
+  }, [areaNegocio, dominioNombrePorCodigo, kpiNombrePorId])
 
   const nombrePais = (code: string) => PAISES.find((p) => p.code === code)?.nombre || code
 

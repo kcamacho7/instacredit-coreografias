@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { sb } from '../lib/supabase'
-import { AREAS_FALLBACK, type AreaCatalogo, type KpiCatalogo } from '../lib/catalogs'
+import type { AreaCatalogo, KpiCatalogo } from '../lib/catalogs'
 
 interface KpiCatalogContextValue {
   areas: AreaCatalogo[]
@@ -10,8 +10,14 @@ interface KpiCatalogContextValue {
 
 const KpiCatalogContext = createContext<KpiCatalogContextValue | null>(null)
 
+interface DominioRow {
+  codigo: string
+  nombre: string
+  ejecuta: string | null
+  controla: string | null
+}
+
 interface KpiCatalogoRow {
-  id: string
   area_id: string
   kpi_id: string
   nombre: string
@@ -19,26 +25,27 @@ interface KpiCatalogoRow {
 }
 
 /**
- * El catálogo de KPI fijo (AREAS_FALLBACK) es el respaldo de fábrica — este
- * provider lo sobreescribe con el catálogo vivo de `kpis_catalogo` (que
- * Riesgo Regional/Admin puede editar/crear/eliminar), igual que
- * `loadKpiCatalog()` del sitio legado. Si un dominio no tiene filas propias
- * en la tabla, conserva su catálogo de fábrica.
+ * Cada area_negocio define sus propios dominios de KPI (tabla kpi_dominios) y sus
+ * propios KPI dentro de cada dominio (tabla kpis_catalogo) — ya no se comparte un
+ * esqueleto fijo entre áreas. Un área sin dominios configurados simplemente no
+ * muestra ninguno (antes heredaba en silencio los dominios/KPI de 'riesgo').
  */
 export function KpiCatalogProvider({ areaNegocio, children }: { areaNegocio: string; children: ReactNode }) {
-  const [areas, setAreas] = useState<AreaCatalogo[]>(AREAS_FALLBACK)
+  const [areas, setAreas] = useState<AreaCatalogo[]>([])
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
 
   const cargar = useCallback(async () => {
     setLoading(true)
-    const { data } = await sb.from('kpis_catalogo').select('*').eq('area_negocio', areaNegocio).eq('activo', true).order('area_id').order('orden')
-    const filas = (data || []) as KpiCatalogoRow[]
-    const nuevasAreas = AREAS_FALLBACK.map((area) => {
-      const propias = filas.filter((f) => f.area_id === area.id)
-      if (propias.length === 0) return area
-      const kpis: KpiCatalogo[] = propias.map((f) => ({ id: f.kpi_id, nombre: f.nombre, def: f.definicion || '' }))
-      return { ...area, kpis }
+    const [{ data: dominiosData }, { data: kpisData }] = await Promise.all([
+      sb.from('kpi_dominios').select('codigo,nombre,ejecuta,controla').eq('area_negocio', areaNegocio).eq('activo', true).order('orden'),
+      sb.from('kpis_catalogo').select('area_id,kpi_id,nombre,definicion').eq('area_negocio', areaNegocio).eq('activo', true).order('area_id').order('orden'),
+    ])
+    const dominios = (dominiosData || []) as DominioRow[]
+    const filas = (kpisData || []) as KpiCatalogoRow[]
+    const nuevasAreas: AreaCatalogo[] = dominios.map((d) => {
+      const kpis: KpiCatalogo[] = filas.filter((f) => f.area_id === d.codigo).map((f) => ({ id: f.kpi_id, nombre: f.nombre, def: f.definicion || '' }))
+      return { id: d.codigo, nombre: d.nombre, ejecuta: d.ejecuta || '', controla: d.controla || '', kpis }
     })
     setAreas(nuevasAreas)
     setLoading(false)

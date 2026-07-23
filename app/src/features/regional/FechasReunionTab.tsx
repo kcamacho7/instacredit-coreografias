@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { sb } from '../../lib/supabase'
-import { PAISES, AREAS_FALLBACK } from '../../lib/catalogs'
+import { PAISES } from '../../lib/catalogs'
 import { useDialog } from '../../components/ui/DialogProvider'
 import { useToast } from '../../components/ui/ToastProvider'
+import { useKpiNombrePorId } from '../../hooks/useKpiNombrePorId'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 
 type Tabla = 'coreografias' | 'kpis_adicionales' | 'proyectos_especiales'
@@ -18,10 +19,6 @@ interface FechaItem {
   campoHora: string
 }
 
-const KPI_NOMBRE_POR_ID: Record<string, string> = Object.fromEntries(
-  AREAS_FALLBACK.flatMap((a) => a.kpis).map((k) => [k.id, k.nombre]),
-)
-
 interface FechasReunionTabProps {
   areaNegocio: string
 }
@@ -29,6 +26,7 @@ interface FechasReunionTabProps {
 export function FechasReunionTab({ areaNegocio }: FechasReunionTabProps) {
   const { mostrarConfirm } = useDialog()
   const { mostrarAlerta } = useToast()
+  const kpiNombrePorId = useKpiNombrePorId(areaNegocio)
   const [items, setItems] = useState<FechaItem[] | null>(null)
 
   async function cargar() {
@@ -40,7 +38,7 @@ export function FechasReunionTab({ areaNegocio }: FechasReunionTabProps) {
     const lista: FechaItem[] = []
     ;(coreoData || []).forEach((r) => {
       if (!r.fecha_revision) return
-      lista.push({ tabla: 'coreografias', id: r.id, pais: r.pais_code, origen: KPI_NOMBRE_POR_ID[r.kpi_id] || r.kpi_id, fecha: r.fecha_revision, hora: r.hora_revision || '', campoFecha: 'fecha_revision', campoHora: 'hora_revision' })
+      lista.push({ tabla: 'coreografias', id: r.id, pais: r.pais_code, origen: kpiNombrePorId[r.kpi_id] || r.kpi_id, fecha: r.fecha_revision, hora: r.hora_revision || '', campoFecha: 'fecha_revision', campoHora: 'hora_revision' })
     })
     ;(customData || []).forEach((r) => {
       if (!r.fecha_revision) return
@@ -54,7 +52,7 @@ export function FechasReunionTab({ areaNegocio }: FechasReunionTabProps) {
     setItems(lista)
   }
 
-  useEffect(() => { cargar() }, [areaNegocio])
+  useEffect(() => { cargar() }, [areaNegocio, kpiNombrePorId])
 
   if (!items) return <div className="sin-proyectos">Cargando…</div>
 

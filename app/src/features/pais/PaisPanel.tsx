@@ -70,6 +70,12 @@ export function PaisPanel({ paisCode, areaNegocio }: PaisPanelProps) {
         <span>{pinBarMensaje}</span>
       </div>
 
+      {areas.length === 0 && (
+        <div className="sin-proyectos">
+          Esta área todavía no tiene dominios de KPI configurados — ve a "Regional {'{'}Área{'}'}" → Catálogo KPI para crear el primero.
+        </div>
+      )}
+
       {areas.map((area) => (
         <KpiBlock
           key={area.id}

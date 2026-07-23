@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { sb } from '../../lib/supabase'
-import { PAISES, AREAS_FALLBACK } from '../../lib/catalogs'
+import { PAISES } from '../../lib/catalogs'
 import { useDialog } from '../../components/ui/DialogProvider'
 import { useToast } from '../../components/ui/ToastProvider'
+import { useKpiNombrePorId } from '../../hooks/useKpiNombrePorId'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { toJson } from '../../lib/json'
 import type { Accion } from '../../components/AccionesTable'
@@ -18,10 +19,6 @@ interface AccionItem {
   acciones: Accion[]
 }
 
-const KPI_NOMBRE_POR_ID: Record<string, string> = Object.fromEntries(
-  AREAS_FALLBACK.flatMap((a) => a.kpis).map((k) => [k.id, k.nombre]),
-)
-
 interface GestionAccionesTabProps {
   areaNegocio: string
 }
@@ -29,6 +26,7 @@ interface GestionAccionesTabProps {
 export function GestionAccionesTab({ areaNegocio }: GestionAccionesTabProps) {
   const { mostrarConfirm } = useDialog()
   const { mostrarAlerta } = useToast()
+  const kpiNombrePorId = useKpiNombrePorId(areaNegocio)
   const [items, setItems] = useState<AccionItem[] | null>(null)
 
   async function cargar() {
@@ -47,13 +45,13 @@ export function GestionAccionesTab({ areaNegocio }: GestionAccionesTabProps) {
         })
       })
     }
-    pushAcciones(coreoData as never, 'coreografias', (r) => KPI_NOMBRE_POR_ID[(r as never as { kpi_id: string }).kpi_id] || (r as never as { kpi_id: string }).kpi_id)
+    pushAcciones(coreoData as never, 'coreografias', (r) => kpiNombrePorId[(r as never as { kpi_id: string }).kpi_id] || (r as never as { kpi_id: string }).kpi_id)
     pushAcciones(customData as never, 'kpis_adicionales', (r) => (r as never as { nombre: string }).nombre || 'KPI adicional')
     pushAcciones(proyData as never, 'proyectos_especiales', (r) => (r as never as { nombre: string }).nombre || 'Proyecto especial')
     setItems(lista)
   }
 
-  useEffect(() => { cargar() }, [areaNegocio])
+  useEffect(() => { cargar() }, [areaNegocio, kpiNombrePorId])
 
   async function marcarCumplida(item: AccionItem) {
     const nuevas = item.acciones.map((a, i) => (i === item.idx ? { ...a, estado: 'Cumplida' } : a))

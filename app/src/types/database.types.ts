@@ -223,6 +223,50 @@ export type Database = {
           },
         ]
       }
+      kpi_dominios: {
+        Row: {
+          activo: boolean
+          area_negocio: string
+          codigo: string
+          controla: string | null
+          creado_at: string
+          ejecuta: string | null
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          activo?: boolean
+          area_negocio: string
+          codigo: string
+          controla?: string | null
+          creado_at?: string
+          ejecuta?: string | null
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          activo?: boolean
+          area_negocio?: string
+          codigo?: string
+          controla?: string | null
+          creado_at?: string
+          ejecuta?: string | null
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_dominios_area_negocio_fkey"
+            columns: ["area_negocio"]
+            isOneToOne: false
+            referencedRelation: "areas_negocio"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
       kpis_adicionales: {
         Row: {
           acciones: Json
@@ -416,6 +460,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "kpis_catalogo_area_negocio_area_id_fkey"
+            columns: ["area_negocio", "area_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_dominios"
+            referencedColumns: ["area_negocio", "codigo"]
+          },
           {
             foreignKeyName: "kpis_catalogo_area_negocio_fkey"
             columns: ["area_negocio"]

@@ -1,4 +1,3 @@
-import { AREAS_FALLBACK } from './catalogs'
 import type { Accion } from '../components/AccionesTable'
 
 export interface AccionAgregada {
@@ -10,9 +9,6 @@ export interface AccionAgregada {
   responsable: string
   fecha: string
 }
-
-const AREA_NOMBRE: Record<string, string> = { A: 'Dominio A — Originación', B: 'Dominio B — Comercial', C: 'Dominio C — Cobro' }
-const KPI_NOMBRE_POR_ID: Record<string, string> = Object.fromEntries(AREAS_FALLBACK.flatMap((a) => a.kpis).map((k) => [k.id, k.nombre]))
 
 interface FilaConAcciones {
   acciones: unknown
@@ -51,10 +47,12 @@ export function construirTodas(
   customData: FilaConAcciones[] | null,
   reunionesData: { id: string; titulo: string }[] | null,
   acuerdosData: AcuerdoRow[] | null,
+  dominioNombrePorCodigo: Record<string, string>,
+  kpiNombrePorId: Record<string, string>,
 ): AccionAgregada[] {
   const todas: AccionAgregada[] = [
-    ...collect(coreoData, (r) => AREA_NOMBRE[r.area_id || ''] || r.area_id || '', (r) => KPI_NOMBRE_POR_ID[r.kpi_id || ''] || r.kpi_id || ''),
-    ...collect(customData, (r) => (AREA_NOMBRE[r.area_id || ''] || r.area_id || '') + ' (adicional)', (r) => r.nombre || 'KPI adicional'),
+    ...collect(coreoData, (r) => dominioNombrePorCodigo[r.area_id || ''] || r.area_id || '', (r) => kpiNombrePorId[r.kpi_id || ''] || r.kpi_id || ''),
+    ...collect(customData, (r) => (dominioNombrePorCodigo[r.area_id || ''] || r.area_id || '') + ' (adicional)', (r) => r.nombre || 'KPI adicional'),
     ...collect(proyData, () => 'Proyectos especiales', (r) => r.nombre || 'Proyecto especial'),
   ]
 
