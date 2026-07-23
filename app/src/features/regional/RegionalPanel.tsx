@@ -1,9 +1,5 @@
 import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
-import { BitacoraTab } from './BitacoraTab'
-import { FechasReunionTab } from './FechasReunionTab'
-import { GestionAccionesTab } from './GestionAccionesTab'
-import { CatalogoKpiTab } from './CatalogoKpiTab'
 import { UsuariosTab } from './UsuariosTab'
 import { AreasNegocioTab } from './AreasNegocioTab'
 import { ConfigSistemaTab } from './ConfigSistemaTab'
@@ -20,24 +16,19 @@ interface RegionalPanelProps {
 }
 
 export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
-  const { regionalUnlocked, profile } = useAuth()
+  const { profile } = useAuth()
   const esAdminActivo = !!profile?.es_admin
+  const puedeEntrar = !!(profile && (profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
 
-  const secciones: Seccion[] = [
-    { id: 'bitacora', nombre: 'Bitácora' },
-    { id: 'fechas', nombre: 'Fechas y horas' },
-    { id: 'acciones', nombre: 'Acciones' },
-    { id: 'catalogo', nombre: 'Catálogo KPI' },
-  ]
+  const secciones: Seccion[] = [{ id: 'usuarios', nombre: 'Usuarios' }]
   if (esAdminActivo) {
-    secciones.push({ id: 'usuarios', nombre: 'Usuarios' })
     secciones.push({ id: 'areas', nombre: 'Áreas de negocio' })
     secciones.push({ id: 'config', nombre: 'Configuración' })
   }
 
   const [subTab, setSubTab] = useState<string>(() => {
     const guardada = sessionStorage.getItem(REGIONAL_SUBTAB_KEY)
-    return guardada && secciones.some((s) => s.id === guardada) ? guardada : 'bitacora'
+    return guardada && secciones.some((s) => s.id === guardada) ? guardada : 'usuarios'
   })
 
   function seleccionar(id: string) {
@@ -45,11 +36,11 @@ export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
     sessionStorage.setItem(REGIONAL_SUBTAB_KEY, id)
   }
 
-  if (!regionalUnlocked) {
+  if (!puedeEntrar) {
     return (
       <div style={{ paddingTop: 20 }}>
         <div className="pin-bar">
-          <span>🔒 Esta pestaña es solo para Regional/Administración de tu área. Tu cuenta no tiene ese permiso — pide a tu Regional o a Administración que te lo asigne.</span>
+          <span>🔒 Esta pestaña es solo para Administración. Tu cuenta no tiene ese permiso — pide a tu Regional/Administración que te lo asigne.</span>
         </div>
       </div>
     )
@@ -65,11 +56,7 @@ export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
         ))}
       </div>
 
-      {subTab === 'bitacora' && <BitacoraTab areaNegocio={areaNegocio} />}
-      {subTab === 'fechas' && <FechasReunionTab areaNegocio={areaNegocio} />}
-      {subTab === 'acciones' && <GestionAccionesTab areaNegocio={areaNegocio} />}
-      {subTab === 'catalogo' && <CatalogoKpiTab areaNegocio={areaNegocio} />}
-      {subTab === 'usuarios' && esAdminActivo && <UsuariosTab areaNegocio={areaNegocio} />}
+      {subTab === 'usuarios' && <UsuariosTab areaNegocio={areaNegocio} />}
       {subTab === 'areas' && esAdminActivo && <AreasNegocioTab />}
       {subTab === 'config' && esAdminActivo && <ConfigSistemaTab />}
     </div>

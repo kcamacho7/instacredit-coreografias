@@ -14,73 +14,106 @@ interface UsuariosTabProps {
 }
 
 export function UsuariosTab({ areaNegocio }: UsuariosTabProps) {
+  const { profile } = useAuth()
+  const esSuperAdmin = !!profile?.es_admin
+  // Un administrador de país puro (sin ser super usuario ni admin de área) gestiona
+  // su país completo (cualquier área) en vez de una sola área — el resto de casos
+  // (super usuario, admin de área) siguen viendo por área, igual que siempre.
+  const modoPais = !!(profile?.es_admin_pais && !esSuperAdmin && !profile?.es_admin_area && profile?.pais_code)
+
   const [usuarios, setUsuarios] = useState<PerfilUsuario[] | null>(null)
   const [areasActivas, setAreasActivas] = useState<AreaNegocio[]>([])
   const [error, setError] = useState<string | null>(null)
 
   async function cargar() {
-    const [{ data, error }, { data: areasData }] = await Promise.all([
-      sb.from('perfiles_usuario').select('*').eq('area_negocio', areaNegocio).order('email'),
-      sb.from('areas_negocio').select('*').eq('activo', true).order('orden'),
-    ])
-    if (error) { setError(error.message); return }
-    setUsuarios(data || [])
+    const base = sb.from('perfiles_usuario').select('*').order('email')
+    const usuariosRes = modoPais
+      ? await base.eq('pais_code', profile!.pais_code!)
+      : await base.eq('area_negocio', areaNegocio)
+    const { data: areasData } = await sb.from('areas_negocio').select('*').eq('activo', true).order('orden')
+    if (usuariosRes.error) { setError(usuariosRes.error.message); return }
+    setUsuarios(usuariosRes.data || [])
     setAreasActivas(areasData || [])
   }
-  useEffect(() => { cargar() }, [areaNegocio])
+  useEffect(() => { cargar() }, [areaNegocio, modoPais])
 
   if (error) return <div className="sin-proyectos">Error al cargar usuarios: {error}</div>
   if (usuarios === null) return <div className="sin-proyectos">Cargando…</div>
 
   return (
     <div>
+      {modoPais && (
+        <div className="area-owner" style={{ borderRadius: 8, marginBottom: 16 }}>
+          <strong>Administrador de país:</strong> ves y gestionas los usuarios de tu país, en cualquier área de negocio.
+        </div>
+      )}
       {usuarios.length === 0 ? (
         <div className="sin-proyectos">Todavía no hay correos preautorizados.</div>
       ) : (
         <table className="coreo">
           <thead>
             <tr>
-              <th style={{ width: '14%' }}>Correo</th>
-              <th style={{ width: '12%' }}>Nombre</th>
-              <th style={{ width: '9%' }}>Estado</th>
-              <th style={{ width: '11%' }}>País asignado</th>
-              <th style={{ width: '11%' }}>Área</th>
-              <th style={{ width: '6%' }}>Regional</th>
-              <th style={{ width: '6%' }}>Admin</th>
-              <th style={{ width: '6%' }}>Líder</th>
-              <th style={{ width: '25%' }}>&nbsp;</th>
+              <th style={{ width: '13%' }}>Correo</th>
+              <th style={{ width: '11%' }}>Nombre</th>
+              <th style={{ width: '8%' }}>Estado</th>
+              <th style={{ width: '10%' }}>País</th>
+              <th style={{ width: '10%' }}>Área</th>
+              <th style={{ width: '5%' }}>Regional</th>
+              <th style={{ width: '5%' }}>Admin</th>
+              <th style={{ width: '5%' }}>Líder</th>
+              <th style={{ width: '6%' }}>Gerente país</th>
+              <th style={{ width: '6%' }}>Admin área</th>
+              <th style={{ width: '6%' }}>Admin país</th>
+              <th style={{ width: '15%' }}>&nbsp;</th>
             </tr>
           </thead>
           <tbody>
             {usuarios.map((u) => (
-              <FilaUsuario key={u.id} usuario={u} areasActivas={areasActivas} onCambio={cargar} />
+              <FilaUsuario key={u.id} usuario={u} areasActivas={areasActivas} modoPais={modoPais} onCambio={cargar} />
             ))}
           </tbody>
         </table>
       )}
 
-      <AgregarUsuario areaNegocio={areaNegocio} usuariosExistentes={usuarios} onAgregado={cargar} />
+      <AgregarUsuario areaNegocio={areaNegocio} areasActivas={areasActivas} modoPais={modoPais} paisFijo={profile?.pais_code || ''} usuariosExistentes={usuarios} onAgregado={cargar} />
     </div>
   )
 }
 
-function FilaUsuario({ usuario, areasActivas, onCambio }: { usuario: PerfilUsuario; areasActivas: AreaNegocio[]; onCambio: () => void }) {
-  const { user, refrescarPerfil } = useAuth()
+function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: PerfilUsuario; areasActivas: AreaNegocio[]; modoPais: boolean; onCambio: () => void }) {
+  const { user, profile, refrescarPerfil } = useAuth()
   const { mostrarConfirm } = useDialog()
   const { mostrarAlerta } = useToast()
+  const esSuperAdmin = !!profile?.es_admin
   const [nombre, setNombre] = useState(usuario.nombre || '')
   const [paisCode, setPaisCode] = useState(usuario.pais_code || '')
   const [areaUsuario, setAreaUsuario] = useState(usuario.area_negocio)
   const [esRegional, setEsRegional] = useState(usuario.es_regional)
   const [esAdmin, setEsAdmin] = useState(usuario.es_admin)
   const [esLider, setEsLider] = useState(usuario.es_lider)
+  const [esGerentePais, setEsGerentePais] = useState(usuario.es_gerente_pais)
+  const [esAdminArea, setEsAdminArea] = useState(usuario.es_admin_area)
+  const [esAdminPais, setEsAdminPais] = useState(usuario.es_admin_pais)
+
+  const esPropia = !!(user && usuario.user_id && user.id === usuario.user_id)
+  const bloqueadaPorPropiedad = !esSuperAdmin && !!usuario.creado_por && usuario.creado_por !== user?.id
 
   async function guardar() {
-    const { error } = await sb.from('perfiles_usuario').update({
-      pais_code: paisCode || null, area_negocio: areaUsuario, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, nombre: nombre.trim(),
-    }).eq('id', usuario.id)
+    const payload: Record<string, unknown> = {
+      pais_code: paisCode || null, area_negocio: areaUsuario, es_regional: esRegional, nombre: nombre.trim(),
+    }
+    // Los roles elevados solo los puede tocar el super usuario — el checkbox ya está
+    // deshabilitado para los demás, pero además el trigger de la base lo rechazaría.
+    if (esSuperAdmin) {
+      payload.es_admin = esAdmin
+      payload.es_lider = esLider
+      payload.es_gerente_pais = esGerentePais
+      payload.es_admin_area = esAdminArea
+      payload.es_admin_pais = esAdminPais
+    }
+    const { error } = await sb.from('perfiles_usuario').update(payload as never).eq('id', usuario.id)
     if (error) { mostrarAlerta('Error: ' + error.message); return }
-    if (user && usuario.user_id && user.id === usuario.user_id) await refrescarPerfil()
+    if (esPropia) await refrescarPerfil()
     mostrarAlerta('Cambios guardados para ' + usuario.email + '.', 'success')
   }
 
@@ -104,52 +137,97 @@ function FilaUsuario({ usuario, areasActivas, onCambio }: { usuario: PerfilUsuar
   return (
     <tr>
       <td>{usuario.email}</td>
-      <td><input type="text" style={{ width: '100%' }} placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} /></td>
+      <td><input type="text" style={{ width: '100%' }} placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={bloqueadaPorPropiedad} /></td>
       <td>{usuario.user_id ? <span style={{ color: 'var(--verde)', fontWeight: 700 }}>Registrado</span> : <span style={{ color: 'var(--azul-claro)' }}>Pendiente de registro</span>}</td>
       <td>
-        <select value={paisCode} onChange={(e) => setPaisCode(e.target.value)}>
-          <option value="">Sin asignar</option>
-          {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
-          <option value="RG">Regional</option>
-        </select>
+        {modoPais ? (
+          <span>{PAISES.find((p) => p.code === paisCode)?.nombre || paisCode || 'Sin asignar'}</span>
+        ) : (
+          <select value={paisCode} onChange={(e) => setPaisCode(e.target.value)} disabled={bloqueadaPorPropiedad}>
+            <option value="">Sin asignar</option>
+            {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
+          </select>
+        )}
       </td>
       <td>
-        <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)}>
-          {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
-        </select>
-      </td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} /></td>
-      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} /></td>
-      <td style={{ whiteSpace: 'nowrap' }}>
-        <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--verde)', color: 'var(--verde)', marginRight: 6 }} onClick={guardar}>Guardar</button>
-        {usuario.user_id && (
-          <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--azul-claro)', color: 'var(--azul-claro)', marginRight: 6 }} onClick={resetPassword}>Restablecer contraseña</button>
+        {modoPais ? (
+          <select value={areaUsuario} onChange={(e) => setAreaUsuario(e.target.value)} disabled={bloqueadaPorPropiedad}>
+            {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
+          </select>
+        ) : (
+          <span>{areasActivas.find((a) => a.codigo === areaUsuario)?.nombre || areaUsuario}</span>
         )}
-        <button type="button" className="btn-eliminar-proyecto" onClick={quitarAcceso}>Quitar acceso</button>
+      </td>
+      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} disabled={bloqueadaPorPropiedad} /></td>
+      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
+      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin || bloqueadaPorPropiedad} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
+      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
+      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdminArea} onChange={(e) => setEsAdminArea(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
+      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={esAdminPais} onChange={(e) => setEsAdminPais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /></td>
+      <td style={{ whiteSpace: 'nowrap' }}>
+        {bloqueadaPorPropiedad ? (
+          <span style={{ fontSize: 11, color: 'var(--azul-claro)' }}>🔒 Creado por otro administrador</span>
+        ) : (
+          <>
+            <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--verde)', color: 'var(--verde)', marginRight: 6 }} onClick={guardar}>Guardar</button>
+            {usuario.user_id && (
+              <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--azul-claro)', color: 'var(--azul-claro)', marginRight: 6 }} onClick={resetPassword}>Restablecer contraseña</button>
+            )}
+            <button type="button" className="btn-eliminar-proyecto" onClick={quitarAcceso}>Quitar acceso</button>
+          </>
+        )}
       </td>
     </tr>
   )
 }
 
-function AgregarUsuario({ areaNegocio, usuariosExistentes, onAgregado }: { areaNegocio: string; usuariosExistentes: PerfilUsuario[]; onAgregado: () => void }) {
+interface AgregarUsuarioProps {
+  areaNegocio: string
+  areasActivas: AreaNegocio[]
+  modoPais: boolean
+  paisFijo: string
+  usuariosExistentes: PerfilUsuario[]
+  onAgregado: () => void
+}
+
+function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuariosExistentes, onAgregado }: AgregarUsuarioProps) {
+  const { profile } = useAuth()
   const { mostrarAlerta } = useToast()
+  const esSuperAdmin = !!profile?.es_admin
   const [email, setEmail] = useState('')
   const [nombre, setNombre] = useState('')
   const [pais, setPais] = useState('')
+  const [area, setArea] = useState(areasActivas[0]?.codigo || areaNegocio)
   const [esRegional, setEsRegional] = useState(false)
   const [esAdmin, setEsAdmin] = useState(false)
   const [esLider, setEsLider] = useState(false)
+  const [esGerentePais, setEsGerentePais] = useState(false)
+  const [esAdminArea, setEsAdminArea] = useState(false)
+  const [esAdminPais, setEsAdminPais] = useState(false)
 
   async function agregar() {
     const emailNorm = email.trim().toLowerCase()
     if (!emailNorm || !emailNorm.includes('@')) { mostrarAlerta('Pon un correo válido.'); return }
     if (usuariosExistentes.some((u) => (u.email || '').toLowerCase() === emailNorm)) { mostrarAlerta('Ese correo ya existe en la lista de usuarios.'); return }
-    const { error } = await sb.from('perfiles_usuario').insert([{
-      email: emailNorm, nombre: nombre.trim(), pais_code: pais || null, area_negocio: areaNegocio, es_regional: esRegional, es_admin: esAdmin, es_lider: esLider,
-    }])
+    if (esGerentePais && !(modoPais ? paisFijo : pais)) { mostrarAlerta('Ojo: sin país asignado, "Gerente de País" no tendrá efecto.', 'success'); }
+    const payload: Record<string, unknown> = {
+      email: emailNorm,
+      nombre: nombre.trim(),
+      pais_code: modoPais ? paisFijo : (pais || null),
+      area_negocio: modoPais ? area : areaNegocio,
+      es_regional: esRegional,
+    }
+    if (esSuperAdmin) {
+      payload.es_admin = esAdmin
+      payload.es_lider = esLider
+      payload.es_gerente_pais = esGerentePais
+      payload.es_admin_area = esAdminArea
+      payload.es_admin_pais = esAdminPais
+    }
+    const { error } = await sb.from('perfiles_usuario').insert([payload] as never)
     if (error) { mostrarAlerta('Error: ' + error.message); return }
     setEmail(''); setNombre(''); setPais(''); setEsRegional(false); setEsAdmin(false); setEsLider(false)
+    setEsGerentePais(false); setEsAdminArea(false); setEsAdminPais(false)
     onAgregado()
   }
 
@@ -164,20 +242,35 @@ function AgregarUsuario({ areaNegocio, usuariosExistentes, onAgregado }: { areaN
           <label>Nombre completo</label>
           <input type="text" placeholder="Ej. Juan Pérez" value={nombre} onChange={(e) => setNombre(e.target.value)} />
         </div>
-        <div className="field">
-          <label>País que podrá editar</label>
-          <select value={pais} onChange={(e) => setPais(e.target.value)}>
-            <option value="">Sin asignar</option>
-            {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
-            <option value="RG">Regional</option>
-          </select>
-        </div>
+        {modoPais ? (
+          <div className="field">
+            <label>Área que podrá editar</label>
+            <select value={area} onChange={(e) => setArea(e.target.value)}>
+              {areasActivas.map((a) => <option key={a.codigo} value={a.codigo}>{a.nombre}</option>)}
+            </select>
+          </div>
+        ) : (
+          <div className="field">
+            <label>País que podrá editar</label>
+            <select value={pais} onChange={(e) => setPais(e.target.value)}>
+              <option value="">Sin asignar</option>
+              {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
+            </select>
+          </div>
+        )}
         <div className="field">
           <label>Permisos</label>
           <div className="permisos-checks">
             <label><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} /> Es Regional (de su propia área)</label>
-            <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} /> Es Administrador (Administración del sistema)</label>
-            <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} /> Es Líder (acceso a Acuerdos de reuniones)</label>
+            <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin} /> Es Líder (acceso a Acuerdos de reuniones)</label>
+            {esSuperAdmin && (
+              <>
+                <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} /> Es Super Usuario (Administración total)</label>
+                <label><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} /> Es Gerente de País (todas las áreas, un solo país)</label>
+                <label><input type="checkbox" checked={esAdminArea} onChange={(e) => setEsAdminArea(e.target.checked)} /> Es Administrador de su área</label>
+                <label><input type="checkbox" checked={esAdminPais} onChange={(e) => setEsAdminPais(e.target.checked)} /> Es Administrador de su país</label>
+              </>
+            )}
           </div>
         </div>
       </div>

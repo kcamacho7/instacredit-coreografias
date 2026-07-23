@@ -15,6 +15,7 @@ export function AuthBar({ currentArea, nombreAreaActiva, areasCatalogo, onCambia
 
   const paisNombre = profile?.pais_code ? PAISES.find((p) => p.code === profile.pais_code)?.nombre : null
   const esRegionalOAdmin = !!(profile && (profile.es_regional || profile.es_admin))
+  const esGerentePais = !!(profile?.es_gerente_pais && profile?.pais_code)
   const areasActivas = areasCatalogo.filter((a) => a.activo)
 
   return (
@@ -26,6 +27,8 @@ export function AuthBar({ currentArea, nombreAreaActiva, areasCatalogo, onCambia
             {profile!.es_regional ? `${nombreAreaActiva} Regional` : 'Administrador'} — edita los 4 países
             {profile!.es_admin ? ` de ${nombreAreaActiva}` : ''}
           </span>
+        ) : esGerentePais ? (
+          <span className="pais-asignado">{paisNombre} — Gerente de país (todas las áreas)</span>
         ) : paisNombre ? (
           <span className="pais-asignado">{paisNombre} — {nombreAreaActiva}</span>
         ) : (

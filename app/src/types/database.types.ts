@@ -201,6 +201,13 @@ export type Database = {
             referencedColumns: ["codigo"]
           },
           {
+            foreignKeyName: "coreografias_area_negocio_kpi_id_fkey"
+            columns: ["area_negocio", "kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpis_catalogo"
+            referencedColumns: ["area_negocio", "kpi_id"]
+          },
+          {
             foreignKeyName: "coreografias_pais_code_fkey"
             columns: ["pais_code"]
             isOneToOne: false
@@ -440,8 +447,12 @@ export type Database = {
         Row: {
           area_negocio: string
           creado_at: string
+          creado_por: string | null
           email: string
           es_admin: boolean
+          es_admin_area: boolean
+          es_admin_pais: boolean
+          es_gerente_pais: boolean
           es_lider: boolean
           es_regional: boolean
           id: string
@@ -452,8 +463,12 @@ export type Database = {
         Insert: {
           area_negocio?: string
           creado_at?: string
+          creado_por?: string | null
           email: string
           es_admin?: boolean
+          es_admin_area?: boolean
+          es_admin_pais?: boolean
+          es_gerente_pais?: boolean
           es_lider?: boolean
           es_regional?: boolean
           id?: string
@@ -464,8 +479,12 @@ export type Database = {
         Update: {
           area_negocio?: string
           creado_at?: string
+          creado_por?: string | null
           email?: string
           es_admin?: boolean
+          es_admin_area?: boolean
+          es_admin_pais?: boolean
+          es_gerente_pais?: boolean
           es_lider?: boolean
           es_regional?: boolean
           id?: string
@@ -726,7 +745,11 @@ export type Database = {
     Functions: {
       current_user_area: { Args: never; Returns: string }
       current_user_is_admin: { Args: never; Returns: boolean }
+      current_user_is_admin_area: { Args: never; Returns: boolean }
+      current_user_is_admin_pais: { Args: never; Returns: boolean }
+      current_user_is_gerente_pais: { Args: never; Returns: boolean }
       current_user_is_regional_or_lider: { Args: never; Returns: boolean }
+      current_user_pais: { Args: never; Returns: string }
       verificar_pin: {
         Args: { p_code: string; p_pin: string }
         Returns: boolean

@@ -6,8 +6,9 @@ import { Emoji } from '../../components/Emoji'
 import { AuthBar } from '../auth/AuthBar'
 import { PAISES } from '../../lib/catalogs'
 import { PaisPanel } from '../pais/PaisPanel'
+import { GerentePaisPanel } from '../pais/GerentePaisPanel'
 import { RegionalPanel } from '../regional/RegionalPanel'
-import { RegionalTareasPanel } from '../regional/RegionalTareasPanel'
+import { RegionalAreaPanel } from '../regional/RegionalAreaPanel'
 import { DashboardPage } from '../dashboard/DashboardPage'
 import { AcuerdosModule } from '../acuerdos/AcuerdosModule'
 
@@ -30,8 +31,10 @@ export function AppShell() {
     [puedeVerTodosPaises, profile],
   )
   const esRegionalExclusivo = !!(profile && profile.es_regional)
-  const regionalUnlocked = !!(profile && (profile.es_regional || profile.es_admin))
-  const puedeVerAcuerdos = regionalUnlocked || !!(profile && profile.es_lider)
+  const esGerentePais = !!(profile && profile.es_gerente_pais && profile.pais_code)
+  // Acuerdos standalone queda solo para un líder puro — regional/admin ya tienen
+  // Acuerdos embebido en su tab "Regional {Área}".
+  const puedeVerAcuerdosStandalone = !!(profile && profile.es_lider && !profile.es_regional && !profile.es_admin)
 
   function isotipo() {
     return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: '.35em' }} />
@@ -39,13 +42,13 @@ export function AppShell() {
 
   const tabs: TabDef[] = useMemo(() => {
     const lista: TabDef[] = paisesVisibles.map((p) => ({ code: p.code, label: <Emoji text={`${p.bandera} ${p.nombre}`} /> }))
+    if (esRegionalExclusivo) lista.push({ code: 'REGIONAL_AREA', label: <>{isotipo()}Regional {nombreAreaActiva}</>, className: 'tab-btn-regional' })
     lista.push({ code: 'DASHBOARD', label: <Emoji text="📊 Dashboard" /> })
-    if (esRegionalExclusivo) lista.push({ code: 'RG', label: <>{isotipo()}KPI y tareas {nombreAreaActiva} Regional</>, className: 'tab-btn-regional' })
-    if (puedeVerAcuerdos) lista.push({ code: 'ACUERDOS', label: <>{isotipo()}Acuerdos de reuniones</>, className: 'tab-btn-regional' })
+    if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', label: <>{isotipo()}Acuerdos de reuniones</>, className: 'tab-btn-regional' })
     lista.push({ code: 'REGIONAL', label: <>{isotipo()}Administración del sistema</>, className: 'tab-btn-regional' })
     return lista
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdos, nombreAreaActiva, base])
+  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdosStandalone, nombreAreaActiva, base])
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const guardada = sessionStorage.getItem(ACTIVE_TAB_KEY)
@@ -113,18 +116,22 @@ export function AppShell() {
       <div className="page" id="tabPanels">
         {paisesVisibles.map((p) => (
           <div key={p.code} className={'tab-panel' + (activeTab === p.code ? ' active' : '')}>
-            <PaisPanel paisCode={p.code} areaNegocio={currentArea} />
+            {esGerentePais && p.code === profile!.pais_code ? (
+              <GerentePaisPanel paisCode={p.code} areasCatalogo={catalogo} />
+            ) : (
+              <PaisPanel paisCode={p.code} areaNegocio={currentArea} />
+            )}
           </div>
         ))}
         <div className={'tab-panel' + (activeTab === 'DASHBOARD' ? ' active' : '')}>
           <DashboardPage areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
         </div>
         {esRegionalExclusivo && (
-          <div className={'tab-panel' + (activeTab === 'RG' ? ' active' : '')}>
-            <RegionalTareasPanel areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
+          <div className={'tab-panel' + (activeTab === 'REGIONAL_AREA' ? ' active' : '')}>
+            <RegionalAreaPanel areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
           </div>
         )}
-        {puedeVerAcuerdos && (
+        {puedeVerAcuerdosStandalone && (
           <div className={'tab-panel' + (activeTab === 'ACUERDOS' ? ' active' : '')}>
             <div style={{ paddingTop: 20 }}>
               <div className="area-owner" style={{ borderRadius: 8, marginBottom: 16 }}>
