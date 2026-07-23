@@ -35,6 +35,7 @@ export function AppShell() {
   // "Acceso Acuerdos" (columna es_lider en la BD) es un permiso independiente que se
   // asigna explícitamente por usuario — no se hereda de ser regional/admin.
   const puedeVerAcuerdosStandalone = !!(profile && profile.es_lider)
+  const puedeVerAdministracion = !!(profile && (profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
 
   function isotipo() {
     return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: '.35em' }} />
@@ -45,10 +46,10 @@ export function AppShell() {
     if (esRegionalExclusivo) lista.push({ code: 'REGIONAL_AREA', label: <>{isotipo()}Regional {nombreAreaActiva}</>, className: 'tab-btn-regional' })
     lista.push({ code: 'DASHBOARD', label: <Emoji text="📊 Dashboard" /> })
     if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', label: <>{isotipo()}Acuerdos de reuniones</>, className: 'tab-btn-regional' })
-    lista.push({ code: 'REGIONAL', label: <>{isotipo()}Administración del sistema</>, className: 'tab-btn-regional' })
+    if (puedeVerAdministracion) lista.push({ code: 'REGIONAL', label: <>{isotipo()}Administración del sistema</>, className: 'tab-btn-regional' })
     return lista
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdosStandalone, nombreAreaActiva, base])
+  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdosStandalone, puedeVerAdministracion, nombreAreaActiva, base])
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const guardada = sessionStorage.getItem(ACTIVE_TAB_KEY)
@@ -141,9 +142,11 @@ export function AppShell() {
             </div>
           </div>
         )}
-        <div className={'tab-panel' + (activeTab === 'REGIONAL' ? ' active' : '')}>
-          <RegionalPanel areaNegocio={currentArea} />
-        </div>
+        {puedeVerAdministracion && (
+          <div className={'tab-panel' + (activeTab === 'REGIONAL' ? ' active' : '')}>
+            <RegionalPanel areaNegocio={currentArea} />
+          </div>
+        )}
       </div>
 
       <footer>
