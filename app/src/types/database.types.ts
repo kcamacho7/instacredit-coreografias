@@ -231,6 +231,7 @@ export type Database = {
           controla: string | null
           creado_at: string
           ejecuta: string | null
+          es_regional: boolean
           id: string
           nombre: string
           orden: number
@@ -242,6 +243,7 @@ export type Database = {
           controla?: string | null
           creado_at?: string
           ejecuta?: string | null
+          es_regional?: boolean
           id?: string
           nombre: string
           orden?: number
@@ -253,6 +255,7 @@ export type Database = {
           controla?: string | null
           creado_at?: string
           ejecuta?: string | null
+          es_regional?: boolean
           id?: string
           nombre?: string
           orden?: number
@@ -431,6 +434,7 @@ export type Database = {
           area_id: string
           area_negocio: string
           definicion: string | null
+          es_regional: boolean
           id: string
           kpi_id: string
           nombre: string
@@ -442,6 +446,7 @@ export type Database = {
           area_id: string
           area_negocio?: string
           definicion?: string | null
+          es_regional?: boolean
           id?: string
           kpi_id: string
           nombre: string
@@ -453,6 +458,7 @@ export type Database = {
           area_id?: string
           area_negocio?: string
           definicion?: string | null
+          es_regional?: boolean
           id?: string
           kpi_id?: string
           nombre?: string
@@ -820,7 +826,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals["public"]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

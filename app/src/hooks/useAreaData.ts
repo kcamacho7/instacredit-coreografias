@@ -20,8 +20,9 @@ export interface AreaDataState {
  * `Promise.all` sobre `coreografias` + `proyectos_especiales` + `kpis_adicionales`
  * filtrado por país/área de negocio.
  *
- * `paisCode = 'RG'` es el pseudo-país de tareas privadas de Regional: no tiene
- * coreografías fijas ni KPI adicionales, solo proyectos especiales.
+ * `paisCode = 'RG'` es el pseudo-país del espacio propio del Regional — se
+ * trata igual que un país real (mismas tablas), solo que con su propio
+ * catálogo de KPI (`kpi_dominios`/`kpis_catalogo` con `es_regional=true`).
  */
 export function useAreaData(paisCode: string, areaNegocio: string, areas: AreaCatalogo[]): AreaDataState {
   const [loading, setLoading] = useState(true)
@@ -38,17 +39,11 @@ export function useAreaData(paisCode: string, areaNegocio: string, areas: AreaCa
     setLoading(true)
     setError(null)
 
-    const esRegional = paisCode === 'RG'
-
     const cargar = async () => {
       const [coreoRes, proyRes, customRes] = await Promise.all([
-        esRegional
-          ? Promise.resolve({ data: [], error: null })
-          : sb.from('coreografias').select('*').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
+        sb.from('coreografias').select('*').eq('pais_code', paisCode).eq('area_negocio', areaNegocio),
         sb.from('proyectos_especiales').select('*').eq('pais_code', paisCode).eq('area_negocio', areaNegocio).order('orden', { ascending: true }),
-        esRegional
-          ? Promise.resolve({ data: [], error: null })
-          : sb.from('kpis_adicionales').select('*').eq('pais_code', paisCode).eq('area_negocio', areaNegocio).order('orden', { ascending: true }),
+        sb.from('kpis_adicionales').select('*').eq('pais_code', paisCode).eq('area_negocio', areaNegocio).order('orden', { ascending: true }),
       ])
       if (!activo) return
 

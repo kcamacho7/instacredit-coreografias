@@ -33,10 +33,11 @@ interface CatalogoRow {
 
 interface CatalogoKpiTabProps {
   areaNegocio: string
+  soloRegional?: boolean
 }
 
-/** Cada área de negocio define sus propios dominios de KPI (ya no se comparte un esqueleto fijo entre áreas) y sus propios KPI dentro de cada dominio. */
-export function CatalogoKpiTab({ areaNegocio }: CatalogoKpiTabProps) {
+/** Cada área de negocio define sus propios dominios de KPI (ya no se comparte un esqueleto fijo entre áreas) y sus propios KPI dentro de cada dominio. Con soloRegional=true gestiona el catálogo exclusivo del regional, completamente separado del que usan los países. */
+export function CatalogoKpiTab({ areaNegocio, soloRegional = false }: CatalogoKpiTabProps) {
   const { refetch: refetchCatalogoActivo } = useKpiCatalog()
   const { mostrarAlerta } = useToast()
   const [dominios, setDominios] = useState<DominioRow[] | null>(null)
@@ -44,15 +45,15 @@ export function CatalogoKpiTab({ areaNegocio }: CatalogoKpiTabProps) {
 
   async function cargar() {
     const [{ data: dominiosData, error: errDom }, { data: kpisData, error: errKpi }] = await Promise.all([
-      sb.from('kpi_dominios').select('*').eq('area_negocio', areaNegocio).eq('activo', true).order('orden'),
-      sb.from('kpis_catalogo').select('*').eq('area_negocio', areaNegocio).eq('activo', true).order('area_id').order('orden'),
+      sb.from('kpi_dominios').select('*').eq('area_negocio', areaNegocio).eq('activo', true).eq('es_regional', soloRegional).order('orden'),
+      sb.from('kpis_catalogo').select('*').eq('area_negocio', areaNegocio).eq('activo', true).eq('es_regional', soloRegional).order('area_id').order('orden'),
     ])
     if (errDom) { mostrarAlerta('Error al cargar los dominios: ' + errDom.message); return }
     if (errKpi) { mostrarAlerta('Error al cargar el catálogo: ' + errKpi.message); return }
     setDominios(dominiosData || [])
     setFilas(kpisData || [])
   }
-  useEffect(() => { cargar() }, [areaNegocio])
+  useEffect(() => { cargar() }, [areaNegocio, soloRegional])
 
   async function recargarTodo() {
     await cargar()
@@ -64,7 +65,9 @@ export function CatalogoKpiTab({ areaNegocio }: CatalogoKpiTabProps) {
   return (
     <div style={{ paddingTop: 20 }}>
       <div className="area-owner" style={{ borderRadius: 8, marginBottom: 16 }}>
-        <strong>Qué es:</strong> los dominios y KPI de esta área son propios — no se comparten con las demás áreas de negocio. Crea aquí los dominios (agrupaciones de KPI) y, dentro de cada uno, los KPI que los países documentarán.
+        <strong>Qué es:</strong> {soloRegional
+          ? 'los dominios y KPI de este catálogo son exclusivos del regional — no los ven ni los comparten los países.'
+          : 'los dominios y KPI de esta área son propios — no se comparten con las demás áreas de negocio.'} Crea aquí los dominios (agrupaciones de KPI) y, dentro de cada uno, los KPI que {soloRegional ? 'tú' : 'los países'} documentarán.
       </div>
 
       {dominios.length === 0 && (
@@ -74,16 +77,16 @@ export function CatalogoKpiTab({ areaNegocio }: CatalogoKpiTabProps) {
       {dominios.map((dominio) => {
         const kpisDeEsteDominio = filas.filter((r) => r.area_id === dominio.codigo)
         return (
-          <FilaDominio key={dominio.id} dominio={dominio} kpis={kpisDeEsteDominio} areaNegocio={areaNegocio} onCambio={recargarTodo} />
+          <FilaDominio key={dominio.id} dominio={dominio} kpis={kpisDeEsteDominio} areaNegocio={areaNegocio} soloRegional={soloRegional} onCambio={recargarTodo} />
         )
       })}
 
-      <AgregarDominio areaNegocio={areaNegocio} maxOrden={dominios.reduce((m, d) => Math.max(m, d.orden || 0), 0)} onAgregado={recargarTodo} />
+      <AgregarDominio areaNegocio={areaNegocio} soloRegional={soloRegional} maxOrden={dominios.reduce((m, d) => Math.max(m, d.orden || 0), 0)} onAgregado={recargarTodo} />
     </div>
   )
 }
 
-function FilaDominio({ dominio, kpis, areaNegocio, onCambio }: { dominio: DominioRow; kpis: CatalogoRow[]; areaNegocio: string; onCambio: () => void }) {
+function FilaDominio({ dominio, kpis, areaNegocio, soloRegional, onCambio }: { dominio: DominioRow; kpis: CatalogoRow[]; areaNegocio: string; soloRegional: boolean; onCambio: () => void }) {
   const { mostrarConfirm } = useDialog()
   const { mostrarAlerta } = useToast()
   const [nombre, setNombre] = useState(dominio.nombre)
@@ -138,12 +141,12 @@ function FilaDominio({ dominio, kpis, areaNegocio, onCambio }: { dominio: Domini
       {kpis.map((row) => (
         <FilaCatalogo key={row.id} row={row} onGuardado={onCambio} />
       ))}
-      <AgregarKpi areaId={dominio.codigo} areaNegocio={areaNegocio} maxOrden={kpis.reduce((m, r) => Math.max(m, r.orden || 0), 0)} onAgregado={onCambio} />
+      <AgregarKpi areaId={dominio.codigo} areaNegocio={areaNegocio} soloRegional={soloRegional} maxOrden={kpis.reduce((m, r) => Math.max(m, r.orden || 0), 0)} onAgregado={onCambio} />
     </div>
   )
 }
 
-function AgregarDominio({ areaNegocio, maxOrden, onAgregado }: { areaNegocio: string; maxOrden: number; onAgregado: () => void }) {
+function AgregarDominio({ areaNegocio, soloRegional, maxOrden, onAgregado }: { areaNegocio: string; soloRegional: boolean; maxOrden: number; onAgregado: () => void }) {
   const { mostrarAlerta } = useToast()
   const [nombre, setNombre] = useState('')
   const [ejecuta, setEjecuta] = useState('')
@@ -153,7 +156,7 @@ function AgregarDominio({ areaNegocio, maxOrden, onAgregado }: { areaNegocio: st
     const nombreLimpio = nombre.trim()
     if (!nombreLimpio) { mostrarAlerta('Ponle un nombre al nuevo dominio.'); return }
     const { error } = await sb.from('kpi_dominios').insert([{
-      area_negocio: areaNegocio, codigo: slugId(nombreLimpio), nombre: nombreLimpio, ejecuta: ejecuta.trim() || null, controla: controla.trim() || null, orden: maxOrden + 1, activo: true,
+      area_negocio: areaNegocio, codigo: slugId(nombreLimpio), nombre: nombreLimpio, ejecuta: ejecuta.trim() || null, controla: controla.trim() || null, orden: maxOrden + 1, activo: true, es_regional: soloRegional,
     }])
     if (error) { mostrarAlerta('Error: ' + error.message); return }
     setNombre(''); setEjecuta(''); setControla('')
@@ -225,7 +228,7 @@ function FilaCatalogo({ row, onGuardado }: { row: CatalogoRow; onGuardado: () =>
   )
 }
 
-function AgregarKpi({ areaId, areaNegocio, maxOrden, onAgregado }: { areaId: string; areaNegocio: string; maxOrden: number; onAgregado: () => void }) {
+function AgregarKpi({ areaId, areaNegocio, soloRegional, maxOrden, onAgregado }: { areaId: string; areaNegocio: string; soloRegional: boolean; maxOrden: number; onAgregado: () => void }) {
   const { mostrarAlerta } = useToast()
   const [nombre, setNombre] = useState('')
   const [definicion, setDefinicion] = useState('')
@@ -235,7 +238,7 @@ function AgregarKpi({ areaId, areaNegocio, maxOrden, onAgregado }: { areaId: str
     const nombreLimpio = nombre.trim()
     if (!nombreLimpio) { mostrarAlerta('Ponle un nombre al nuevo KPI.'); return }
     const { error } = await sb.from('kpis_catalogo').insert([{
-      area_negocio: areaNegocio, area_id: areaId, kpi_id: slugId(nombreLimpio), nombre: nombreLimpio, definicion: definicion.trim(), orden: maxOrden + 1, activo: true,
+      area_negocio: areaNegocio, area_id: areaId, kpi_id: slugId(nombreLimpio), nombre: nombreLimpio, definicion: definicion.trim(), orden: maxOrden + 1, activo: true, es_regional: soloRegional,
     }])
     if (error) { mostrarAlerta('Error: ' + error.message); return }
     setNombre(''); setDefinicion('')

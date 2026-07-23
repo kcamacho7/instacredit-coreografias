@@ -30,7 +30,7 @@ interface KpiCatalogoRow {
  * esqueleto fijo entre áreas. Un área sin dominios configurados simplemente no
  * muestra ninguno (antes heredaba en silencio los dominios/KPI de 'riesgo').
  */
-export function KpiCatalogProvider({ areaNegocio, children }: { areaNegocio: string; children: ReactNode }) {
+export function KpiCatalogProvider({ areaNegocio, soloRegional = false, children }: { areaNegocio: string; soloRegional?: boolean; children: ReactNode }) {
   const [areas, setAreas] = useState<AreaCatalogo[]>([])
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
@@ -38,8 +38,8 @@ export function KpiCatalogProvider({ areaNegocio, children }: { areaNegocio: str
   const cargar = useCallback(async () => {
     setLoading(true)
     const [{ data: dominiosData }, { data: kpisData }] = await Promise.all([
-      sb.from('kpi_dominios').select('codigo,nombre,ejecuta,controla').eq('area_negocio', areaNegocio).eq('activo', true).order('orden'),
-      sb.from('kpis_catalogo').select('area_id,kpi_id,nombre,definicion').eq('area_negocio', areaNegocio).eq('activo', true).order('area_id').order('orden'),
+      sb.from('kpi_dominios').select('codigo,nombre,ejecuta,controla').eq('area_negocio', areaNegocio).eq('activo', true).eq('es_regional', soloRegional).order('orden'),
+      sb.from('kpis_catalogo').select('area_id,kpi_id,nombre,definicion').eq('area_negocio', areaNegocio).eq('activo', true).eq('es_regional', soloRegional).order('area_id').order('orden'),
     ])
     const dominios = (dominiosData || []) as DominioRow[]
     const filas = (kpisData || []) as KpiCatalogoRow[]
@@ -49,7 +49,7 @@ export function KpiCatalogProvider({ areaNegocio, children }: { areaNegocio: str
     })
     setAreas(nuevasAreas)
     setLoading(false)
-  }, [areaNegocio])
+  }, [areaNegocio, soloRegional])
 
   useEffect(() => { cargar() }, [cargar, tick])
 
