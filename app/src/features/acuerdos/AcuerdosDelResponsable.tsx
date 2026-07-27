@@ -38,15 +38,20 @@ export function AcuerdosDelResponsable({ paisCode, areaNegocio }: AcuerdosDelRes
         const res = await sb.from('acuerdos_reunion').select('*').eq('area_negocio', areaNegocio).in('responsable_email', emails).order('creado_at', { ascending: true })
         data = res.data
       } else {
+        // Vista propia: lo que me asignaron a mí, sin importar el área que quedó
+        // grabada en la minuta (una reunión puede reunir compromisos de gente de
+        // varias áreas) — RLS ya lo permite vía responsable_email = auth.email().
         const email = (user?.email || '').toLowerCase()
-        const res = await sb.from('acuerdos_reunion').select('*').eq('area_negocio', areaNegocio).eq('responsable_email', email).order('creado_at', { ascending: true })
+        const res = await sb.from('acuerdos_reunion').select('*').eq('responsable_email', email).order('creado_at', { ascending: true })
         data = res.data
       }
       if (!activo) return
       if (!data || data.length === 0) { setGrupos([]); return }
 
       const reunionIds = [...new Set(data.map((a) => a.reunion_id).filter(Boolean))] as string[]
-      const { data: reunionesRel } = await sb.from('reuniones').select('id,titulo,fecha').eq('area_negocio', areaNegocio).in('id', reunionIds)
+      let reunionesQuery = sb.from('reuniones').select('id,titulo,fecha').in('id', reunionIds)
+      if (esVistaRegional) reunionesQuery = reunionesQuery.eq('area_negocio', areaNegocio)
+      const { data: reunionesRel } = await reunionesQuery
       const reunionesPorId = new Map((reunionesRel || []).map((r) => [r.id, r]))
 
       const mapaGrupos = new Map<string, AcuerdoReunion[]>()
