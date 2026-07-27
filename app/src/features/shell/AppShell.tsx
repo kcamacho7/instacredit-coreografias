@@ -11,6 +11,7 @@ import { RegionalPanel } from '../regional/RegionalPanel'
 import { RegionalAreaPanel } from '../regional/RegionalAreaPanel'
 import { DashboardPage } from '../dashboard/DashboardPage'
 import { AcuerdosModule } from '../acuerdos/AcuerdosModule'
+import { SeguimientoMinutasTab } from '../regional/SeguimientoMinutasTab'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 
@@ -36,6 +37,7 @@ export function AppShell() {
   // asigna explícitamente por usuario — no se hereda de ser regional/admin.
   const puedeVerAcuerdosStandalone = !!(profile && profile.es_lider)
   const puedeVerAdministracion = !!(profile && (profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
+  const puedeVerSeguimientoMinutas = !!(profile && (profile.es_regional || profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
 
   function isotipo() {
     return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: '.35em' }} />
@@ -46,10 +48,11 @@ export function AppShell() {
     if (esRegionalExclusivo) lista.push({ code: 'REGIONAL_AREA', label: <>{isotipo()}Regional {nombreAreaActiva}</>, className: 'tab-btn-regional' })
     lista.push({ code: 'DASHBOARD', label: <Emoji text="📊 Dashboard" /> })
     if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', label: <>{isotipo()}Acuerdos de reuniones</>, className: 'tab-btn-regional' })
+    if (puedeVerSeguimientoMinutas) lista.push({ code: 'SEGUIMIENTO_MINUTAS', label: <>{isotipo()}Seguimiento minutas</>, className: 'tab-btn-regional' })
     if (puedeVerAdministracion) lista.push({ code: 'REGIONAL', label: <>{isotipo()}Administración del sistema</>, className: 'tab-btn-regional' })
     return lista
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdosStandalone, puedeVerAdministracion, nombreAreaActiva, base])
+  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdosStandalone, puedeVerSeguimientoMinutas, puedeVerAdministracion, nombreAreaActiva, base])
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const guardada = sessionStorage.getItem(ACTIVE_TAB_KEY)
@@ -140,6 +143,11 @@ export function AppShell() {
               </div>
               <AcuerdosModule areaNegocio={currentArea} />
             </div>
+          </div>
+        )}
+        {puedeVerSeguimientoMinutas && (
+          <div className={'tab-panel' + (activeTab === 'SEGUIMIENTO_MINUTAS' ? ' active' : '')}>
+            <SeguimientoMinutasTab areaNegocio={currentArea} />
           </div>
         )}
         {puedeVerAdministracion && (
