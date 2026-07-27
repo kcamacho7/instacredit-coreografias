@@ -4,6 +4,7 @@ import { BitacoraTab } from './BitacoraTab'
 import { FechasReunionTab } from './FechasReunionTab'
 import { GestionAccionesTab } from './GestionAccionesTab'
 import { CatalogoKpiTab } from './CatalogoKpiTab'
+import { HistoricoAcuerdosTab } from './HistoricoAcuerdosTab'
 import { UsuariosTab } from './UsuariosTab'
 import { AreasNegocioTab } from './AreasNegocioTab'
 import { ConfigSistemaTab } from './ConfigSistemaTab'
@@ -33,6 +34,7 @@ export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
     secciones.push({ id: 'fechas', nombre: 'Fechas y horas' })
     secciones.push({ id: 'acciones', nombre: 'Acciones' })
     secciones.push({ id: 'catalogo', nombre: 'Catálogo KPI' })
+    secciones.push({ id: 'historico', nombre: 'Histórico de acuerdos' })
   }
   secciones.push({ id: 'usuarios', nombre: 'Usuarios' })
   if (esAdminActivo) {
@@ -74,6 +76,7 @@ export function RegionalPanel({ areaNegocio }: RegionalPanelProps) {
       {subTab === 'fechas' && puedeGestionar && <FechasReunionTab areaNegocio={areaNegocio} />}
       {subTab === 'acciones' && puedeGestionar && <GestionAccionesTab areaNegocio={areaNegocio} />}
       {subTab === 'catalogo' && puedeGestionar && <CatalogoKpiTab areaNegocio={areaNegocio} />}
+      {subTab === 'historico' && puedeGestionar && <HistoricoAcuerdosTab areaNegocio={areaNegocio} />}
       {subTab === 'usuarios' && <UsuariosTab areaNegocio={areaNegocio} />}
       {subTab === 'areas' && esAdminActivo && <AreasNegocioTab />}
       {subTab === 'config' && esAdminActivo && <ConfigSistemaTab />}

@@ -245,6 +245,9 @@ header.cover .prestamito{position:absolute;right:26px;bottom:0;height:120px;}
 .reunion-card + .reunion-card{border-top:1px solid var(--gris-borde) !important;}
 .reunion-card-header{background:var(--azul);border-top:none;padding:14px 20px;}
 .reunion-card-header .nombre-input{color:#fff;font-size:16px;font-weight:800;}
+.reunion-card.locked .reunion-card-header .nombre-input{
+  background:rgba(255,255,255,.1) !important;opacity:1;color:#fff;-webkit-text-fill-color:#fff;
+}
 .reunion-card-header .nombre-input:focus{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.5);}
 .reunion-card-header .nombre-input::placeholder{color:rgba(255,255,255,.6);}
 .reunion-card-header .proyecto-toggle{color:#fff;font-size:14px;}
