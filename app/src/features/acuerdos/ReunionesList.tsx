@@ -9,10 +9,9 @@ interface ReunionesListProps {
   diasBloqueoMinuta: number
   refrescarTrigger: number
   onReload: () => void
-  forzarVerTodas?: boolean
 }
 
-export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger, onReload, forzarVerTodas = false }: ReunionesListProps) {
+export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger, onReload }: ReunionesListProps) {
   const { user, profile } = useAuth()
   const [reuniones, setReuniones] = useState<Reunion[] | null>(null)
   const [acuerdosPorReunion, setAcuerdosPorReunion] = useState<Record<string, AcuerdoReunion[]>>({})
@@ -23,7 +22,7 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
   useEffect(() => {
     let activo = true
     ;(async () => {
-      const puedeVerTodas = forzarVerTodas || !!(profile && (profile.es_regional || profile.es_admin))
+      const puedeVerTodas = !!(profile && (profile.es_regional || profile.es_admin))
       let query = sb.from('reuniones').select('*').eq('area_negocio', areaNegocio).order('creado_at', { ascending: false })
       if (!puedeVerTodas && user?.email) query = query.eq('creado_por_email', user.email.toLowerCase())
       const { data: reunionesData, error: err } = await query
@@ -44,7 +43,7 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
       setReuniones(reunionesData || [])
     })()
     return () => { activo = false }
-  }, [areaNegocio, profile, user, refrescarTrigger, forzarVerTodas])
+  }, [areaNegocio, profile, user, refrescarTrigger])
 
   if (error) return <div className="sin-proyectos">Error: {error}</div>
   if (reuniones === null) return <div className="sin-proyectos">Cargando reuniones…</div>
