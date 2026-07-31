@@ -2,6 +2,7 @@ import os
 import smtplib
 import ssl
 import html as html_lib
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -68,6 +69,12 @@ def esc(v):
     return html_lib.escape(str(v or ""), quote=True)
 
 
+def normalizar(s):
+    """minúsculas, sin acentos, sin espacios extra — para emparejar nombres escritos libremente."""
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode("ascii")
+    return " ".join(s.lower().split())
+
+
 def hoy_cr():
     return datetime.now(timezone(timedelta(hours=-6))).date()
 
@@ -102,12 +109,59 @@ def cargar_catalogo():
         return {}
 
 
-def cargar_items(catalogo_cache):
-    """Devuelve lista de dicts: tabla, row_id, idx, pais, grupo, origen, accion(dict)"""
+def cargar_nombre_a_email():
+    """Empareja el nombre libre que se escribe en 'Responsable' con el correo real
+    del usuario (perfiles_usuario.nombre), para notificar solo a esa persona —
+    no a todo el equipo del país.
+
+    Devuelve (mapa_exacto, lista_tokens) — mapa_exacto es nombre_normalizado -> email
+    para el caso simple; lista_tokens es [(set_de_palabras, email), ...] para el caso
+    real más común: el campo "Responsable" trae solo nombre + un apellido
+    ("Walter Chavarría") pero el usuario está registrado con nombre completo
+    ("Walter Chavarria Diaz") — se empareja si las palabras del nombre escrito
+    son un subconjunto de las del usuario. Si dos usuarios comparten nombre
+    normalizado o el subconjunto es ambiguo (calza con más de uno), no se
+    adivina — mejor no notificar a nadie que notificar a la persona equivocada.
+    """
+    usuarios = sb_get("perfiles_usuario", {"select": "email,nombre"})
+    mapa_exacto = {}
+    ambiguos = set()
+    lista_tokens = []
+    for u in usuarios:
+        clave = normalizar(u.get("nombre"))
+        if not clave:
+            continue
+        if clave in mapa_exacto:
+            ambiguos.add(clave)
+        else:
+            mapa_exacto[clave] = u["email"]
+        lista_tokens.append((frozenset(clave.split()), u["email"]))
+    for clave in ambiguos:
+        mapa_exacto.pop(clave, None)
+    return mapa_exacto, lista_tokens
+
+
+def cargar_items(catalogo_cache, nombre_a_email):
+    """Devuelve lista de dicts: tabla, row_id, idx, pais, origen, accion(dict),
+    responsable_email (a quién se le notifica directamente — None si no se pudo
+    emparejar el nombre escrito con ningún usuario)."""
+    mapa_exacto, lista_tokens = nombre_a_email
     items = []
 
     def tiene_contenido(a):
         return bool((a.get("accion") or "").strip() or (a.get("responsable") or "").strip())
+
+    def email_por_nombre(nombre):
+        clave = normalizar(nombre)
+        if not clave:
+            return None
+        if clave in mapa_exacto:
+            return mapa_exacto[clave]
+        tokens_buscados = frozenset(clave.split())
+        if len(tokens_buscados) < 2:
+            return None  # un solo nombre suelto es muy propenso a confundir personas
+        candidatos = {email for tokens_usuario, email in lista_tokens if tokens_buscados <= tokens_usuario}
+        return candidatos.pop() if len(candidatos) == 1 else None
 
     for row in sb_get("coreografias"):
         origen = kpi_catalogo_nombre(row["kpi_id"], catalogo_cache)
@@ -115,7 +169,8 @@ def cargar_items(catalogo_cache):
             if not tiene_contenido(a):
                 continue
             items.append({"tabla": "coreografias", "row_id": row["id"], "idx": idx,
-                          "pais": row["pais_code"], "grupo": row["pais_code"], "origen": origen, "accion": a,
+                          "pais": row["pais_code"], "origen": origen, "accion": a,
+                          "responsable_email": email_por_nombre(a.get("responsable")),
                           "acciones_full": row.get("acciones") or []})
 
     for row in sb_get("kpis_adicionales"):
@@ -124,7 +179,8 @@ def cargar_items(catalogo_cache):
             if not tiene_contenido(a):
                 continue
             items.append({"tabla": "kpis_adicionales", "row_id": row["id"], "idx": idx,
-                          "pais": row["pais_code"], "grupo": row["pais_code"], "origen": origen, "accion": a,
+                          "pais": row["pais_code"], "origen": origen, "accion": a,
+                          "responsable_email": email_por_nombre(a.get("responsable")),
                           "acciones_full": row.get("acciones") or []})
 
     for row in sb_get("proyectos_especiales"):
@@ -133,7 +189,8 @@ def cargar_items(catalogo_cache):
             if not tiene_contenido(a):
                 continue
             items.append({"tabla": "proyectos_especiales", "row_id": row["id"], "idx": idx,
-                          "pais": row["pais_code"], "grupo": row["pais_code"], "origen": origen, "accion": a,
+                          "pais": row["pais_code"], "origen": origen, "accion": a,
+                          "responsable_email": email_por_nombre(a.get("responsable")),
                           "acciones_full": row.get("acciones") or []})
 
     for row in sb_get("acuerdos_reunion"):
@@ -149,36 +206,32 @@ def cargar_items(catalogo_cache):
             "recordada": row.get("recordada", False),
         }
         items.append({"tabla": "acuerdos_reunion", "row_id": row["id"], "idx": 0,
-                      "pais": "AR", "grupo": "AR:" + email if email else "AR:sin_correo",
-                      "origen": "Acuerdo de reunión", "accion": accion,
+                      "pais": "AR", "origen": "Acuerdo de reunión", "accion": accion,
+                      "responsable_email": email or None,
                       "acciones_full": [accion]})
 
     return items
 
 
-def nombre_grupo(grupo):
-    if grupo.startswith("AR:"):
-        email = grupo[3:]
-        return "Acuerdo de reunión — " + (email if email != "sin_correo" else "responsable sin correo")
-    return PAISES.get(grupo, grupo)
+def nombre_grupo(pais):
+    return PAISES.get(pais, pais)
 
 
-def destinatarios_de(grupo, usuarios_por_pais):
-    if grupo == "RG":
-        return [REGIONAL_EMAIL]
-    if grupo.startswith("AR:"):
-        email = grupo[3:]
-        return [email] if email and email != "sin_correo" else []
-    return usuarios_por_pais.get(grupo, [])
+def agrupar_por_responsable(items):
+    """Solo los items con responsable_email identificado reciben notificación
+    individual — los demás quedan fuera del envío directo (siguen apareciendo
+    en el resumen consolidado de Riesgo Regional, que no depende de esto)."""
+    por_responsable = {}
+    for it in items:
+        email = it.get("responsable_email")
+        if not email:
+            continue
+        por_responsable.setdefault(email, []).append(it)
+    return por_responsable
 
 
-def cargar_usuarios_por_pais():
-    usuarios = sb_get("perfiles_usuario", {"select": "email,pais_code,user_id"})
-    por_pais = {}
-    for u in usuarios:
-        if u.get("user_id") and u.get("pais_code"):
-            por_pais.setdefault(u["pais_code"], []).append(u["email"])
-    return por_pais
+def nombre_destinatario(its):
+    return its[0]["accion"].get("responsable") or its[0]["responsable_email"]
 
 
 def tabla_html(items):
@@ -298,27 +351,22 @@ def marcar_flag(items, flag):
         sb_patch(tabla, row_id, {"acciones": acciones})
 
 
-def paso_diario(items, usuarios_por_pais):
+def paso_diario(items):
     nuevas = [it for it in items if it["accion"].get("estado") == "Vencida" and not it["accion"].get("notificada")]
     if not nuevas:
         print("Sin acciones nuevas vencidas hoy.")
         return
 
-    por_pais = {}
-    for it in nuevas:
-        por_pais.setdefault(it["grupo"], []).append(it)
-
-    for grupo, its in por_pais.items():
-        destinatarios = destinatarios_de(grupo, usuarios_por_pais)
-        if destinatarios:
-            html_body = plantilla_html(
-                "Alerta diaria",
-                "Acciones vencidas hoy — " + nombre_grupo(grupo),
-                "Estas acciones pasaron su fecha de compromiso y siguen sin cumplirse. Actualízalas cuanto antes desde el landing.",
-                [(None, tabla_html(its))],
-                acento=ROJO,
-            )
-            enviar_correo(destinatarios, "⚠ Acciones vencidas hoy — " + nombre_grupo(grupo), html_body)
+    for email, its in agrupar_por_responsable(nuevas).items():
+        nombre = nombre_destinatario(its)
+        html_body = plantilla_html(
+            "Alerta diaria",
+            "Acciones vencidas hoy — " + nombre,
+            "Estas acciones pasaron su fecha de compromiso y siguen sin cumplirse. Actualízalas cuanto antes desde el landing.",
+            [(None, tabla_html(its))],
+            acento=ROJO,
+        )
+        enviar_correo([email], "⚠ Acciones vencidas hoy — " + nombre, html_body)
 
     html_regional = plantilla_html(
         "Alerta diaria",
@@ -333,7 +381,7 @@ def paso_diario(items, usuarios_por_pais):
     print("Notificadas %d acciones nuevas vencidas." % len(nuevas))
 
 
-def paso_recordatorio(items, usuarios_por_pais):
+def paso_recordatorio(items):
     manana = (hoy_cr() + timedelta(days=1)).isoformat()
     por_vencer = [
         it for it in items
@@ -345,21 +393,16 @@ def paso_recordatorio(items, usuarios_por_pais):
         print("Sin acciones que venzan mañana.")
         return
 
-    por_pais = {}
-    for it in por_vencer:
-        por_pais.setdefault(it["grupo"], []).append(it)
-
-    for grupo, its in por_pais.items():
-        destinatarios = destinatarios_de(grupo, usuarios_por_pais)
-        if destinatarios:
-            html_body = plantilla_html(
-                "Recordatorio",
-                "Acciones que vencen mañana — " + nombre_grupo(grupo),
-                "Estas acciones tienen fecha de compromiso mañana. Actualiza su estado o resultado antes de que venzan.",
-                [(None, tabla_html(its))],
-                acento=VERDE,
-            )
-            enviar_correo(destinatarios, "⏰ Recordatorio — acciones que vencen mañana en " + nombre_grupo(grupo), html_body)
+    for email, its in agrupar_por_responsable(por_vencer).items():
+        nombre = nombre_destinatario(its)
+        html_body = plantilla_html(
+            "Recordatorio",
+            "Acciones que vencen mañana — " + nombre,
+            "Estas acciones tienen fecha de compromiso mañana. Actualiza su estado o resultado antes de que venzan.",
+            [(None, tabla_html(its))],
+            acento=VERDE,
+        )
+        enviar_correo([email], "⏰ Recordatorio — acciones que vencen mañana", html_body)
 
     html_regional = plantilla_html(
         "Recordatorio",
@@ -374,29 +417,29 @@ def paso_recordatorio(items, usuarios_por_pais):
     print("Recordadas %d acciones que vencen mañana." % len(por_vencer))
 
 
-def paso_semanal(items, usuarios_por_pais):
+def paso_semanal(items):
     vencidas = [it for it in items if it["accion"].get("estado") == "Vencida"]
     if not vencidas:
         print("Sin acciones vencidas para el resumen semanal.")
         return
 
+    for email, its in agrupar_por_responsable(vencidas).items():
+        nombre = nombre_destinatario(its)
+        html_body = plantilla_html(
+            "Resumen semanal",
+            "Resumen semanal — acciones vencidas de " + nombre,
+            "Todas tus acciones vencidas al día de hoy (%d en total):" % len(its),
+            [(None, tabla_html(its))],
+            acento=AZUL,
+        )
+        enviar_correo([email], "📋 Resumen semanal — acciones vencidas", html_body)
+
+    # El consolidado de Riesgo Regional sí se organiza por país (vista de
+    # supervisión, no depende de a quién se le notificó individualmente).
     por_pais = {}
     for it in vencidas:
-        por_pais.setdefault(it["grupo"], []).append(it)
-
-    for grupo, its in por_pais.items():
-        destinatarios = destinatarios_de(grupo, usuarios_por_pais)
-        if destinatarios:
-            html_body = plantilla_html(
-                "Resumen semanal",
-                "Resumen semanal — acciones vencidas de " + nombre_grupo(grupo),
-                "Todas las acciones vencidas al día de hoy (%d en total):" % len(its),
-                [(None, tabla_html(its))],
-                acento=AZUL,
-            )
-            enviar_correo(destinatarios, "📋 Resumen semanal — " + nombre_grupo(grupo), html_body)
-
-    secciones = [(nombre_grupo(grupo) + " (" + str(len(its)) + ")", tabla_html(its)) for grupo, its in por_pais.items()]
+        por_pais.setdefault(it["pais"], []).append(it)
+    secciones = [(nombre_grupo(pais) + " (" + str(len(its)) + ")", tabla_html(its)) for pais, its in por_pais.items()]
     html_regional = plantilla_html(
         "Resumen semanal",
         "Resumen semanal consolidado — todos los países",
@@ -423,8 +466,8 @@ def paso_prueba(items, correo, pais_code):
 
 def main():
     catalogo_cache = cargar_catalogo()
-    items = cargar_items(catalogo_cache)
-    usuarios_por_pais = cargar_usuarios_por_pais()
+    nombre_a_email = cargar_nombre_a_email()
+    items = cargar_items(catalogo_cache, nombre_a_email)
 
     correo_prueba = os.environ.get("CORREO_PRUEBA", "").strip()
     pais_prueba = os.environ.get("PAIS_PRUEBA", "").strip().upper()
@@ -432,15 +475,15 @@ def main():
         paso_prueba(items, correo_prueba, pais_prueba)
         return
 
-    paso_diario(items, usuarios_por_pais)
+    paso_diario(items)
 
-    items_para_recordatorio = cargar_items(catalogo_cache)
-    paso_recordatorio(items_para_recordatorio, usuarios_por_pais)
+    items_para_recordatorio = cargar_items(catalogo_cache, nombre_a_email)
+    paso_recordatorio(items_para_recordatorio)
 
     forzar_semanal = os.environ.get("FORZAR_SEMANAL", "").lower() == "true"
     if hoy_cr().weekday() == 2 or forzar_semanal:  # 0=lunes ... 2=miércoles
-        items_frescos = cargar_items(catalogo_cache)
-        paso_semanal(items_frescos, usuarios_por_pais)
+        items_frescos = cargar_items(catalogo_cache, nombre_a_email)
+        paso_semanal(items_frescos)
     else:
         print("Hoy no es miércoles, se omite el resumen semanal.")
 
