@@ -141,14 +141,14 @@ body{font-family:'Inter Tight',sans-serif;color:var(--gris-texto);background:var
 input, textarea, select, button{font-family:inherit;}
 .page{max-width:1150px;margin:0 auto;padding:0 32px;}
 
-header.cover{background:var(--azul);color:#fff;padding:28px 32px 40px 32px;margin-bottom:0;position:fixed;top:0;left:0;right:0;overflow:hidden;z-index:40;}
+header.cover{background:var(--azul);color:#fff;padding:14px 32px;margin-bottom:0;position:fixed;top:0;left:0;right:0;overflow:hidden;z-index:40;}
 header.cover .page{margin-left:max(32px, calc(50% - 695px));margin-right:auto;}
-header.cover .logo-row{margin-bottom:26px;}
-header.cover .logo-row img{height:32px;}
-header.cover .eyebrow{color:var(--verde-claro);font-weight:600;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
-header.cover h1{font-size:28px;font-weight:800;margin:0 0 8px 0;line-height:1.15;max-width:640px;}
-header.cover p{color:var(--azul-claro);font-size:14px;margin:0;max-width:640px;}
-header.cover .prestamito{position:absolute;right:26px;bottom:0;height:120px;}
+header.cover .logo-row{margin-bottom:8px;}
+header.cover .logo-row img{height:22px;}
+header.cover .eyebrow{color:var(--verde-claro);font-weight:600;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:2px;}
+header.cover h1{font-size:19px;font-weight:800;margin:0 0 2px 0;line-height:1.15;max-width:640px;}
+header.cover p{color:var(--azul-claro);font-size:12px;margin:0;max-width:640px;}
+header.cover .prestamito{position:absolute;right:20px;bottom:0;height:68px;}
 
 /* Barra de acciones */
 .toolbar{
