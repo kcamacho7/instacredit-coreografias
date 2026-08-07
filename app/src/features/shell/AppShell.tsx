@@ -95,24 +95,51 @@ export function AppShell() {
     })
   }
 
-  // El toolbar es sticky en top:0 y las tabs son sticky justo debajo — en vez de
-  // asumir una altura fija de toolbar (frágil ante cambios de fuente/contenido),
-  // se mide en vivo para que nunca quede un hueco que deje ver el contenido
-  // scrolleando detrás.
+  // El encabezado queda fijo arriba (no se mueve con el scroll). El toolbar y
+  // las tabs son sticky justo debajo, y el sidebar arranca debajo también —
+  // en vez de asumir alturas fijas (frágil ante cambios de fuente/contenido),
+  // se miden en vivo para que nunca quede un hueco que deje ver el contenido
+  // scrolleando detrás ni un traslape con el encabezado fijo.
+  // Nota: se usa offsetHeight (no entry.contentRect.height) porque contentRect
+  // excluye el padding — con el padding grande del header eso dejaba la medida
+  // corta y el sidebar/toolbar quedaban traslapados con el encabezado fijo.
+  const headerRef = useRef<HTMLElement>(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => setHeaderHeight(el.offsetHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const toolbarRef = useRef<HTMLDivElement>(null)
   const [toolbarHeight, setToolbarHeight] = useState(0)
   useLayoutEffect(() => {
     const el = toolbarRef.current
     if (!el) return
-    const observer = new ResizeObserver(([entry]) => setToolbarHeight(entry.contentRect.height))
+    const observer = new ResizeObserver(() => setToolbarHeight(el.offsetHeight))
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
 
   return (
     <KpiCatalogProvider areaNegocio={currentArea}>
-    <div id="appLayout">
-      <aside className={'sidebar' + (sidebarColapsado ? ' collapsed' : '')}>
+    <header className="cover" ref={headerRef}>
+      <div className="page" style={{ padding: 0 }}>
+        <div className="logo-row"><img src={`${base}assets/logo_claro.png`} alt="Instacredit" /></div>
+        <div className="eyebrow">{nombreAreaActiva} — Instacredit</div>
+        <h1>Coreografías Operativas</h1>
+        <p>Cada Gerente de País documenta aquí sus Coreografías por KPI.</p>
+      </div>
+      <img className="prestamito" src={`${base}assets/prestamito_senalando.png`} alt="Prestamito" />
+    </header>
+
+    <div id="appLayout" style={{ paddingTop: headerHeight || undefined }}>
+      <aside
+        className={'sidebar' + (sidebarColapsado ? ' collapsed' : '')}
+        style={headerHeight ? { top: headerHeight, height: `calc(100vh - ${headerHeight}px)` } : undefined}
+      >
         <button type="button" className="sidebar-toggle" onClick={alternarSidebar} title={sidebarColapsado ? 'Expandir menú' : 'Contraer menú'}>
           <svg className="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           <span className="sidebar-toggle-label">Menú</span>
@@ -133,23 +160,13 @@ export function AppShell() {
         </nav>
       </aside>
     <div id="appMain">
-      <header className="cover">
-        <div className="page" style={{ padding: 0 }}>
-          <div className="logo-row"><img src={`${base}assets/logo_claro.png`} alt="Instacredit" /></div>
-          <div className="eyebrow">{nombreAreaActiva} — Instacredit</div>
-          <h1>Coreografías Operativas</h1>
-          <p>Cada Gerente de País documenta aquí sus Coreografías por KPI.</p>
-        </div>
-        <img className="prestamito" src={`${base}assets/prestamito_senalando.png`} alt="Prestamito" />
-      </header>
-
-      <div className="toolbar" ref={toolbarRef}>
+      <div className="toolbar" ref={toolbarRef} style={{ top: headerHeight }}>
         <span className="status" id="statusText">Datos consolidados desde la nube</span>
       </div>
 
       <AuthBar currentArea={currentArea} nombreAreaActiva={nombreAreaActiva} areasCatalogo={catalogo} onCambiarArea={cambiarAreaActiva} />
 
-      <div className="tabs" id="tabs" style={toolbarHeight ? { top: toolbarHeight } : undefined}>
+      <div className="tabs" id="tabs" style={{ top: headerHeight + toolbarHeight }}>
         {tabs.map((t) => (
           <button
             key={t.code}
