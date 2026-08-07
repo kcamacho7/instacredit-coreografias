@@ -212,6 +212,37 @@ header.cover .prestamito{position:absolute;right:26px;bottom:0;height:120px;}
 .tab-panel{display:none;padding-top:28px;}
 .tab-panel.active{display:block;}
 
+/* Menú lateral izquierdo (Dashboard, Acuerdos de reuniones, Seguimiento minutas, Administración) */
+#appLayout{display:flex;align-items:flex-start;}
+#appMain{flex:1 1 auto;min-width:0;}
+.sidebar{
+  position:sticky;top:0;align-self:flex-start;height:100vh;flex:0 0 auto;
+  width:216px;background:var(--azul);color:#fff;display:flex;flex-direction:column;
+  z-index:25;transition:width .16s ease;overflow-x:hidden;overflow-y:auto;
+}
+.sidebar.collapsed{width:60px;}
+.sidebar-toggle{
+  display:flex;align-items:center;gap:10px;background:none;border:none;color:#fff;cursor:pointer;
+  padding:18px;font-family:'Inter Tight',sans-serif;font-size:12px;font-weight:700;letter-spacing:.3px;
+  text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.14);white-space:nowrap;flex:0 0 auto;
+}
+.sidebar-toggle:hover{background:rgba(255,255,255,.06);}
+.sidebar-toggle .chevron{transition:transform .16s ease;flex:0 0 auto;}
+.sidebar.collapsed .sidebar-toggle .chevron{transform:rotate(180deg);}
+.sidebar-nav{display:flex;flex-direction:column;padding:10px 0;gap:2px;}
+.sidebar-btn{
+  display:flex;align-items:center;gap:12px;background:none;border:none;color:var(--azul-claro);
+  padding:12px 18px;font-family:'Inter Tight',sans-serif;font-size:13.5px;font-weight:700;cursor:pointer;
+  text-align:left;white-space:nowrap;border-left:3px solid transparent;width:100%;
+}
+.sidebar-btn:hover{background:rgba(255,255,255,.07);color:#fff;}
+.sidebar-btn.active{background:rgba(76,156,46,.2);color:#fff;border-left-color:var(--verde);}
+.sidebar-btn .sidebar-icon{flex:0 0 auto;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.sidebar-btn .sidebar-icon img{height:18px;width:auto;}
+.sidebar-label{overflow:hidden;text-overflow:ellipsis;}
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .sidebar-toggle-label{display:none;}
+
 .area-block{margin-bottom:36px;}
 .area-header{background:var(--verde);color:#fff;padding:12px 20px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;}
 .area-header h2{margin:0;font-size:17px;font-weight:800;}

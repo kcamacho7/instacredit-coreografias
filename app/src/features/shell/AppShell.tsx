@@ -14,11 +14,18 @@ import { AcuerdosModule } from '../acuerdos/AcuerdosModule'
 import { SeguimientoMinutasTab } from '../regional/SeguimientoMinutasTab'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
+const SIDEBAR_COLLAPSED_KEY = 'instacredit_coreografias_sidebar_collapsed'
 
 interface TabDef {
   code: string
   label: ReactNode
   className?: string
+}
+
+interface SidebarItemDef {
+  code: string
+  icon: ReactNode
+  label: string
 }
 
 export function AppShell() {
@@ -39,20 +46,28 @@ export function AppShell() {
   const puedeVerAdministracion = !!(profile && (profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
   const puedeVerSeguimientoMinutas = !!(profile && (profile.es_regional || profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
 
-  function isotipo() {
-    return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: '.35em' }} />
+  function isotipo(inline = true) {
+    return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: inline ? '.35em' : 0 }} />
   }
 
+  // Barra superior: solo países + Regional {Área}. El resto vive en el menú lateral.
   const tabs: TabDef[] = useMemo(() => {
     const lista: TabDef[] = paisesVisibles.map((p) => ({ code: p.code, label: <Emoji text={`${p.bandera} ${p.nombre}`} /> }))
     if (esRegionalExclusivo) lista.push({ code: 'REGIONAL_AREA', label: <>{isotipo()}Regional {nombreAreaActiva}</>, className: 'tab-btn-regional' })
-    lista.push({ code: 'DASHBOARD', label: <Emoji text="📊 Dashboard" /> })
-    if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', label: <>{isotipo()}Acuerdos de reuniones</>, className: 'tab-btn-regional' })
-    if (puedeVerSeguimientoMinutas) lista.push({ code: 'SEGUIMIENTO_MINUTAS', label: <>{isotipo()}Seguimiento minutas</>, className: 'tab-btn-regional' })
-    if (puedeVerAdministracion) lista.push({ code: 'REGIONAL', label: <>{isotipo()}Administración del sistema</>, className: 'tab-btn-regional' })
     return lista
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paisesVisibles, esRegionalExclusivo, puedeVerAcuerdosStandalone, puedeVerSeguimientoMinutas, puedeVerAdministracion, nombreAreaActiva, base])
+  }, [paisesVisibles, esRegionalExclusivo, nombreAreaActiva, base])
+
+  const sidebarItems: SidebarItemDef[] = useMemo(() => {
+    const lista: SidebarItemDef[] = [{ code: 'DASHBOARD', icon: <Emoji text="📊" />, label: 'Dashboard' }]
+    if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', icon: isotipo(false), label: 'Acuerdos de reuniones' })
+    if (puedeVerSeguimientoMinutas) lista.push({ code: 'SEGUIMIENTO_MINUTAS', icon: isotipo(false), label: 'Seguimiento minutas' })
+    if (puedeVerAdministracion) lista.push({ code: 'REGIONAL', icon: isotipo(false), label: 'Administración del sistema' })
+    return lista
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puedeVerAcuerdosStandalone, puedeVerSeguimientoMinutas, puedeVerAdministracion, base])
+
+  const todosLosCodigos = useMemo(() => [...tabs.map((t) => t.code), ...sidebarItems.map((s) => s.code)], [tabs, sidebarItems])
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const guardada = sessionStorage.getItem(ACTIVE_TAB_KEY)
@@ -60,15 +75,24 @@ export function AppShell() {
   })
 
   useEffect(() => {
-    if (!tabs.some((t) => t.code === activeTab)) {
-      setActiveTab(tabs[0]?.code || 'DASHBOARD')
+    if (!todosLosCodigos.includes(activeTab)) {
+      setActiveTab(todosLosCodigos[0] || 'DASHBOARD')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs])
+  }, [todosLosCodigos])
 
   function selectTab(code: string) {
     setActiveTab(code)
     sessionStorage.setItem(ACTIVE_TAB_KEY, code)
+  }
+
+  const [sidebarColapsado, setSidebarColapsado] = useState<boolean>(() => sessionStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+  function alternarSidebar() {
+    setSidebarColapsado((prev) => {
+      const nuevo = !prev
+      sessionStorage.setItem(SIDEBAR_COLLAPSED_KEY, nuevo ? '1' : '0')
+      return nuevo
+    })
   }
 
   // El toolbar es sticky en top:0 y las tabs son sticky justo debajo — en vez de
@@ -87,7 +111,28 @@ export function AppShell() {
 
   return (
     <KpiCatalogProvider areaNegocio={currentArea}>
-    <div id="appContent">
+    <div id="appLayout">
+      <aside className={'sidebar' + (sidebarColapsado ? ' collapsed' : '')}>
+        <button type="button" className="sidebar-toggle" onClick={alternarSidebar} title={sidebarColapsado ? 'Expandir menú' : 'Contraer menú'}>
+          <svg className="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          <span className="sidebar-toggle-label">Menú</span>
+        </button>
+        <nav className="sidebar-nav">
+          {sidebarItems.map((s) => (
+            <button
+              key={s.code}
+              type="button"
+              className={'sidebar-btn' + (activeTab === s.code ? ' active' : '')}
+              onClick={() => selectTab(s.code)}
+              title={s.label}
+            >
+              <span className="sidebar-icon">{s.icon}</span>
+              <span className="sidebar-label">{s.label}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+    <div id="appMain">
       <header className="cover">
         <div className="page" style={{ padding: 0 }}>
           <div className="logo-row"><img src={`${base}assets/logo_claro.png`} alt="Instacredit" /></div>
@@ -161,6 +206,7 @@ export function AppShell() {
         <span>¡Apoyándote siempre! — Instacredit {nombreAreaActiva} Regional</span>
         <span>Coreografías Operativas · Julio 2026</span>
       </footer>
+    </div>
     </div>
     </KpiCatalogProvider>
   )
