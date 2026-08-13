@@ -57,6 +57,7 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
           reunion={reunion}
           acuerdosIniciales={acuerdosPorReunion[reunion.id] || []}
           perfiles={perfiles}
+          otrasReuniones={reuniones}
           diasBloqueoMinuta={diasBloqueoMinuta}
           abierta={abiertas.has(reunion.id)}
           onToggleAbierta={(abierta) => setAbiertas((prev) => {

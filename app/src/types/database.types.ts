@@ -810,6 +810,10 @@ export type Database = {
       current_user_is_gerente_pais: { Args: never; Returns: boolean }
       current_user_is_regional_or_lider: { Args: never; Returns: boolean }
       current_user_pais: { Args: never; Returns: string }
+      fusionar_reuniones: {
+        Args: { p_principal_id: string; p_secundaria_id: string }
+        Returns: undefined
+      }
       verificar_pin: {
         Args: { p_code: string; p_pin: string }
         Returns: boolean

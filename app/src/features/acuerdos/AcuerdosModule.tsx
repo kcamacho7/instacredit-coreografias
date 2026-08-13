@@ -37,12 +37,21 @@ export function AcuerdosModule({ areaNegocio }: AcuerdosModuleProps) {
     setEstadoArchivo({ texto: `Leyendo ${file.name}…`, color: 'var(--azul-claro)' })
     try {
       const texto = await leerArchivoTranscripcion(file)
-      setTranscripcion(texto)
-      setEstadoArchivo({ texto: `✓ ${file.name} cargado — revisa el texto abajo antes de crear la reunión.`, color: 'var(--verde)' })
+      // Si ya había texto (de un archivo anterior), se agrega como una parte más
+      // en vez de reemplazarlo — para sesiones grabadas en varios archivos
+      // separados (se cortó la grabación, o quedó en más de una app).
+      setTranscripcion((prev) => {
+        const anterior = prev.trim()
+        if (!anterior) return texto
+        const parteNum = (anterior.match(/--- Parte \d+/g) || []).length + 2
+        return anterior + `\n\n--- Parte ${parteNum} de la transcripción (${file.name}) ---\n\n` + texto
+      })
+      setEstadoArchivo({ texto: `✓ ${file.name} agregado a la transcripción — revisa el texto abajo. Si la sesión tuvo varias grabaciones, puedes seguir eligiendo más archivos antes de crear la reunión.`, color: 'var(--verde)' })
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : String(err)
       setEstadoArchivo({ texto: `No se pudo leer el archivo: ${mensaje}. Pega el texto manualmente.`, color: 'var(--rojo)' })
     }
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function crearReunion() {
@@ -92,10 +101,11 @@ export function AcuerdosModule({ areaNegocio }: AcuerdosModuleProps) {
         <div className="field" style={{ padding: '0 0 10px 0' }}>
           <label>Subir archivo de transcripción</label>
           <div className="file-upload-row">
-            <label className="file-upload-btn" htmlFor="nuevaReunionArchivoInput">📎 Elegir archivo</label>
+            <label className="file-upload-btn" htmlFor="nuevaReunionArchivoInput">📎 {transcripcion.trim() ? 'Agregar otro archivo' : 'Elegir archivo'}</label>
             <input ref={fileInputRef} type="file" id="nuevaReunionArchivoInput" className="nueva-reunion-archivo" accept=".txt,.vtt,.srt,.docx" onChange={onArchivoChange} />
             <span className="nueva-reunion-archivo-nombre">{nombreArchivo}</span>
           </div>
+          <div style={{ fontSize: 11.5, marginTop: 4, color: 'var(--azul-claro)' }}>Si la sesión se grabó en varias partes (se cortó, o quedó en más de un archivo), sube cada una por separado — se van agregando al mismo texto para procesarlas juntas como una sola reunión.</div>
           {estadoArchivo.texto && <div style={{ fontSize: 12, marginTop: 6, color: estadoArchivo.color }}>{estadoArchivo.texto}</div>}
         </div>
 

@@ -31,13 +31,14 @@ interface ReunionCardProps {
   reunion: Reunion
   acuerdosIniciales: AcuerdoReunion[]
   perfiles: PerfilAcuerdo[]
+  otrasReuniones: Reunion[]
   diasBloqueoMinuta: number
   abierta: boolean
   onToggleAbierta: (abierta: boolean) => void
   onReload: () => void
 }
 
-export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoMinuta, abierta, onToggleAbierta, onReload }: ReunionCardProps) {
+export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReuniones, diasBloqueoMinuta, abierta, onToggleAbierta, onReload }: ReunionCardProps) {
   const { user, profile, regionalUnlocked } = useAuth()
   const { mostrarConfirm } = useDialog()
   const { mostrarAlerta } = useToast()
@@ -47,6 +48,9 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoM
   const [titulo, setTitulo] = useState(reunion.titulo || '')
   const [minuta, setMinuta] = useState(reunion.minuta || '')
   const [acuerdos, setAcuerdos] = useState<AcuerdoReunion[]>(acuerdosIniciales)
+  const [mostrarFusion, setMostrarFusion] = useState(false)
+  const [fusionId, setFusionId] = useState('')
+  const [fusionando, setFusionando] = useState(false)
   const minutaRef = useAutoGrowTextarea(minuta)
 
   useEffect(() => { setTitulo(reunion.titulo || '') }, [reunion.titulo])
@@ -57,6 +61,7 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoM
   const puedeGestionarBloqueo = esCreadorReunion || regionalUnlocked
   const bloqueada = minutaBloqueada(reunion, diasBloqueoMinuta)
   const participantes: Participante[] = Array.isArray(reunion.participantes) ? (reunion.participantes as unknown as Participante[]) : []
+  const candidatasFusion = otrasReuniones.filter((r) => r.id !== reunion.id && !minutaBloqueada(r, diasBloqueoMinuta))
 
   const estadoLabel = reunion.envio_enviado_at
     ? '📨 Guardada y enviada'
@@ -68,6 +73,29 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoM
         descripcion: ac.descripcion, responsable_nombre: ac.responsable_nombre, fecha: ac.fecha || null, estado: ac.estado,
       }).eq('id', ac.id)
     }
+  }
+
+  async function fusionar() {
+    if (!fusionId) return
+    const secundaria = otrasReuniones.find((r) => r.id === fusionId)
+    const ok = await mostrarConfirm(
+      `¿Fusionar "${secundaria?.titulo || '(sin título)'}" dentro de esta reunión?\n\n` +
+      'Esto va a:\n' +
+      '- Mover todos los acuerdos de esa reunión hacia esta.\n' +
+      '- Unir el texto de la minuta y la transcripción (se agrega al final).\n' +
+      '- Unir los participantes de ambas reuniones (sin duplicar).\n' +
+      '- Eliminar permanentemente la otra reunión.\n\n' +
+      'Esta acción no se puede deshacer.'
+    )
+    if (!ok) return
+    setFusionando(true)
+    const { error } = await sb.rpc('fusionar_reuniones', { p_principal_id: reunion.id, p_secundaria_id: fusionId })
+    setFusionando(false)
+    if (error) { mostrarAlerta('Error al fusionar: ' + error.message); return }
+    setMostrarFusion(false)
+    setFusionId('')
+    mostrarAlerta('Reuniones fusionadas correctamente.')
+    onReload()
   }
 
   async function eliminarReunion() {
@@ -177,6 +205,32 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoM
           {(reunion.historial_ediciones as unknown as HistorialEdicion[]).map((h, i) => (
             <span key={i}>{i > 0 && ' · '}{h.usuario_nombre || h.usuario_email || 'alguien'} — {h.accion === 'desbloqueo' ? 'desbloqueada' : 'editada tras desbloqueo'} — {h.fecha ? new Date(h.fecha).toLocaleString('es-CR') : ''}</span>
           ))}
+        </div>
+      )}
+
+      {puedeGestionarBloqueo && !bloqueada && candidatasFusion.length > 0 && (
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--gris-borde)' }}>
+          {!mostrarFusion ? (
+            <button type="button" className="btn-desbloquear-minuta" style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }} onClick={() => setMostrarFusion(true)}>
+              🔗 Fusionar con otra reunión...
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--azul-claro)' }}>Traer acuerdos, minuta y participantes de:</span>
+              <select value={fusionId} onChange={(e) => setFusionId(e.target.value)} style={{ fontSize: 12, padding: '4px 6px' }}>
+                <option value="">Elegir reunión…</option>
+                {candidatasFusion.map((r) => (
+                  <option key={r.id} value={r.id}>{r.titulo || '(sin título)'} — {r.fecha}</option>
+                ))}
+              </select>
+              <button type="button" className="add-proyecto-btn" style={{ margin: 0, padding: '5px 12px', fontSize: 12 }} disabled={!fusionId || fusionando} onClick={fusionar}>
+                {fusionando ? 'Fusionando…' : 'Fusionar'}
+              </button>
+              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--azul-claro)', fontSize: 12, cursor: 'pointer' }} onClick={() => { setMostrarFusion(false); setFusionId('') }}>
+                Cancelar
+              </button>
+            </div>
+          )}
         </div>
       )}
 
