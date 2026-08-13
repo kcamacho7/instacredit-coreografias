@@ -163,7 +163,7 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, perfilesTodo
       historial.push({ accion: 'edicion', usuario_email: user?.email?.toLowerCase() || '', usuario_nombre: profile?.nombre || '', fecha: new Date().toISOString() })
       camposReunion.historial_ediciones = historial as never
     }
-    const enviar = await mostrarConfirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables y a Riesgo Regional?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar')
+    const enviar = await mostrarConfirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar')
     const { error: errReunion } = await sb.from('reuniones').update(camposReunion as never).eq('id', reunion.id)
     if (errReunion) { mostrarAlerta('No se pudo guardar el título/minuta: ' + errReunion.message); return }
     if (!enviar) { mostrarAlerta('Minuta guardada.'); onReload(); return }

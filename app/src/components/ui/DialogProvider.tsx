@@ -52,7 +52,11 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     function onKey(e: KeyboardEvent) {
       if (!request) return
       if (e.key === 'Escape') cerrar(request.kind === 'confirm' ? false : null)
-      if (e.key === 'Enter' && request.kind === 'confirm') { e.preventDefault(); cerrar(true) }
+      // Enter no debe forzar "Aceptar" a ciegas: si el usuario tabuló hasta
+      // "Cancelar" y presiona Enter ahí, el botón enfocado ya lo resuelve solo
+      // (comportamiento nativo del navegador). Forzar cerrar(true) aquí
+      // ignoraba el foco real y confirmaba aunque el usuario hubiera elegido
+      // Cancelar — causó un envío de correo no deseado tras "Solo guardar".
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
