@@ -14,19 +14,20 @@ interface ParticipantesSectionProps {
   participantes: Participante[]
   perfiles: PerfilAcuerdo[]
   locked: boolean
-  onGuardarCamposPendientes: () => Promise<void>
-  onReload: () => void
+  onParticipantesChange: (participantes: Participante[]) => void
 }
 
-export function ParticipantesSection({ reunionId, participantes, perfiles, locked, onGuardarCamposPendientes, onReload }: ParticipantesSectionProps) {
+export function ParticipantesSection({ reunionId, participantes, perfiles, locked, onParticipantesChange }: ParticipantesSectionProps) {
   const { mostrarPrompt } = useDialog()
   const { mostrarAlerta } = useToast()
 
+  // Escribe directo en la fila de la reunión y refleja el cambio en el estado
+  // local de la tarjeta — sin recargar toda la lista de reuniones, que además
+  // de ser más lento reordenaba la página y le corría la posición al usuario.
   async function actualizarParticipantes(nuevos: Participante[]) {
     const { error } = await sb.from('reuniones').update({ participantes: toJson(nuevos) }).eq('id', reunionId)
     if (error) { mostrarAlerta('Error: ' + error.message); return }
-    await onGuardarCamposPendientes()
-    onReload()
+    onParticipantesChange(nuevos)
   }
 
   async function agregarCorreo(idx: number) {

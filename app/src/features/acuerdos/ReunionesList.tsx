@@ -16,6 +16,7 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
   const [reuniones, setReuniones] = useState<Reunion[] | null>(null)
   const [acuerdosPorReunion, setAcuerdosPorReunion] = useState<Record<string, AcuerdoReunion[]>>({})
   const [perfiles, setPerfiles] = useState<PerfilAcuerdo[]>([])
+  const [perfilesTodos, setPerfilesTodos] = useState<PerfilAcuerdo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [abiertas, setAbiertas] = useState<Set<string>>(new Set())
 
@@ -32,6 +33,13 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
       const { data: perfilesData } = await sb.from('perfiles_usuario').select('email,nombre,user_id,pais_code,es_regional,es_lider').eq('area_negocio', areaNegocio)
       if (!activo) return
       setPerfiles(perfilesData || [])
+
+      // Sin filtro de área: para participantes adicionales (a diferencia del
+      // responsable de un acuerdo) puede asistir cualquier persona registrada,
+      // sea de otra área de negocio o sin área fija (regional/gerente de país).
+      const { data: perfilesTodosData } = await sb.from('perfiles_usuario').select('email,nombre,user_id,pais_code,es_regional,es_lider')
+      if (!activo) return
+      setPerfilesTodos(perfilesTodosData || [])
 
       const mapaAcuerdos: Record<string, AcuerdoReunion[]> = {}
       await Promise.all((reunionesData || []).map(async (reunion) => {
@@ -57,6 +65,7 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
           reunion={reunion}
           acuerdosIniciales={acuerdosPorReunion[reunion.id] || []}
           perfiles={perfiles}
+          perfilesTodos={perfilesTodos}
           otrasReuniones={reuniones}
           diasBloqueoMinuta={diasBloqueoMinuta}
           abierta={abiertas.has(reunion.id)}

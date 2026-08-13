@@ -31,6 +31,7 @@ interface ReunionCardProps {
   reunion: Reunion
   acuerdosIniciales: AcuerdoReunion[]
   perfiles: PerfilAcuerdo[]
+  perfilesTodos: PerfilAcuerdo[]
   otrasReuniones: Reunion[]
   diasBloqueoMinuta: number
   abierta: boolean
@@ -38,7 +39,7 @@ interface ReunionCardProps {
   onReload: () => void
 }
 
-export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReuniones, diasBloqueoMinuta, abierta, onToggleAbierta, onReload }: ReunionCardProps) {
+export function ReunionCard({ reunion, acuerdosIniciales, perfiles, perfilesTodos, otrasReuniones, diasBloqueoMinuta, abierta, onToggleAbierta, onReload }: ReunionCardProps) {
   const { user, profile, regionalUnlocked } = useAuth()
   const { mostrarConfirm } = useDialog()
   const { mostrarAlerta } = useToast()
@@ -48,6 +49,7 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReunion
   const [titulo, setTitulo] = useState(reunion.titulo || '')
   const [minuta, setMinuta] = useState(reunion.minuta || '')
   const [acuerdos, setAcuerdos] = useState<AcuerdoReunion[]>(acuerdosIniciales)
+  const [participantes, setParticipantes] = useState<Participante[]>(Array.isArray(reunion.participantes) ? (reunion.participantes as unknown as Participante[]) : [])
   const [mostrarFusion, setMostrarFusion] = useState(false)
   const [fusionId, setFusionId] = useState('')
   const [fusionando, setFusionando] = useState(false)
@@ -56,11 +58,11 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReunion
   useEffect(() => { setTitulo(reunion.titulo || '') }, [reunion.titulo])
   useEffect(() => { setMinuta(reunion.minuta || '') }, [reunion.minuta])
   useEffect(() => { setAcuerdos(acuerdosIniciales) }, [acuerdosIniciales])
+  useEffect(() => { setParticipantes(Array.isArray(reunion.participantes) ? (reunion.participantes as unknown as Participante[]) : []) }, [reunion.participantes])
 
   const esCreadorReunion = !!(user?.email && reunion.creado_por_email && reunion.creado_por_email.toLowerCase() === user.email.toLowerCase())
   const puedeGestionarBloqueo = esCreadorReunion || regionalUnlocked
   const bloqueada = minutaBloqueada(reunion, diasBloqueoMinuta)
-  const participantes: Participante[] = Array.isArray(reunion.participantes) ? (reunion.participantes as unknown as Participante[]) : []
   const candidatasFusion = otrasReuniones.filter((r) => r.id !== reunion.id && !minutaBloqueada(r, diasBloqueoMinuta))
 
   const estadoLabel = reunion.envio_enviado_at
@@ -296,10 +298,9 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReunion
       <ParticipantesSection
         reunionId={reunion.id}
         participantes={participantes}
-        perfiles={perfiles}
+        perfiles={perfilesTodos}
         locked={bloqueada}
-        onGuardarCamposPendientes={guardarCamposPendientes}
-        onReload={onReload}
+        onParticipantesChange={setParticipantes}
       />
 
       {(acuerdos.length > 0 || participantes.length > 0) && (
