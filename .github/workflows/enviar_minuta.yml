@@ -8,7 +8,11 @@ on:
         type: string
         default: ""
       copia_ultima_real:
-        description: "Copia de prueba con la minuta REAL más reciente, solo a este correo (no notifica a nadie más ni marca la reunión como enviada)"
+        description: "Copia de prueba con una minuta REAL, solo a este correo (no notifica a nadie más ni marca la reunión como enviada)"
+        type: string
+        default: ""
+      copia_reunion_id:
+        description: "Opcional: id de la reunión puntual a copiar (deja vacío para usar la más reciente)"
         type: string
         default: ""
 
@@ -39,4 +43,5 @@ jobs:
           REGIONAL_EMAIL: ${{ secrets.REGIONAL_EMAIL }}
           CORREO_PRUEBA: ${{ github.event.inputs.correo_prueba }}
           COPIA_ULTIMA_REAL: ${{ github.event.inputs.copia_ultima_real }}
+          COPIA_REUNION_ID: ${{ github.event.inputs.copia_reunion_id }}
         run: python scripts/enviar_minuta.py
