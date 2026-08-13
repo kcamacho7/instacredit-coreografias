@@ -296,6 +296,7 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReunion
       <ParticipantesSection
         reunionId={reunion.id}
         participantes={participantes}
+        perfiles={perfiles}
         locked={bloqueada}
         onGuardarCamposPendientes={guardarCamposPendientes}
         onReload={onReload}

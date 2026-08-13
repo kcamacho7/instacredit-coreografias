@@ -2,6 +2,7 @@ import { sb } from '../../lib/supabase'
 import { useDialog } from '../../components/ui/DialogProvider'
 import { useToast } from '../../components/ui/ToastProvider'
 import { toJson } from '../../lib/json'
+import type { PerfilAcuerdo } from './AcuerdosTable'
 
 export interface Participante {
   email: string
@@ -11,12 +12,13 @@ export interface Participante {
 interface ParticipantesSectionProps {
   reunionId: string
   participantes: Participante[]
+  perfiles: PerfilAcuerdo[]
   locked: boolean
   onGuardarCamposPendientes: () => Promise<void>
   onReload: () => void
 }
 
-export function ParticipantesSection({ reunionId, participantes, locked, onGuardarCamposPendientes, onReload }: ParticipantesSectionProps) {
+export function ParticipantesSection({ reunionId, participantes, perfiles, locked, onGuardarCamposPendientes, onReload }: ParticipantesSectionProps) {
   const { mostrarPrompt } = useDialog()
   const { mostrarAlerta } = useToast()
 
@@ -48,6 +50,15 @@ export function ParticipantesSection({ reunionId, participantes, locked, onGuard
     await actualizarParticipantes([...participantes, { email, nombre }])
   }
 
+  async function agregarDesdeUsuario(email: string) {
+    const perfil = perfiles.find((p) => p.email.toLowerCase() === email.toLowerCase())
+    if (!perfil) return
+    if (participantes.some((p) => p.email.toLowerCase() === perfil.email.toLowerCase())) { mostrarAlerta('Ese correo ya está en la lista de participantes.'); return }
+    await actualizarParticipantes([...participantes, { email: perfil.email.toLowerCase(), nombre: perfil.nombre }])
+  }
+
+  const perfilesDisponibles = perfiles.filter((p) => !participantes.some((part) => part.email.toLowerCase() === p.email.toLowerCase()))
+
   return (
     <div style={{ padding: '14px 20px', borderTop: '1px solid var(--gris-borde)', marginTop: 10 }}>
       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--azul-claro)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 8 }}>
@@ -73,7 +84,24 @@ export function ParticipantesSection({ reunionId, participantes, locked, onGuard
           })}
         </div>
       )}
-      <button type="button" className="add-row-btn" disabled={locked} onClick={agregarParticipante}>+ Agregar participante</button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {perfilesDisponibles.length > 0 && (
+          <select
+            disabled={locked}
+            value=""
+            onChange={(e) => { if (e.target.value) agregarDesdeUsuario(e.target.value) }}
+            style={{ fontSize: 12.5, padding: '6px 8px' }}
+          >
+            <option value="">+ Agregar desde usuarios existentes…</option>
+            {perfilesDisponibles.map((p) => (
+              <option key={p.email} value={p.email.toLowerCase()}>
+                {p.nombre ? p.nombre + ' — ' : ''}{p.email}{p.pais_code ? ' — ' + p.pais_code : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        <button type="button" className="add-row-btn" disabled={locked} onClick={agregarParticipante}>+ Agregar participante manual</button>
+      </div>
     </div>
   )
 }
