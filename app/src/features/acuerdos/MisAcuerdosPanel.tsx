@@ -6,7 +6,7 @@ import { CollapsibleCard } from '../../components/CollapsibleCard'
 import type { AcuerdoReunion } from './AcuerdosTable'
 import { reunionEstaAprobada } from '../../lib/reunionEstado'
 
-interface ReunionRel { id: string; titulo: string; fecha: string | null; area_negocio: string; estado: string; envio_enviado_at: string | null }
+interface ReunionRel { id: string; titulo: string; fecha: string | null; area_negocio: string; estado: string; envio_enviado_at: string | null; minuta: string | null }
 
 interface Grupo {
   reunion: ReunionRel | null
@@ -27,7 +27,7 @@ export function MisAcuerdosPanel() {
 
     const reunionIds = [...new Set(data.map((a) => a.reunion_id).filter(Boolean))] as string[]
     const [{ data: reunionesRel }, { data: areasData }] = await Promise.all([
-      sb.from('reuniones').select('id,titulo,fecha,area_negocio,estado,envio_enviado_at').in('id', reunionIds),
+      sb.from('reuniones').select('id,titulo,fecha,area_negocio,estado,envio_enviado_at,minuta').in('id', reunionIds),
       sb.from('areas_negocio').select('codigo,nombre'),
     ])
     const reunionesPorId = new Map((reunionesRel || []).map((r) => [r.id, r]))
@@ -69,6 +69,7 @@ export function MisAcuerdosPanel() {
 function GrupoReunion({ grupo }: { grupo: Grupo }) {
   const { reunion, areaNombre, acuerdos: acuerdosIniciales } = grupo
   const [acuerdos, setAcuerdos] = useState(acuerdosIniciales)
+  const [verMinuta, setVerMinuta] = useState(false)
 
   return (
     <CollapsibleCard
@@ -76,6 +77,18 @@ function GrupoReunion({ grupo }: { grupo: Grupo }) {
       variant="reunion"
       metaRight={<span style={{ fontSize: 12, color: 'var(--azul-claro)', whiteSpace: 'nowrap' }}>{areaNombre} {reunion?.fecha ? '· ' + reunion.fecha : ''}</span>}
     >
+      {reunion?.minuta && (
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--gris-borde)' }}>
+          <button type="button" className="btn-eliminar-proyecto" style={{ borderColor: 'var(--azul-claro)', color: 'var(--azul-claro)' }} onClick={() => setVerMinuta((v) => !v)}>
+            {verMinuta ? 'Ocultar minuta' : 'Ver minuta'}
+          </button>
+          {verMinuta && (
+            <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6, color: 'var(--gris-texto)', whiteSpace: 'pre-wrap', background: '#F0F3F7', borderRadius: 6, padding: '10px 14px' }}>
+              {reunion.minuta}
+            </div>
+          )}
+        </div>
+      )}
       <table className="coreo">
         <tbody>
           <tr>

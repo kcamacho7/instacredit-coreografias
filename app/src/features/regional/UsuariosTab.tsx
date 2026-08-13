@@ -14,10 +14,11 @@ const ROLE_BADGE_STYLE: CSSProperties = {
   borderRadius: 10, padding: '2px 8px', fontSize: 10.5, fontWeight: 700, marginRight: 4, marginBottom: 3, whiteSpace: 'nowrap',
 }
 
-function insigniasDe(u: Pick<PerfilUsuario, 'es_regional' | 'es_admin' | 'es_lider' | 'es_gerente_pais' | 'es_admin_area' | 'es_admin_pais'>): string[] {
+function insigniasDe(u: Pick<PerfilUsuario, 'es_regional' | 'es_admin' | 'es_lider' | 'es_gerente_pais' | 'es_admin_area' | 'es_admin_pais' | 'es_staff_regional'>): string[] {
   const insignias: string[] = []
   if (u.es_admin) insignias.push('Super Usuario')
   if (u.es_regional) insignias.push('Regional')
+  if (u.es_staff_regional) insignias.push('Staff Regional')
   if (u.es_lider) insignias.push('Acceso Acuerdos')
   if (u.es_gerente_pais) insignias.push('Gerente país')
   if (u.es_admin_area) insignias.push('Admin área')
@@ -43,14 +44,15 @@ export function UsuariosTab({ areaNegocio }: UsuariosTabProps) {
 
   async function cargar() {
     const base = sb.from('perfiles_usuario').select('*').order('email')
-    // area_negocio=null (Gerente de País) nunca calza con .eq() — el super usuario
-    // necesita seguir viéndolos para poder gestionarlos sin importar qué área tenga
-    // activa. Un admin de área no los ve (no podría editarlos: RLS exige su propia
-    // área); los ve en su lista un admin de país, vía modoPais.
+    // El super usuario ve a TODOS los usuarios, de cualquier área — antes se
+    // filtraba por el área activa en el selector (+ los sin área), así que un
+    // usuario de un área distinta a la seleccionada "desaparecía" de la lista
+    // aunque siguiera existiendo. Un admin de área solo ve/gestiona la suya
+    // (RLS exige su propia área); un admin de país ve la suya vía modoPais.
     const usuariosRes = modoPais
       ? await base.eq('pais_code', profile!.pais_code!)
       : esSuperAdmin
-        ? await base.or(`area_negocio.eq.${areaNegocio},area_negocio.is.null`)
+        ? await base
         : await base.eq('area_negocio', areaNegocio)
     const { data: areasData } = await sb.from('areas_negocio').select('*').eq('activo', true).order('orden')
     if (usuariosRes.error) { setError(usuariosRes.error.message); return }
@@ -106,6 +108,7 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
   const [paisCode, setPaisCode] = useState(usuario.pais_code || '')
   const [areaUsuario, setAreaUsuario] = useState(usuario.area_negocio || '')
   const [esRegional, setEsRegional] = useState(usuario.es_regional)
+  const [esStaffRegional, setEsStaffRegional] = useState(usuario.es_staff_regional)
   const [esAdmin, setEsAdmin] = useState(usuario.es_admin)
   const [esLider, setEsLider] = useState(usuario.es_lider)
   const [esGerentePais, setEsGerentePais] = useState(usuario.es_gerente_pais)
@@ -115,13 +118,13 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
 
   const esPropia = !!(user && usuario.user_id && user.id === usuario.user_id)
   const bloqueadaPorPropiedad = !esSuperAdmin && !!usuario.creado_por && usuario.creado_por !== user?.id
-  const insignias = insigniasDe({ es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, es_gerente_pais: esGerentePais, es_admin_area: esAdminArea, es_admin_pais: esAdminPais })
+  const insignias = insigniasDe({ es_regional: esRegional, es_admin: esAdmin, es_lider: esLider, es_gerente_pais: esGerentePais, es_admin_area: esAdminArea, es_admin_pais: esAdminPais, es_staff_regional: esStaffRegional })
 
   async function guardar() {
     const payload: Record<string, unknown> = {
       // Un Gerente de País no está atado a ninguna área en particular — ve/edita
       // todas las de su país, así que su área_negocio se guarda como null.
-      pais_code: paisCode || null, area_negocio: esGerentePais ? null : (areaUsuario || null), es_regional: esRegional, nombre: nombre.trim(),
+      pais_code: paisCode || null, area_negocio: esGerentePais ? null : (areaUsuario || null), es_regional: esRegional, es_staff_regional: esStaffRegional, nombre: nombre.trim(),
     }
     // Los roles elevados solo los puede tocar el super usuario — el checkbox ya está
     // deshabilitado para los demás, pero además el trigger de la base lo rechazaría.
@@ -207,6 +210,7 @@ function FilaUsuario({ usuario, areasActivas, modoPais, onCambio }: { usuario: P
             <label>Roles de {usuario.email}</label>
             <div className="permisos-checks" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
               <label><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} disabled={bloqueadaPorPropiedad} /> Regional (de su propia área)</label>
+              <label><input type="checkbox" checked={esStaffRegional} onChange={(e) => setEsStaffRegional(e.target.checked)} disabled={bloqueadaPorPropiedad} title="Staff regional sin control de áreas/países — solo ve 'Mis acuerdos'" /> Staff Regional (solo Mis acuerdos)</label>
               <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin || bloqueadaPorPropiedad} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Acceso Acuerdos</label>
               <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Super Usuario</label>
               <label><input type="checkbox" checked={esGerentePais} onChange={(e) => setEsGerentePais(e.target.checked)} disabled={!esSuperAdmin} title={!esSuperAdmin ? 'Solo un super usuario puede otorgar este rol' : undefined} /> Gerente de País</label>
@@ -238,6 +242,7 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
   const [pais, setPais] = useState('')
   const [area, setArea] = useState(areasActivas[0]?.codigo || areaNegocio)
   const [esRegional, setEsRegional] = useState(false)
+  const [esStaffRegional, setEsStaffRegional] = useState(false)
   const [esAdmin, setEsAdmin] = useState(false)
   const [esLider, setEsLider] = useState(false)
   const [esGerentePais, setEsGerentePais] = useState(false)
@@ -253,9 +258,11 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
       email: emailNorm,
       nombre: nombre.trim(),
       pais_code: modoPais ? paisFijo : (pais || null),
-      // Un Gerente de País no está atado a ninguna área en particular.
-      area_negocio: esGerentePais ? null : (modoPais ? area : areaNegocio),
+      // Un Gerente de País y un Staff Regional no están atados a ninguna área en
+      // particular — este formulario no ofrece elegir área para ellos (no aplica).
+      area_negocio: (esGerentePais || esStaffRegional) ? null : (modoPais ? area : areaNegocio),
       es_regional: esRegional,
+      es_staff_regional: esStaffRegional,
     }
     if (esSuperAdmin) {
       payload.es_admin = esAdmin
@@ -266,7 +273,7 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
     }
     const { error } = await sb.from('perfiles_usuario').insert([payload] as never)
     if (error) { mostrarAlerta('Error: ' + error.message); return }
-    setEmail(''); setNombre(''); setPais(''); setEsRegional(false); setEsAdmin(false); setEsLider(false)
+    setEmail(''); setNombre(''); setPais(''); setEsRegional(false); setEsStaffRegional(false); setEsAdmin(false); setEsLider(false)
     setEsGerentePais(false); setEsAdminArea(false); setEsAdminPais(false)
     onAgregado()
   }
@@ -302,6 +309,7 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
           <label>Permisos</label>
           <div className="permisos-checks">
             <label><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} /> Es Regional (de su propia área)</label>
+            <label><input type="checkbox" checked={esStaffRegional} onChange={(e) => setEsStaffRegional(e.target.checked)} title="Sin control de áreas/países — solo ve 'Mis acuerdos'" /> Es Staff Regional (solo ve "Mis acuerdos", sin área/país)</label>
             <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin} /> Acceso Acuerdos (pestaña "Acuerdos de reuniones")</label>
             {esSuperAdmin && (
               <>

@@ -512,6 +512,7 @@ export type Database = {
           es_gerente_pais: boolean
           es_lider: boolean
           es_regional: boolean
+          es_staff_regional: boolean
           id: string
           nombre: string
           pais_code: string | null
@@ -528,6 +529,7 @@ export type Database = {
           es_gerente_pais?: boolean
           es_lider?: boolean
           es_regional?: boolean
+          es_staff_regional?: boolean
           id?: string
           nombre?: string
           pais_code?: string | null
@@ -544,6 +546,7 @@ export type Database = {
           es_gerente_pais?: boolean
           es_lider?: boolean
           es_regional?: boolean
+          es_staff_regional?: boolean
           id?: string
           nombre?: string
           pais_code?: string | null

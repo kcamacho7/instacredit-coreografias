@@ -12,6 +12,7 @@ import { RegionalAreaPanel } from '../regional/RegionalAreaPanel'
 import { DashboardPage } from '../dashboard/DashboardPage'
 import { AcuerdosModule } from '../acuerdos/AcuerdosModule'
 import { SeguimientoMinutasTab } from '../regional/SeguimientoMinutasTab'
+import { MisAcuerdosPanel } from '../acuerdos/MisAcuerdosPanel'
 
 const ACTIVE_TAB_KEY = 'instacredit_coreografias_active_tab'
 const SIDEBAR_COLLAPSED_KEY = 'instacredit_coreografias_sidebar_collapsed'
@@ -45,6 +46,10 @@ export function AppShell() {
   const puedeVerAcuerdosStandalone = !!(profile && profile.es_lider)
   const puedeVerAdministracion = !!(profile && (profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
   const puedeVerSeguimientoMinutas = !!(profile && (profile.es_regional || profile.es_admin || profile.es_admin_area || profile.es_admin_pais))
+  // Staff regional: no controla áreas/países de ningún país, solo necesita revisar
+  // sus propios acuerdos (y eventualmente KPI propios) — sin los demás poderes de
+  // es_regional (editar los 4 países, ver usuarios del área, etc.).
+  const esStaffRegional = !!(profile && profile.es_staff_regional)
 
   function isotipo(inline = true) {
     return <img src={`${base}assets/isotipo_instacredit.png`} alt="" style={{ height: '1em', width: 'auto', verticalAlign: '-0.15em', marginRight: inline ? '.35em' : 0 }} />
@@ -60,12 +65,13 @@ export function AppShell() {
 
   const sidebarItems: SidebarItemDef[] = useMemo(() => {
     const lista: SidebarItemDef[] = [{ code: 'DASHBOARD', icon: <Emoji text="📊" />, label: 'Dashboard' }]
+    if (esStaffRegional) lista.push({ code: 'MIS_ACUERDOS', icon: isotipo(false), label: 'Mis acuerdos' })
     if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', icon: isotipo(false), label: 'Acuerdos de reuniones' })
     if (puedeVerSeguimientoMinutas) lista.push({ code: 'SEGUIMIENTO_MINUTAS', icon: isotipo(false), label: 'Seguimiento minutas' })
     if (puedeVerAdministracion) lista.push({ code: 'REGIONAL', icon: isotipo(false), label: 'Administración del sistema' })
     return lista
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puedeVerAcuerdosStandalone, puedeVerSeguimientoMinutas, puedeVerAdministracion, base])
+  }, [esStaffRegional, puedeVerAcuerdosStandalone, puedeVerSeguimientoMinutas, puedeVerAdministracion, base])
 
   const todosLosCodigos = useMemo(() => [...tabs.map((t) => t.code), ...sidebarItems.map((s) => s.code)], [tabs, sidebarItems])
 
@@ -195,6 +201,11 @@ export function AppShell() {
         {esRegionalExclusivo && (
           <div className={'tab-panel' + (activeTab === 'REGIONAL_AREA' ? ' active' : '')}>
             <RegionalAreaPanel areaNegocio={currentArea} nombreAreaActiva={nombreAreaActiva} />
+          </div>
+        )}
+        {esStaffRegional && (
+          <div className={'tab-panel' + (activeTab === 'MIS_ACUERDOS' ? ' active' : '')}>
+            <MisAcuerdosPanel />
           </div>
         )}
         {puedeVerAcuerdosStandalone && (
