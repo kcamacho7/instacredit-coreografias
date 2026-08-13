@@ -46,6 +46,15 @@ FONDO = "#F5FCF3"
 ROJO = "#EE212E"
 
 ESTADO_COLORES = {"Pendiente": AZUL_CLARO, "En curso": VERDE, "Cumplida": AZUL, "Vencida": ROJO}
+ESTADO_ORDEN = {"Cumplida": 0, "En curso": 1, "Pendiente": 2, "Vencida": 3}
+
+
+def orden_acuerdo(a):
+    """Cumplidos primero, y dentro de cada estado, por fecha de compromiso
+    (los que no tienen fecha quedan al final de su grupo)."""
+    estado = a.get("estado") or "Pendiente"
+    fecha = a.get("fecha") or "9999-99-99"
+    return (ESTADO_ORDEN.get(estado, 99), fecha)
 
 
 def esc(v):
@@ -140,7 +149,10 @@ def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
                 continue
             story.append(Paragraph(esc(parrafo).replace("\n", "<br/>"), style_body))
 
-    acuerdos_con_contenido = [a for a in acuerdos if (a.get("descripcion") or "").strip() or (a.get("responsable_nombre") or "").strip()]
+    acuerdos_con_contenido = sorted(
+        (a for a in acuerdos if (a.get("descripcion") or "").strip() or (a.get("responsable_nombre") or "").strip()),
+        key=orden_acuerdo,
+    )
     story.append(Paragraph("ACUERDOS (%d)" % len(acuerdos_con_contenido), style_h2))
     if not acuerdos_con_contenido:
         story.append(Paragraph("Sin acuerdos registrados.", style_body))
@@ -221,7 +233,7 @@ def tabla_acuerdos_email_html(acuerdos_lista):
     if not acuerdos_lista:
         return ""
     filas = ""
-    for a in acuerdos_lista:
+    for a in sorted(acuerdos_lista, key=orden_acuerdo):
         estado = a.get("estado") or "Pendiente"
         color_estado = ESTADO_COLORES.get(estado, AZUL_CLARO)
         filas += """
