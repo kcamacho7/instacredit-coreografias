@@ -212,7 +212,7 @@ header.cover .prestamito{position:absolute;right:20px;bottom:0;height:68px;}
 .tab-panel{display:none;padding-top:28px;}
 .tab-panel.active{display:block;}
 
-/* Menú lateral izquierdo (Dashboard, Acuerdos de reuniones, Seguimiento minutas, Administración) */
+/* Menú lateral izquierdo (Dashboard, Creación de minutas, Seguimiento minutas, Administración) */
 #appLayout{display:flex;align-items:flex-start;}
 #appMain{flex:1 1 auto;min-width:0;}
 .sidebar{

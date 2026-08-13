@@ -310,7 +310,7 @@ function AgregarUsuario({ areaNegocio, areasActivas, modoPais, paisFijo, usuario
           <div className="permisos-checks">
             <label><input type="checkbox" checked={esRegional} onChange={(e) => setEsRegional(e.target.checked)} /> Es Regional (de su propia área)</label>
             <label><input type="checkbox" checked={esStaffRegional} onChange={(e) => setEsStaffRegional(e.target.checked)} title="Sin control de áreas/países — solo ve 'Mis acuerdos'" /> Es Staff Regional (solo ve "Mis acuerdos", sin área/país)</label>
-            <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin} /> Acceso Acuerdos (pestaña "Acuerdos de reuniones")</label>
+            <label><input type="checkbox" checked={esLider} onChange={(e) => setEsLider(e.target.checked)} disabled={!esSuperAdmin} /> Acceso Acuerdos (pestaña "Creación de minutas")</label>
             {esSuperAdmin && (
               <>
                 <label><input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} /> Es Super Usuario (Administración total)</label>

@@ -66,7 +66,7 @@ export function AppShell() {
   const sidebarItems: SidebarItemDef[] = useMemo(() => {
     const lista: SidebarItemDef[] = [{ code: 'DASHBOARD', icon: <Emoji text="📊" />, label: 'Dashboard' }]
     if (esStaffRegional) lista.push({ code: 'MIS_ACUERDOS', icon: isotipo(false), label: 'Mis acuerdos' })
-    if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', icon: isotipo(false), label: 'Acuerdos de reuniones' })
+    if (puedeVerAcuerdosStandalone) lista.push({ code: 'ACUERDOS', icon: isotipo(false), label: 'Creación de minutas' })
     if (puedeVerSeguimientoMinutas) lista.push({ code: 'SEGUIMIENTO_MINUTAS', icon: isotipo(false), label: 'Seguimiento minutas' })
     if (puedeVerAdministracion) lista.push({ code: 'REGIONAL', icon: isotipo(false), label: 'Administración del sistema' })
     return lista
