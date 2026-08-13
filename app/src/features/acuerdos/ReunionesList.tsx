@@ -34,10 +34,10 @@ export function ReunionesList({ areaNegocio, diasBloqueoMinuta, refrescarTrigger
       setPerfiles(perfilesData || [])
 
       const mapaAcuerdos: Record<string, AcuerdoReunion[]> = {}
-      for (const reunion of reunionesData || []) {
+      await Promise.all((reunionesData || []).map(async (reunion) => {
         const { data: acuerdosData } = await sb.from('acuerdos_reunion').select('*').eq('reunion_id', reunion.id).order('creado_at', { ascending: true })
         mapaAcuerdos[reunion.id] = acuerdosData || []
-      }
+      }))
       if (!activo) return
       setAcuerdosPorReunion(mapaAcuerdos)
       setReuniones(reunionesData || [])

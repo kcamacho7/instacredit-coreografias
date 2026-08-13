@@ -68,11 +68,11 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, otrasReunion
     : ({ pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada, pendiente de revisar', guardada: '💾 Guardada', error: '⚠️ Error al procesar' } as Record<string, string>)[reunion.estado] || reunion.estado
 
   async function guardarCamposPendientes() {
-    for (const ac of acuerdos) {
-      await sb.from('acuerdos_reunion').update({
+    await Promise.all(acuerdos.map((ac) =>
+      sb.from('acuerdos_reunion').update({
         descripcion: ac.descripcion, responsable_nombre: ac.responsable_nombre, fecha: ac.fecha || null, estado: ac.estado,
       }).eq('id', ac.id)
-    }
+    ))
   }
 
   async function fusionar() {
