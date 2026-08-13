@@ -24,7 +24,6 @@ SMTP_PORT = int(os.environ["SMTP_PORT"])
 SMTP_SECURE = (os.environ.get("SMTP_SECURE") or "starttls").strip().lower()
 SMTP_USER = os.environ["SMTP_USER"]
 SMTP_PASS = os.environ["SMTP_PASS"]
-REGIONAL_EMAIL = os.environ["REGIONAL_EMAIL"]
 
 HEADERS = {
     "apikey": SUPABASE_SERVICE_ROLE_KEY,
@@ -118,6 +117,7 @@ def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
     style_cell_head = ParagraphStyle("cellhead", fontName="Helvetica-Bold", fontSize=8.5, textColor=colors.white, leading=11)
     style_cell = ParagraphStyle("cell", fontName="Helvetica", fontSize=9, textColor=colors.HexColor(GRIS_TEXTO), leading=12)
     style_cell_num = ParagraphStyle("cellnum", parent=style_cell, alignment=TA_CENTER)
+    style_bullet = ParagraphStyle("bullet", parent=style_body, leftIndent=14, bulletIndent=2, spaceAfter=4)
 
     story = []
 
@@ -144,10 +144,23 @@ def generar_pdf(titulo, fecha_texto, hora_texto, minuta, acuerdos):
 
     if minuta and minuta.strip():
         story.append(Paragraph("MINUTA", style_h2))
-        for parrafo in re.split(r"\n\s*\n", minuta.strip()):
-            if not parrafo.strip():
-                continue
-            story.append(Paragraph(esc(parrafo).replace("\n", "<br/>"), style_body))
+        # Cada bloque (separado por línea en blanco) puede traer líneas sueltas
+        # con "- " al inicio (ej. la sección AGENDA, ver generar-minuta) que
+        # deben salir como viñetas independientes, no fundidas en un párrafo.
+        for bloque in re.split(r"\n\s*\n", minuta.strip()):
+            lineas = [l.strip() for l in bloque.split("\n") if l.strip()]
+            i = 0
+            while i < len(lineas):
+                if re.match(r"^[-•]\s+", lineas[i]):
+                    texto = re.sub(r"^[-•]\s+", "", lineas[i])
+                    story.append(Paragraph(esc(texto), style_bullet, bulletText="•"))
+                    i += 1
+                else:
+                    grupo = []
+                    while i < len(lineas) and not re.match(r"^[-•]\s+", lineas[i]):
+                        grupo.append(lineas[i])
+                        i += 1
+                    story.append(Paragraph(esc(" ".join(grupo)), style_body))
 
     acuerdos_con_contenido = sorted(
         (a for a in acuerdos if (a.get("descripcion") or "").strip() or (a.get("responsable_nombre") or "").strip()),
@@ -346,9 +359,6 @@ def enviar_reunion(reunion):
         )
         enviar_correo([email], "📋 Minuta — " + titulo, html_body, pdf_completo, nombre_archivo, nombre_area)
 
-    html_regional = plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, "Resumen consolidado de la reunión con todos los acuerdos y responsables asignados.", resumen, nota_organizador)
-    enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_completo, nombre_archivo, nombre_area)
-
     participantes = reunion.get("participantes") or []
     enviados_participantes = 0
     for p in participantes:
@@ -368,7 +378,7 @@ def enviar_reunion(reunion):
         "envio_pendiente": False,
         "envio_enviado_at": datetime.now(timezone.utc).isoformat(),
     })
-    print("Minuta '%s' enviada a %d responsable(s) + regional + %d participante(s)." % (titulo, len(por_responsable), enviados_participantes))
+    print("Minuta '%s' enviada a %d responsable(s) + %d participante(s)." % (titulo, len(por_responsable), enviados_participantes))
 
 
 def enviar_prueba(correo):
