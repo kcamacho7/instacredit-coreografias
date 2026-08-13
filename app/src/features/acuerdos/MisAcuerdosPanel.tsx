@@ -5,7 +5,7 @@ import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea'
 import { CollapsibleCard } from '../../components/CollapsibleCard'
 import type { AcuerdoReunion } from './AcuerdosTable'
 
-interface ReunionRel { id: string; titulo: string; fecha: string | null; area_negocio: string }
+interface ReunionRel { id: string; titulo: string; fecha: string | null; area_negocio: string; estado: string }
 
 interface Grupo {
   reunion: ReunionRel | null
@@ -26,7 +26,7 @@ export function MisAcuerdosPanel() {
 
     const reunionIds = [...new Set(data.map((a) => a.reunion_id).filter(Boolean))] as string[]
     const [{ data: reunionesRel }, { data: areasData }] = await Promise.all([
-      sb.from('reuniones').select('id,titulo,fecha,area_negocio').in('id', reunionIds),
+      sb.from('reuniones').select('id,titulo,fecha,area_negocio,estado').in('id', reunionIds),
       sb.from('areas_negocio').select('codigo,nombre'),
     ])
     const reunionesPorId = new Map((reunionesRel || []).map((r) => [r.id, r]))
@@ -38,10 +38,13 @@ export function MisAcuerdosPanel() {
       if (!mapaGrupos.has(key)) mapaGrupos.set(key, [])
       mapaGrupos.get(key)!.push(ac)
     })
+    // Un acuerdo recién generado por la IA es un borrador — solo debe verlo el
+    // responsable una vez que el organizador revisó y guardó la minuta.
     const listaGrupos: Grupo[] = [...mapaGrupos.entries()].map(([reunionId, acuerdos]) => {
       const reunion = reunionesPorId.get(reunionId) || null
       return { reunion, areaNombre: reunion ? (areaNombrePorCodigo.get(reunion.area_negocio) || reunion.area_negocio) : '', acuerdos }
-    }).sort((a, b) => (b.reunion?.fecha || '').localeCompare(a.reunion?.fecha || ''))
+    }).filter((g) => g.reunion?.estado === 'guardada')
+      .sort((a, b) => (b.reunion?.fecha || '').localeCompare(a.reunion?.fecha || ''))
     setGrupos(listaGrupos)
   }
   useEffect(() => { cargar() }, [user])

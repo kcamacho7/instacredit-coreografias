@@ -279,6 +279,9 @@ header.cover .prestamito{position:absolute;right:20px;bottom:0;height:68px;}
 .reunion-card.locked .reunion-card-header .nombre-input{
   background:rgba(255,255,255,.1) !important;opacity:1;color:#fff;-webkit-text-fill-color:#fff;
 }
+.reunion-card.locked .reunion-card-header .btn-eliminar-proyecto{
+  background:none !important;opacity:.55;color:#fff !important;border-color:rgba(255,255,255,.35) !important;
+}
 .reunion-card-header .nombre-input:focus{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.5);}
 .reunion-card-header .nombre-input::placeholder{color:rgba(255,255,255,.6);}
 .reunion-card-header .proyecto-toggle{color:#fff;font-size:14px;}

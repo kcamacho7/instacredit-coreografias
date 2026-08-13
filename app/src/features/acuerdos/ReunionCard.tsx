@@ -60,7 +60,7 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoM
 
   const estadoLabel = reunion.envio_enviado_at
     ? '📨 Guardada y enviada'
-    : ({ pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada', error: '⚠️ Error al procesar' } as Record<string, string>)[reunion.estado] || reunion.estado
+    : ({ pendiente_procesar: '🕓 Pendiente de procesar', procesada: '✅ Procesada, pendiente de revisar', guardada: '💾 Guardada', error: '⚠️ Error al procesar' } as Record<string, string>)[reunion.estado] || reunion.estado
 
   async function guardarCamposPendientes() {
     for (const ac of acuerdos) {
@@ -124,7 +124,10 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, diasBloqueoM
       if (error) { mostrarAlerta('Error al guardar: ' + error.message); return }
     }
 
-    const camposReunion: Partial<Reunion> = { titulo: titulo.trim(), minuta }
+    // "guardada" marca que el organizador ya revisó/ajustó los acuerdos que la IA
+    // sugirió — antes de este punto (estado 'procesada') son solo un borrador y no
+    // deben salirle al responsable asignado ni contar en reportes/notificaciones.
+    const camposReunion: Partial<Reunion> = { titulo: titulo.trim(), minuta, estado: 'guardada' }
     if (reunion.desbloqueada_en) {
       const historial: HistorialEdicion[] = Array.isArray(reunion.historial_ediciones) ? (reunion.historial_ediciones as unknown as HistorialEdicion[]) : []
       historial.push({ accion: 'edicion', usuario_email: user?.email?.toLowerCase() || '', usuario_nombre: profile?.nombre || '', fecha: new Date().toISOString() })

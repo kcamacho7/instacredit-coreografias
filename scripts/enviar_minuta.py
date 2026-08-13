@@ -215,7 +215,38 @@ def enviar_correo(destinatarios, asunto, cuerpo_html, pdf_bytes, nombre_archivo,
             server.sendmail(SMTP_USER, destinatarios, msg.as_string())
 
 
-def plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, intro, resumen, nota_final=None):
+def tabla_acuerdos_email_html(acuerdos_lista):
+    """Tabla compacta de acuerdos para el CUERPO del correo (no el PDF) — solo
+    los del destinatario, para que los vea sin tener que abrir el adjunto."""
+    if not acuerdos_lista:
+        return ""
+    filas = ""
+    for a in acuerdos_lista:
+        estado = a.get("estado") or "Pendiente"
+        color_estado = ESTADO_COLORES.get(estado, AZUL_CLARO)
+        filas += """
+          <tr>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12.5px;color:{texto};">{desc}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:12px;color:{azul_claro};white-space:nowrap;">{fecha}</td>
+            <td style="padding:9px 10px;border-bottom:1px solid {borde};font-size:11.5px;font-weight:700;color:{color_estado};white-space:nowrap;">{estado}</td>
+          </tr>""".format(
+            borde=GRIS_BORDE, texto=GRIS_TEXTO, azul_claro=AZUL_CLARO,
+            desc=esc(a.get("descripcion") or "(sin descripción)"),
+            fecha=esc(a.get("fecha") or "Por definir"),
+            color_estado=color_estado, estado=esc(estado),
+        )
+    label_style = "display:block;font-size:10.5px;font-weight:700;color:{azul};text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;".format(azul=AZUL)
+    return """
+      <div style="margin-top:18px;">
+        <span style="{label_style}">Tus acuerdos de esta reunión</span>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid {borde};border-radius:8px;overflow:hidden;">
+          {filas}
+        </table>
+      </div>
+    """.format(label_style=label_style, borde=GRIS_BORDE, filas=filas)
+
+
+def plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, intro, resumen, nota_final=None, acuerdos_html=""):
     cuando_texto = " · ".join(filter(None, [fecha_texto, hora_texto]))
     label_style = "display:block;font-size:10.5px;font-weight:700;color:{azul};text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;".format(azul=AZUL)
     resumen_html = ("""<div style="background:{vc}22;border:1px solid {vc};border-left:4px solid {verde};border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0 0 0;font-size:13.5px;line-height:1.6;color:{texto};white-space:pre-wrap;">"""
@@ -247,8 +278,9 @@ def plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, intro, resumen,
     <div style="padding:26px 28px 6px 28px;">
       {intro_html}
       {resumen_html}
+      {acuerdos_html}
       <div style="font-size:13px;line-height:1.6;background:{fondo};border:1px dashed {borde};border-radius:8px;padding:12px 16px;margin:16px 0 0 0;">
-        <span style="{label_style}">📎 Archivo adjunto</span>El detalle completo de la sesión va en el PDF adjunto, con la minuta y todos los acuerdos asignados.
+        <span style="{label_style}">📎 Archivo adjunto</span>El PDF adjunto trae la minuta completa y TODOS los acuerdos de la sesión, con sus responsables.
       </div>
       {nota_html}
     </div>
@@ -262,7 +294,7 @@ def plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, intro, resumen,
 </body></html>""".format(
         fondo=FONDO, azul=AZUL, verde=VERDE, verde_claro=VERDE_CLARO, azul_claro=AZUL_CLARO,
         texto=GRIS_TEXTO, borde=GRIS_BORDE, logo=LOGO_URL, prestamito=PRESTAMITO_URL,
-        titulo=esc(titulo), intro_html=intro_html, resumen_html=resumen_html, nota_html=nota_html,
+        titulo=esc(titulo), intro_html=intro_html, resumen_html=resumen_html, nota_html=nota_html, acuerdos_html=acuerdos_html,
         link=LANDING_URL, cuando_html=cuando_html, nombre_area=esc(nombre_area), label_style=label_style,
     )
 
@@ -290,14 +322,20 @@ def enviar_reunion(reunion):
             continue
         por_responsable.setdefault(email, []).append(a)
 
+    # El PDF adjunto siempre lleva TODOS los acuerdos de la sesión (no solo los
+    # del destinatario) para que cualquier involucrado vea el panorama completo
+    # de quién quedó comprometido con qué — se genera una sola vez y se reutiliza.
+    pdf_completo = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
+
     for email, sus_acuerdos in por_responsable.items():
-        html_body = plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, "Se te asignaron acuerdos en esta reunión.", resumen, nota_organizador)
-        pdf_bytes = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), sus_acuerdos)
-        enviar_correo([email], "📋 Minuta — " + titulo, html_body, pdf_bytes, nombre_archivo, nombre_area)
+        html_body = plantilla_html(
+            nombre_area, titulo, fecha_texto, hora_texto, "Se te asignaron acuerdos en esta reunión.", resumen, nota_organizador,
+            acuerdos_html=tabla_acuerdos_email_html(sus_acuerdos),
+        )
+        enviar_correo([email], "📋 Minuta — " + titulo, html_body, pdf_completo, nombre_archivo, nombre_area)
 
     html_regional = plantilla_html(nombre_area, titulo, fecha_texto, hora_texto, "Resumen consolidado de la reunión con todos los acuerdos y responsables asignados.", resumen, nota_organizador)
-    pdf_regional = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
-    enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_regional, nombre_archivo, nombre_area)
+    enviar_correo([REGIONAL_EMAIL], "📋 Minuta consolidada — " + titulo, html_regional, pdf_completo, nombre_archivo, nombre_area)
 
     participantes = reunion.get("participantes") or []
     enviados_participantes = 0

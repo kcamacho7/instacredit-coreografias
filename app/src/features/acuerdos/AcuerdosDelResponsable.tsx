@@ -6,7 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { CollapsibleCard } from '../../components/CollapsibleCard'
 import type { AcuerdoReunion } from './AcuerdosTable'
 
-interface ReunionRel { id: string; titulo: string; fecha: string | null }
+interface ReunionRel { id: string; titulo: string; fecha: string | null; estado: string }
 
 interface AcuerdosDelResponsableProps {
   paisCode: string
@@ -49,7 +49,7 @@ export function AcuerdosDelResponsable({ paisCode, areaNegocio }: AcuerdosDelRes
       if (!data || data.length === 0) { setGrupos([]); return }
 
       const reunionIds = [...new Set(data.map((a) => a.reunion_id).filter(Boolean))] as string[]
-      let reunionesQuery = sb.from('reuniones').select('id,titulo,fecha').in('id', reunionIds)
+      let reunionesQuery = sb.from('reuniones').select('id,titulo,fecha,estado').in('id', reunionIds)
       if (esVistaRegional) reunionesQuery = reunionesQuery.eq('area_negocio', areaNegocio)
       const { data: reunionesRel } = await reunionesQuery
       const reunionesPorId = new Map((reunionesRel || []).map((r) => [r.id, r]))
@@ -60,9 +60,14 @@ export function AcuerdosDelResponsable({ paisCode, areaNegocio }: AcuerdosDelRes
         if (!mapaGrupos.has(key)) mapaGrupos.set(key, [])
         mapaGrupos.get(key)!.push(ac)
       })
-      const listaGrupos = [...mapaGrupos.entries()]
+      let listaGrupos = [...mapaGrupos.entries()]
         .map(([reunionId, acuerdos]) => ({ reunion: reunionesPorId.get(reunionId) || null, acuerdos }))
         .sort((a, b) => (b.reunion?.fecha || '').localeCompare(a.reunion?.fecha || ''))
+      // Vista propia: un acuerdo recién generado por la IA es un borrador — solo
+      // debe vérselo el responsable una vez que el organizador lo revisó y guardó
+      // la minuta (reunión.estado='guardada'). La vista Regional/Admin sí ve todo,
+      // para poder dar seguimiento a lo que sigue pendiente de revisión.
+      if (!esVistaRegional) listaGrupos = listaGrupos.filter((g) => g.reunion?.estado === 'guardada')
       setGrupos(listaGrupos)
     })()
     return () => { activo = false }

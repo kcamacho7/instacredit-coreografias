@@ -193,7 +193,12 @@ def cargar_items(catalogo_cache, nombre_a_email):
                           "responsable_email": email_por_nombre(a.get("responsable")),
                           "acciones_full": row.get("acciones") or []})
 
+    # Un acuerdo recién generado por la IA es un borrador — no se notifica a nadie
+    # hasta que el organizador lo revisó y guardó la minuta (reuniones.estado='guardada').
+    reuniones_guardadas_ids = {r["id"] for r in sb_get("reuniones", {"select": "id", "estado": "eq.guardada"})}
     for row in sb_get("acuerdos_reunion"):
+        if row.get("reunion_id") not in reuniones_guardadas_ids:
+            continue
         if not (row.get("descripcion") or "").strip() and not (row.get("responsable_nombre") or "").strip():
             continue
         email = (row.get("responsable_email") or "").strip().lower()

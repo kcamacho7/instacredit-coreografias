@@ -28,13 +28,17 @@ export function DashboardCharts({ areasNegocio, paisFiltro }: DashboardChartsPro
         sb.from('coreografias').select('*').in('area_negocio', areasNegocio),
         sb.from('proyectos_especiales').select('*').in('area_negocio', areasNegocio),
         sb.from('kpis_adicionales').select('*').in('area_negocio', areasNegocio),
-        sb.from('reuniones').select('id,titulo').in('area_negocio', areasNegocio),
+        sb.from('reuniones').select('id,titulo,estado').in('area_negocio', areasNegocio),
         sb.from('acuerdos_reunion').select('*').in('area_negocio', areasNegocio),
       ])
       if (!activo) return
       const dominioNombrePorCodigo = Object.fromEntries((dominiosData || []).map((d) => [d.codigo, d.nombre]))
       const kpiNombrePorId = Object.fromEntries((kpisData || []).map((k) => [k.kpi_id, k.nombre]))
-      setTodas(construirTodas(coreoData as never, proyData as never, customData as never, reunionesData, acuerdosData as never, dominioNombrePorCodigo, kpiNombrePorId))
+      // Un acuerdo recién generado por la IA es un borrador — no debe contar en las
+      // métricas del dashboard hasta que el organizador revise y guarde la minuta.
+      const reunionesGuardadasIds = new Set((reunionesData || []).filter((r) => r.estado === 'guardada').map((r) => r.id))
+      const acuerdosGuardados = (acuerdosData || []).filter((a) => a.reunion_id && reunionesGuardadasIds.has(a.reunion_id))
+      setTodas(construirTodas(coreoData as never, proyData as never, customData as never, reunionesData, acuerdosGuardados as never, dominioNombrePorCodigo, kpiNombrePorId))
     })()
     return () => { activo = false }
   }, [areasNegocio])
