@@ -5,6 +5,7 @@ import { CHART_COLORS, ESTADOS } from '../../lib/chartSetup'
 import { sb } from '../../lib/supabase'
 import { PAISES } from '../../lib/catalogs'
 import { construirTodas, ordenarVencidas, type AccionAgregada, type OrdenVencidas } from '../../lib/dashboardMetrics'
+import { reunionEstaAprobada } from '../../lib/reunionEstado'
 
 interface DashboardChartsProps {
   areasNegocio: string[]
@@ -28,7 +29,7 @@ export function DashboardCharts({ areasNegocio, paisFiltro }: DashboardChartsPro
         sb.from('coreografias').select('*').in('area_negocio', areasNegocio),
         sb.from('proyectos_especiales').select('*').in('area_negocio', areasNegocio),
         sb.from('kpis_adicionales').select('*').in('area_negocio', areasNegocio),
-        sb.from('reuniones').select('id,titulo,estado').in('area_negocio', areasNegocio),
+        sb.from('reuniones').select('id,titulo,estado,envio_enviado_at').in('area_negocio', areasNegocio),
         sb.from('acuerdos_reunion').select('*').in('area_negocio', areasNegocio),
       ])
       if (!activo) return
@@ -36,7 +37,7 @@ export function DashboardCharts({ areasNegocio, paisFiltro }: DashboardChartsPro
       const kpiNombrePorId = Object.fromEntries((kpisData || []).map((k) => [k.kpi_id, k.nombre]))
       // Un acuerdo recién generado por la IA es un borrador — no debe contar en las
       // métricas del dashboard hasta que el organizador revise y guarde la minuta.
-      const reunionesGuardadasIds = new Set((reunionesData || []).filter((r) => r.estado === 'guardada').map((r) => r.id))
+      const reunionesGuardadasIds = new Set((reunionesData || []).filter(reunionEstaAprobada).map((r) => r.id))
       const acuerdosGuardados = (acuerdosData || []).filter((a) => a.reunion_id && reunionesGuardadasIds.has(a.reunion_id))
       setTodas(construirTodas(coreoData as never, proyData as never, customData as never, reunionesData, acuerdosGuardados as never, dominioNombrePorCodigo, kpiNombrePorId))
     })()

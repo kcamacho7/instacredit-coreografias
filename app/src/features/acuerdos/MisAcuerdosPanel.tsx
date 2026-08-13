@@ -4,8 +4,9 @@ import { useAuth } from '../../hooks/useAuth'
 import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea'
 import { CollapsibleCard } from '../../components/CollapsibleCard'
 import type { AcuerdoReunion } from './AcuerdosTable'
+import { reunionEstaAprobada } from '../../lib/reunionEstado'
 
-interface ReunionRel { id: string; titulo: string; fecha: string | null; area_negocio: string; estado: string }
+interface ReunionRel { id: string; titulo: string; fecha: string | null; area_negocio: string; estado: string; envio_enviado_at: string | null }
 
 interface Grupo {
   reunion: ReunionRel | null
@@ -26,7 +27,7 @@ export function MisAcuerdosPanel() {
 
     const reunionIds = [...new Set(data.map((a) => a.reunion_id).filter(Boolean))] as string[]
     const [{ data: reunionesRel }, { data: areasData }] = await Promise.all([
-      sb.from('reuniones').select('id,titulo,fecha,area_negocio,estado').in('id', reunionIds),
+      sb.from('reuniones').select('id,titulo,fecha,area_negocio,estado,envio_enviado_at').in('id', reunionIds),
       sb.from('areas_negocio').select('codigo,nombre'),
     ])
     const reunionesPorId = new Map((reunionesRel || []).map((r) => [r.id, r]))
@@ -43,7 +44,7 @@ export function MisAcuerdosPanel() {
     const listaGrupos: Grupo[] = [...mapaGrupos.entries()].map(([reunionId, acuerdos]) => {
       const reunion = reunionesPorId.get(reunionId) || null
       return { reunion, areaNombre: reunion ? (areaNombrePorCodigo.get(reunion.area_negocio) || reunion.area_negocio) : '', acuerdos }
-    }).filter((g) => g.reunion?.estado === 'guardada')
+    }).filter((g) => reunionEstaAprobada(g.reunion))
       .sort((a, b) => (b.reunion?.fecha || '').localeCompare(a.reunion?.fecha || ''))
     setGrupos(listaGrupos)
   }

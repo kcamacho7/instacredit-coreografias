@@ -195,7 +195,11 @@ def cargar_items(catalogo_cache, nombre_a_email):
 
     # Un acuerdo recién generado por la IA es un borrador — no se notifica a nadie
     # hasta que el organizador lo revisó y guardó la minuta (reuniones.estado='guardada').
-    reuniones_guardadas_ids = {r["id"] for r in sb_get("reuniones", {"select": "id", "estado": "eq.guardada"})}
+    # Reuniones enviadas antes de que existiera el estado 'guardada' tienen
+    # envio_enviado_at poblado pero estado='procesada' — cuentan igual como
+    # aprobadas (ver reunionEstaAprobada() en el frontend, mismo criterio).
+    _reuniones_todas = sb_get("reuniones", {"select": "id,estado,envio_enviado_at"})
+    reuniones_guardadas_ids = {r["id"] for r in _reuniones_todas if r.get("estado") == "guardada" or r.get("envio_enviado_at")}
     for row in sb_get("acuerdos_reunion"):
         if row.get("reunion_id") not in reuniones_guardadas_ids:
             continue

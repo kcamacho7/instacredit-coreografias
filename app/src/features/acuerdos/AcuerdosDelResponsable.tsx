@@ -5,8 +5,9 @@ import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { CollapsibleCard } from '../../components/CollapsibleCard'
 import type { AcuerdoReunion } from './AcuerdosTable'
+import { reunionEstaAprobada } from '../../lib/reunionEstado'
 
-interface ReunionRel { id: string; titulo: string; fecha: string | null; estado: string }
+interface ReunionRel { id: string; titulo: string; fecha: string | null; estado: string; envio_enviado_at: string | null }
 
 interface AcuerdosDelResponsableProps {
   paisCode: string
@@ -49,7 +50,7 @@ export function AcuerdosDelResponsable({ paisCode, areaNegocio }: AcuerdosDelRes
       if (!data || data.length === 0) { setGrupos([]); return }
 
       const reunionIds = [...new Set(data.map((a) => a.reunion_id).filter(Boolean))] as string[]
-      let reunionesQuery = sb.from('reuniones').select('id,titulo,fecha,estado').in('id', reunionIds)
+      let reunionesQuery = sb.from('reuniones').select('id,titulo,fecha,estado,envio_enviado_at').in('id', reunionIds)
       if (esVistaRegional) reunionesQuery = reunionesQuery.eq('area_negocio', areaNegocio)
       const { data: reunionesRel } = await reunionesQuery
       const reunionesPorId = new Map((reunionesRel || []).map((r) => [r.id, r]))
@@ -67,7 +68,7 @@ export function AcuerdosDelResponsable({ paisCode, areaNegocio }: AcuerdosDelRes
       // debe vérselo el responsable una vez que el organizador lo revisó y guardó
       // la minuta (reunión.estado='guardada'). La vista Regional/Admin sí ve todo,
       // para poder dar seguimiento a lo que sigue pendiente de revisión.
-      if (!esVistaRegional) listaGrupos = listaGrupos.filter((g) => g.reunion?.estado === 'guardada')
+      if (!esVistaRegional) listaGrupos = listaGrupos.filter((g) => reunionEstaAprobada(g.reunion))
       setGrupos(listaGrupos)
     })()
     return () => { activo = false }
