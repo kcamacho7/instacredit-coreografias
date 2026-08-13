@@ -65,11 +65,15 @@ export function AcuerdosTable({ acuerdos, onChange, perfiles, locked, areaNegoci
   }
 
   async function cambiarResponsableEmail(ac: AcuerdoReunion, valor: string) {
-    onChange(acuerdos.map((a) => (a.id === ac.id ? { ...a, responsable_email: valor } : a)))
-    const { error } = await sb.from('acuerdos_reunion').update({ responsable_email: valor }).eq('id', ac.id)
+    // Al elegir a alguien de la lista, se rellena el nombre ligado a ese correo —
+    // si el correo no está en la lista (ej. "sin cuenta"), se deja el nombre tal cual.
+    const perfilElegido = perfiles.find((p) => p.email.toLowerCase() === valor.toLowerCase())
+    const nombreNuevo = perfilElegido?.nombre || ac.responsable_nombre
+    onChange(acuerdos.map((a) => (a.id === ac.id ? { ...a, responsable_email: valor, responsable_nombre: nombreNuevo } : a)))
+    const { error } = await sb.from('acuerdos_reunion').update({ responsable_email: valor, responsable_nombre: nombreNuevo }).eq('id', ac.id)
     if (error) { mostrarAlerta('No se pudo guardar el responsable: ' + error.message); return }
     if (valor) {
-      const nCoincidentes = await aplicarCorreoAAcuerdosCoincidentes(acuerdos, ac.id, ac.responsable_nombre || '', valor)
+      const nCoincidentes = await aplicarCorreoAAcuerdosCoincidentes(acuerdos, ac.id, nombreNuevo || '', valor)
       if (nCoincidentes > 0) { await onGuardarCamposPendientes(); onReload() }
     }
   }
