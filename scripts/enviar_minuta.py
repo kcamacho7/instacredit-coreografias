@@ -349,7 +349,7 @@ def enviar_reunion(reunion):
             resumen,
             nota_organizador,
         )
-        enviar_correo([email], "📋 Minuta — " + titulo, html_participante, pdf_regional, nombre_archivo, nombre_area)
+        enviar_correo([email], "📋 Minuta — " + titulo, html_participante, pdf_completo, nombre_archivo, nombre_area)
         enviados_participantes += 1
 
     sb_patch("reuniones", reunion["id"], {
@@ -383,10 +383,43 @@ def enviar_prueba(correo):
     print("Correo de prueba enviado a %s." % correo)
 
 
+def enviar_copia_ultima_real(correo):
+    """Envía el contenido REAL de la reunión más reciente solo a este correo —
+    no toca el estado de la reunión (envio_pendiente/envio_enviado_at) ni
+    notifica a los responsables reales ni a Riesgo Regional."""
+    reuniones = sb_get("reuniones", {"select": "*", "order": "creado_at.desc", "limit": "1"})
+    if not reuniones:
+        print("No hay reuniones registradas todavía.")
+        return
+    reunion = reuniones[0]
+    acuerdos = sb_get("acuerdos_reunion", {"select": "*", "reunion_id": "eq." + reunion["id"]})
+    area_reunion = reunion.get("area_negocio") or "riesgo"
+    areas = sb_get("areas_negocio", {"select": "nombre", "codigo": "eq." + area_reunion})
+    nombre_area = areas[0]["nombre"] if areas else "Riesgo"
+    titulo = reunion.get("titulo") or "Reunión sin título"
+    fecha_texto, hora_texto = fecha_hora_reunion(reunion)
+    resumen = resumen_corto(reunion.get("minuta"))
+    nombre_archivo = "Minuta - " + re.sub(r'[\\/:*?"<>|]', "", titulo)[:60] + ".pdf"
+
+    html_body = plantilla_html(
+        nombre_area, titulo, fecha_texto, hora_texto,
+        "🧪 COPIA DE PRUEBA — este es el contenido real de la minuta más reciente, enviado solo a ti para revisar los ajustes de formato.",
+        resumen, None,
+        acuerdos_html=tabla_acuerdos_email_html(acuerdos),
+    )
+    pdf_bytes = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
+    enviar_correo([correo], "🧪 [COPIA DE PRUEBA] " + titulo, html_body, pdf_bytes, nombre_archivo, nombre_area)
+    print("Copia de prueba de la última minuta ('%s', %d acuerdo(s)) enviada a %s." % (titulo, len(acuerdos), correo))
+
+
 def main():
     correo_prueba = (os.environ.get("CORREO_PRUEBA") or "").strip()
     if correo_prueba:
         enviar_prueba(correo_prueba)
+        return
+    correo_copia_real = (os.environ.get("COPIA_ULTIMA_REAL") or "").strip()
+    if correo_copia_real:
+        enviar_copia_ultima_real(correo_copia_real)
         return
     reuniones = sb_get("reuniones", {"select": "*", "envio_pendiente": "eq.true"})
     if not reuniones:

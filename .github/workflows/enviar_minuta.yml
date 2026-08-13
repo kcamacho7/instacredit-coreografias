@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       correo_prueba:
-        description: "Modo prueba: envía un ejemplo con datos ficticios a este correo (deja vacío para envío normal)"
+        description: "Modo prueba (datos ficticios): envía un ejemplo a este correo (deja vacío para envío normal)"
+        type: string
+        default: ""
+      copia_ultima_real:
+        description: "Copia de prueba con la minuta REAL más reciente, solo a este correo (no notifica a nadie más ni marca la reunión como enviada)"
         type: string
         default: ""
 
@@ -34,4 +38,5 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           REGIONAL_EMAIL: ${{ secrets.REGIONAL_EMAIL }}
           CORREO_PRUEBA: ${{ github.event.inputs.correo_prueba }}
+          COPIA_ULTIMA_REAL: ${{ github.event.inputs.copia_ultima_real }}
         run: python scripts/enviar_minuta.py
