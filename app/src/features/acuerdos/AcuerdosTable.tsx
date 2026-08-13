@@ -147,6 +147,9 @@ function AcuerdoFila({
   const { mostrarAlerta } = useToast()
   const descripcionRef = useAutoGrowTextarea(ac.descripcion)
   const sinResponsable = !ac.responsable_email
+  // Cualquiera con acceso a generar minutas (es_lider) puede preautorizar un
+  // correo nuevo dentro de su propia área — no es exclusivo de Administración.
+  const puedePreautorizar = !!(profile && (profile.es_admin || profile.es_admin_area || profile.es_admin_pais || profile.es_regional || profile.es_lider))
 
   async function onSelectResponsable(valor: string) {
     if (valor !== '__nuevo__') { onCambiarResponsableEmail(valor); return }
@@ -156,8 +159,8 @@ function AcuerdoFila({
       mostrarAlerta('Ese correo ya existe en la lista de usuarios. Selecciónalo directamente del desplegable.')
       return
     }
-    if (!profile?.es_admin) {
-      mostrarAlerta('Solo Administración puede preautorizar correos nuevos. Pide que lo agreguen desde Mantenimiento de usuarios.')
+    if (!puedePreautorizar) {
+      mostrarAlerta('Tu cuenta no tiene acceso para preautorizar correos nuevos. Pide que lo agreguen desde Mantenimiento de usuarios.')
       return
     }
     const nuevoNombre = ((await mostrarPrompt('Nombre completo:', ac.responsable_nombre || '')) || '').trim()
@@ -171,8 +174,8 @@ function AcuerdoFila({
 
   async function preautorizarExistente() {
     if (emailsEnLista.has(ac.responsable_email.toLowerCase())) { mostrarAlerta('Ese correo ya existe en la lista de usuarios.'); return }
-    if (!profile?.es_admin) {
-      mostrarAlerta('Solo Administración puede preautorizar correos nuevos. Pide que lo agreguen desde Mantenimiento de usuarios.')
+    if (!puedePreautorizar) {
+      mostrarAlerta('Tu cuenta no tiene acceso para preautorizar correos nuevos. Pide que lo agreguen desde Mantenimiento de usuarios.')
       return
     }
     const nombre = ((await mostrarPrompt(`Nombre completo de ${ac.responsable_email}:`, ac.responsable_nombre || '')) || '').trim()
