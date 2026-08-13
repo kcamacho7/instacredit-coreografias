@@ -405,15 +405,19 @@ def enviar_copia_ultima_real(correo, reunion_id=None):
     resumen = resumen_corto(reunion.get("minuta"))
     nombre_archivo = "Minuta - " + re.sub(r'[\\/:*?"<>|]', "", titulo)[:60] + ".pdf"
 
+    # Igual que en un envío real: el cuerpo del correo solo muestra los acuerdos
+    # del destinatario (aquí, ninguno si no es responsable en esta reunión) —
+    # el PDF adjunto sí lleva siempre la minuta y TODOS los acuerdos completos.
+    acuerdos_del_destinatario = [a for a in acuerdos if (a.get("responsable_email") or "").strip().lower() == correo.strip().lower()]
     html_body = plantilla_html(
         nombre_area, titulo, fecha_texto, hora_texto,
         "🧪 COPIA DE PRUEBA — este es el contenido real de esta minuta, enviado solo a ti para revisar los ajustes de formato.",
         resumen, None,
-        acuerdos_html=tabla_acuerdos_email_html(acuerdos),
+        acuerdos_html=tabla_acuerdos_email_html(acuerdos_del_destinatario),
     )
     pdf_bytes = generar_pdf(titulo, fecha_texto, hora_texto, reunion.get("minuta"), acuerdos)
     enviar_correo([correo], "🧪 [COPIA DE PRUEBA] " + titulo, html_body, pdf_bytes, nombre_archivo, nombre_area)
-    print("Copia de prueba de la minuta ('%s', %d acuerdo(s)) enviada a %s." % (titulo, len(acuerdos), correo))
+    print("Copia de prueba de la minuta ('%s', %d acuerdo(s) en total, %d tuyos) enviada a %s." % (titulo, len(acuerdos), len(acuerdos_del_destinatario), correo))
 
 
 def main():
