@@ -139,19 +139,23 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, perfilesTodo
     onReload()
   }
 
-  async function guardarMinuta() {
+  function acuerdosSinResponsable(): boolean {
     for (const ac of acuerdos) {
       if (!ac.responsable_email?.trim()) {
         mostrarAlerta('Todos los acuerdos necesitan un responsable asignado antes de guardar la minuta. Revisa la fila marcada en rojo.')
-        return
+        return true
       }
     }
+    return false
+  }
+
+  async function persistirCampos(): Promise<boolean> {
     for (const ac of acuerdos) {
       const { error } = await sb.from('acuerdos_reunion').update({
         descripcion: ac.descripcion, responsable_nombre: ac.responsable_nombre, responsable_email: (ac.responsable_email || '').trim().toLowerCase(),
         fecha: ac.fecha || null, estado: ac.estado,
       }).eq('id', ac.id)
-      if (error) { mostrarAlerta('Error al guardar: ' + error.message); return }
+      if (error) { mostrarAlerta('Error al guardar: ' + error.message); return false }
     }
 
     // "guardada" marca que el organizador ya revisó/ajustó los acuerdos que la IA
@@ -163,10 +167,23 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, perfilesTodo
       historial.push({ accion: 'edicion', usuario_email: user?.email?.toLowerCase() || '', usuario_nombre: profile?.nombre || '', fecha: new Date().toISOString() })
       camposReunion.historial_ediciones = historial as never
     }
-    const enviar = await mostrarConfirm('Minuta guardada.\n\n¿Deseas además enviarla por correo a los responsables?\n\nAceptar = Guardar y enviar\nCancelar = Solo guardar')
     const { error: errReunion } = await sb.from('reuniones').update(camposReunion as never).eq('id', reunion.id)
-    if (errReunion) { mostrarAlerta('No se pudo guardar el título/minuta: ' + errReunion.message); return }
-    if (!enviar) { mostrarAlerta('Minuta guardada.'); onReload(); return }
+    if (errReunion) { mostrarAlerta('No se pudo guardar el título/minuta: ' + errReunion.message); return false }
+    return true
+  }
+
+  async function guardarSolo() {
+    if (acuerdosSinResponsable()) return
+    if (!(await persistirCampos())) return
+    mostrarAlerta('Minuta guardada.')
+    onReload()
+  }
+
+  async function guardarYEnviar() {
+    if (acuerdosSinResponsable()) return
+    const confirmar = await mostrarConfirm('¿Guardar la minuta y enviarla por correo a los responsables?\n\nAceptar = Guardar y enviar\nCancelar = No hacer nada')
+    if (!confirmar) return
+    if (!(await persistirCampos())) return
     await reintentarEnvio()
   }
 
@@ -266,7 +283,14 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, perfilesTodo
 
       {reunion.minuta && (
         <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--gris-borde)' }}>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--azul-claro)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 4 }}>Minuta</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--azul-claro)', textTransform: 'uppercase', letterSpacing: '.3px' }}>Minuta</label>
+            {!bloqueada && (acuerdos.length > 0 || participantes.length > 0) && (
+              <button type="button" style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }} onClick={guardarSolo}>
+                💾 Guardar
+              </button>
+            )}
+          </div>
           <textarea ref={minutaRef} rows={4} disabled={bloqueada} style={{ width: '100%', fontSize: 13, whiteSpace: 'pre-wrap', color: 'var(--gris-texto)', border: '1px solid var(--gris-borde)', borderRadius: 6, padding: '8px 10px' }} value={minuta} onChange={(e) => setMinuta(e.target.value)} />
         </div>
       )}
@@ -304,8 +328,8 @@ export function ReunionCard({ reunion, acuerdosIniciales, perfiles, perfilesTodo
       />
 
       {(acuerdos.length > 0 || participantes.length > 0) && (
-        <button type="button" className="add-proyecto-btn" style={{ background: 'var(--verde)' }} disabled={bloqueada} onClick={guardarMinuta}>
-          💾 Guardar minuta
+        <button type="button" className="add-proyecto-btn" style={{ background: 'var(--verde)' }} disabled={bloqueada} onClick={guardarYEnviar}>
+          📧 Guardar y enviar
         </button>
       )}
     </CollapsibleCard>
