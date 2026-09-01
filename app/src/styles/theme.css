@@ -262,7 +262,13 @@ header.cover .prestamito{position:absolute;right:20px;bottom:0;height:68px;}
 .kpi-accordion-item.open .kpi-row-header .chevron{transform:rotate(90deg);}
 .kpi-accordion-body{display:none;}
 .kpi-accordion-item.open .kpi-accordion-body{display:block;}
-.kpi-row-header .titulo-wrap{display:flex;align-items:center;gap:8px;min-width:0;}
+.kpi-row-header .titulo-wrap{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
+.kpi-row-header .nombre-input{
+  font-family:'Inter Tight',sans-serif;font-size:13px;font-weight:700;color:var(--azul);
+  border:1px solid transparent;border-radius:5px;padding:3px 6px;background:transparent;flex:1;min-width:0;
+}
+.kpi-row-header .nombre-input:focus{outline:none;border-color:var(--azul-claro);background:#fff;}
+.kpi-row-controles{display:flex;align-items:center;gap:10px;flex:0 0 auto;}
 .badge-tiene-datos{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--verde);}
 .badge-tiene-datos.completada{background:var(--azul);}
 .badge-tiene-datos.vencida{background:var(--rojo);}

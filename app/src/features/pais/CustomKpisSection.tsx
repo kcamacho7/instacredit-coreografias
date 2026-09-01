@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import type { AreaCatalogo } from '../../lib/catalogs'
 import type { CustomKpiState } from '../../lib/stateShape'
-import { emptyCustomKpi } from '../../lib/stateShape'
+import { emptyCustomKpi, kpiTieneContenido } from '../../lib/stateShape'
 import { sb } from '../../lib/supabase'
 import { toJson } from '../../lib/json'
-import { CollapsibleCard } from '../../components/CollapsibleCard'
+import { EstadoBadge } from '../../components/EstadoBadge'
 import { AccionesTable } from '../../components/AccionesTable'
 import { FieldGrid, FieldRow } from '../../components/form/FieldGrid'
 import { FechaHoraDefinitiva } from '../../components/FechaHoraDefinitiva'
@@ -52,32 +52,23 @@ export function CustomKpisSection({ paisCode, areaNegocio, area, isUnlocked, hoy
 
   return (
     <div className="custom-kpis-section">
-      <div className="custom-kpis-wrap">
-        {customKpis.map((c) => (
-          <CollapsibleCard
-            key={c.id}
-            titulo={c.nombre}
-            placeholder="Nombre del KPI adicional"
-            onTituloChange={(v) => actualizar(c.id, { ...c, nombre: v })}
-            onEliminar={() => eliminar(c)}
-            eliminarLabel="Eliminar KPI"
-            locked={!isUnlocked}
-            open={abiertos.has(c.id)}
-            onToggle={(abierto) => setAbiertos((prev) => {
-              const next = new Set(prev)
-              if (abierto) next.add(c.id); else next.delete(c.id)
-              return next
-            })}
-          >
-            <CustomKpiBody
-              kpi={c}
-              onChange={(nuevo) => actualizar(c.id, nuevo)}
-              hoy={hoy}
-              onMarcarCumplidaInmediato={(idx) => marcarCumplidaInmediato(c.id, c.acciones, idx)}
-            />
-          </CollapsibleCard>
-        ))}
-      </div>
+      {customKpis.map((c) => (
+        <CustomKpiAccordionItem
+          key={c.id}
+          kpi={c}
+          isUnlocked={isUnlocked}
+          hoy={hoy}
+          open={abiertos.has(c.id)}
+          onToggle={() => setAbiertos((prev) => {
+            const next = new Set(prev)
+            if (next.has(c.id)) next.delete(c.id); else next.add(c.id)
+            return next
+          })}
+          onChange={(nuevo) => actualizar(c.id, nuevo)}
+          onEliminar={() => eliminar(c)}
+          onMarcarCumplidaInmediato={(idx) => marcarCumplidaInmediato(c.id, c.acciones, idx)}
+        />
+      ))}
       <button type="button" className="add-proyecto-btn" disabled={!isUnlocked} style={!isUnlocked ? { opacity: 0.55 } : undefined} onClick={agregar}>
         + Agregar KPI adicional
       </button>
@@ -85,49 +76,79 @@ export function CustomKpisSection({ paisCode, areaNegocio, area, isUnlocked, hoy
   )
 }
 
-interface CustomKpiBodyProps {
+interface CustomKpiAccordionItemProps {
   kpi: CustomKpiState
-  onChange: (kpi: CustomKpiState) => void
+  isUnlocked: boolean
   hoy: string
+  open: boolean
+  onToggle: () => void
+  onChange: (kpi: CustomKpiState) => void
+  onEliminar: () => void
   onMarcarCumplidaInmediato: (idx: number) => void | Promise<void>
 }
 
-function CustomKpiBody({ kpi, onChange, hoy, onMarcarCumplidaInmediato }: CustomKpiBodyProps) {
+// Mismo markup que KpiAccordionItem (los KPI predefinidos) — círculo de estado,
+// posición del chevron y fondo del encabezado idénticos — solo que aquí el
+// nombre es editable (input en vez de texto fijo) y hay botón de eliminar,
+// porque a diferencia de los predefinidos este KPI lo creó el usuario.
+function CustomKpiAccordionItem({ kpi, isUnlocked, hoy, open, onToggle, onChange, onEliminar, onMarcarCumplidaInmediato }: CustomKpiAccordionItemProps) {
   const situacionRef = useAutoGrowTextarea(kpi.situacion)
   const objetivoRef = useAutoGrowTextarea(kpi.objetivo)
   const puntoControlRef = useAutoGrowTextarea(kpi.puntoControl)
+  const tieneContenido = kpiTieneContenido(kpi)
 
   return (
-    <>
-      <div className="field" style={{ padding: '10px 20px 0 20px' }}>
-        <label>Definición del KPI</label>
-        <input type="text" value={kpi.definicion} onChange={(e) => onChange({ ...kpi, definicion: e.target.value })} />
+    <div className={'kpi-accordion-item' + (open ? ' open' : '')}>
+      <div className="kpi-row-header" onClick={onToggle}>
+        <span className="titulo-wrap">
+          {tieneContenido && <EstadoBadge acciones={kpi.acciones} />}
+          <input
+            type="text"
+            className="nombre-input"
+            placeholder="Nombre del KPI adicional"
+            value={kpi.nombre}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onChange({ ...kpi, nombre: e.target.value })}
+          />
+        </span>
+        <span className="kpi-row-controles">
+          <button type="button" className="btn-eliminar-proyecto" disabled={!isUnlocked} onClick={(e) => { e.stopPropagation(); onEliminar() }}>
+            Eliminar KPI
+          </button>
+          <span className="chevron">▶</span>
+        </span>
       </div>
-      <FieldGrid>
-        <FieldRow label="Situación actual (valor vs meta)">
-          <textarea ref={situacionRef} value={kpi.situacion} onChange={(e) => onChange({ ...kpi, situacion: e.target.value })} />
-        </FieldRow>
-        <FieldRow label="Objetivo de la coreografía">
-          <textarea ref={objetivoRef} value={kpi.objetivo} onChange={(e) => onChange({ ...kpi, objetivo: e.target.value })} />
-        </FieldRow>
-        <FieldRow label="Responsable">
-          <input type="text" value={kpi.responsable} onChange={(e) => onChange({ ...kpi, responsable: e.target.value })} />
-        </FieldRow>
-      </FieldGrid>
+      <div className="kpi-accordion-body">
+        <div className="field" style={{ padding: '10px 20px 0 20px' }}>
+          <label>Definición del KPI</label>
+          <input type="text" value={kpi.definicion} onChange={(e) => onChange({ ...kpi, definicion: e.target.value })} />
+        </div>
+        <FieldGrid>
+          <FieldRow label="Situación actual (valor vs meta)">
+            <textarea ref={situacionRef} value={kpi.situacion} onChange={(e) => onChange({ ...kpi, situacion: e.target.value })} />
+          </FieldRow>
+          <FieldRow label="Objetivo de la coreografía">
+            <textarea ref={objetivoRef} value={kpi.objetivo} onChange={(e) => onChange({ ...kpi, objetivo: e.target.value })} />
+          </FieldRow>
+          <FieldRow label="Responsable">
+            <input type="text" value={kpi.responsable} onChange={(e) => onChange({ ...kpi, responsable: e.target.value })} />
+          </FieldRow>
+        </FieldGrid>
 
-      <AccionesTable acciones={kpi.acciones} onChange={(acciones) => onChange({ ...kpi, acciones })} onMarcarCumplidaInmediato={onMarcarCumplidaInmediato} hoy={hoy} />
+        <AccionesTable acciones={kpi.acciones} onChange={(acciones) => onChange({ ...kpi, acciones })} onMarcarCumplidaInmediato={onMarcarCumplidaInmediato} hoy={hoy} />
 
-      <FieldGrid>
-        <FieldRow label="Punto de control">
-          <textarea ref={puntoControlRef} value={kpi.puntoControl} onChange={(e) => onChange({ ...kpi, puntoControl: e.target.value })} />
-        </FieldRow>
-        <FechaHoraDefinitiva
-          value={{ fecha: kpi.fechaRevision, hora: kpi.horaRevision, historial: kpi.historialFechaRevision, ajustesUsuario: kpi.ajustesUsuarioFechaRevision }}
-          label={`fecha/hora de revisión de "${kpi.nombre || 'este KPI adicional'}"`}
-          fechaLabel="Fecha de revisión con Riesgo Regional"
-          onChange={(v) => onChange({ ...kpi, fechaRevision: v.fecha, horaRevision: v.hora, historialFechaRevision: v.historial, ajustesUsuarioFechaRevision: v.ajustesUsuario })}
-        />
-      </FieldGrid>
-    </>
+        <FieldGrid>
+          <FieldRow label="Punto de control">
+            <textarea ref={puntoControlRef} value={kpi.puntoControl} onChange={(e) => onChange({ ...kpi, puntoControl: e.target.value })} />
+          </FieldRow>
+          <FechaHoraDefinitiva
+            value={{ fecha: kpi.fechaRevision, hora: kpi.horaRevision, historial: kpi.historialFechaRevision, ajustesUsuario: kpi.ajustesUsuarioFechaRevision }}
+            label={`fecha/hora de revisión de "${kpi.nombre || 'este KPI adicional'}"`}
+            fechaLabel="Fecha de revisión con Riesgo Regional"
+            onChange={(v) => onChange({ ...kpi, fechaRevision: v.fecha, horaRevision: v.hora, historialFechaRevision: v.historial, ajustesUsuarioFechaRevision: v.ajustesUsuario })}
+          />
+        </FieldGrid>
+      </div>
+    </div>
   )
 }
