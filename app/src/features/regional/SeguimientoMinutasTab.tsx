@@ -69,38 +69,10 @@ export function SeguimientoMinutasTab({ areaNegocio }: SeguimientoMinutasTabProp
 
   if (reuniones === null) return <div className="sin-proyectos">Cargando…</div>
 
-  function exportarCsv() {
-    const filas: string[][] = [['Reunión', 'Fecha reunión', 'Estado reunión', 'Acuerdo', 'Responsable', 'Correo', 'Fecha compromiso', 'Estado acuerdo']]
-    for (const r of reuniones || []) {
-      const acuerdos = acuerdosPorReunion[r.id] || []
-      if (acuerdos.length === 0) {
-        filas.push([r.titulo || '(sin título)', r.fecha || '', ESTADO_REUNION_LABEL[r.estado] || r.estado, '', '', '', '', ''])
-        continue
-      }
-      for (const a of acuerdos) {
-        filas.push([
-          r.titulo || '(sin título)', r.fecha || '', ESTADO_REUNION_LABEL[r.estado] || r.estado,
-          a.descripcion || '', a.responsable_nombre || '', a.responsable_email || '', a.fecha || '', a.estado || '',
-        ])
-      }
-    }
-    const csv = filas.map((fila) => fila.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `seguimiento_minutas_${areaNegocio}_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
     <div style={{ paddingTop: 20 }}>
-      <div className="area-owner" style={{ borderRadius: 8, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span><strong>Qué es:</strong> seguimiento de cómo cada responsable va actualizando sus acuerdos de minuta — agrupados por persona dentro de cada reunión, con la fecha y el estado siempre en vivo (aunque la minuta ya esté enviada y bloqueada).</span>
-        <button type="button" className="btn-expandir-con-datos" disabled={reuniones.length === 0} onClick={exportarCsv}>
-          📥 Exportar a Excel
-        </button>
+      <div className="area-owner" style={{ borderRadius: 8, marginBottom: 16 }}>
+        <strong>Qué es:</strong> seguimiento de cómo cada responsable va actualizando sus acuerdos de minuta — agrupados por persona dentro de cada reunión, con la fecha y el estado siempre en vivo (aunque la minuta ya esté enviada y bloqueada). Cada minuta trae su propio botón para exportar sus acuerdos a Excel.
       </div>
       {reuniones.length === 0 ? (
         <div className="sin-proyectos">Sin reuniones registradas todavía en esta área.</div>
@@ -109,6 +81,22 @@ export function SeguimientoMinutasTab({ areaNegocio }: SeguimientoMinutasTabProp
       )}
     </div>
   )
+}
+
+function exportarAcuerdosCsv(reunion: ReunionRow, acuerdos: AcuerdoRow[]) {
+  const filas: string[][] = [['Acuerdo', 'Responsable', 'Correo', 'Fecha compromiso', 'Estado']]
+  for (const a of acuerdos) {
+    filas.push([a.descripcion || '', a.responsable_nombre || '', a.responsable_email || '', a.fecha || '', a.estado || ''])
+  }
+  const csv = filas.map((fila) => fila.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const slug = (reunion.titulo || 'minuta').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  a.download = `acuerdos_${slug || 'minuta'}_${reunion.fecha || ''}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function ReunionSeguimiento({ reunion, acuerdos }: { reunion: ReunionRow; acuerdos: AcuerdoRow[] }) {
@@ -131,8 +119,19 @@ function ReunionSeguimiento({ reunion, acuerdos }: { reunion: ReunionRow; acuerd
       open={abierta}
       onToggle={setAbierta}
       metaRight={
-        <span style={{ fontSize: 12, color: 'var(--azul-claro)', whiteSpace: 'nowrap' }}>
-          {reunion.fecha || ''} · {estadoLabel} · {cumplidos}/{total} cumplidos
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: 'var(--azul-claro)', whiteSpace: 'nowrap' }}>
+            {reunion.fecha || ''} · {estadoLabel} · {cumplidos}/{total} cumplidos
+          </span>
+          <button
+            type="button"
+            title="Exportar los acuerdos de esta minuta a Excel"
+            disabled={total === 0}
+            style={{ background: 'none', border: '1px solid var(--gris-borde)', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 700, cursor: total === 0 ? 'default' : 'pointer', color: 'var(--azul)', opacity: total === 0 ? 0.5 : 1, flex: '0 0 auto' }}
+            onClick={() => exportarAcuerdosCsv(reunion, acuerdos)}
+          >
+            📥 Excel
+          </button>
         </span>
       }
     >
