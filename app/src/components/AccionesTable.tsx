@@ -29,10 +29,10 @@ export function emptyAccion(): Accion {
   return { accion: '', responsable: '', fecha: '', estado: 'Pendiente' }
 }
 
-type RetencionDias = 0 | 30 | 60 | 90
+export type RetencionDias = 0 | 30 | 60 | 90
 const RETENCION_KEY = 'acciones_cumplidas_retencion_dias'
 
-function leerRetencion(): RetencionDias {
+export function leerRetencion(): RetencionDias {
   try {
     const v = Number(localStorage.getItem(RETENCION_KEY))
     if (v === 30 || v === 60 || v === 90) return v
@@ -40,7 +40,7 @@ function leerRetencion(): RetencionDias {
   return 0
 }
 
-function guardarRetencion(v: RetencionDias) {
+export function guardarRetencion(v: RetencionDias) {
   try { localStorage.setItem(RETENCION_KEY, String(v)) } catch { /* localStorage no disponible */ }
 }
 
