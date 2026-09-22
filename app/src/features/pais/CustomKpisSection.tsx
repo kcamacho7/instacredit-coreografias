@@ -22,7 +22,7 @@ interface CustomKpisSectionProps {
 }
 
 async function marcarCumplidaInmediato(kpiId: string, acciones: CustomKpiState['acciones'], idx: number) {
-  const nuevasAcciones = acciones.map((a, i) => (i === idx ? { ...a, estado: 'Cumplida' } : a))
+  const nuevasAcciones = acciones.map((a, i) => (i === idx ? { ...a, estado: 'Cumplida', cumplidaEn: new Date().toISOString() } : a))
   await sb.from('kpis_adicionales').update({ acciones: toJson(nuevasAcciones) }).eq('id', kpiId)
 }
 

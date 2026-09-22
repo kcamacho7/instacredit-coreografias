@@ -74,7 +74,7 @@ export function KpiBlock({ area, paisCode, areaNegocio, isUnlocked, hoy, kpisSta
               onChange={(k) => onKpiChange(kpi.id, k)}
               hoy={hoy}
               onMarcarCumplidaInmediato={async (idx) => {
-                const nuevasAcciones = kpisState[kpi.id].acciones.map((a, i) => (i === idx ? { ...a, estado: 'Cumplida' } : a))
+                const nuevasAcciones = kpisState[kpi.id].acciones.map((a, i) => (i === idx ? { ...a, estado: 'Cumplida', cumplidaEn: new Date().toISOString() } : a))
                 await sb.from('coreografias').update({ acciones: toJson(nuevasAcciones) }).eq('pais_code', paisCode).eq('area_negocio', areaNegocio).eq('area_id', area.id).eq('kpi_id', kpi.id)
               }}
             />

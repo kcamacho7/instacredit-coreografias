@@ -76,7 +76,7 @@ export function ProyectosSection({ paisCode, areaNegocio, isUnlocked, hoy, proye
             onChange={(nuevo) => actualizar(p.id, nuevo)}
             hoy={hoy}
             onMarcarCumplidaInmediato={async (idx) => {
-              const nuevasAcciones = p.acciones.map((a, i) => (i === idx ? { ...a, estado: 'Cumplida' } : a))
+              const nuevasAcciones = p.acciones.map((a, i) => (i === idx ? { ...a, estado: 'Cumplida', cumplidaEn: new Date().toISOString() } : a))
               await sb.from('proyectos_especiales').update({ acciones: toJson(nuevasAcciones) }).eq('id', p.id)
             }}
           />
